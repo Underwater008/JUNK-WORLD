@@ -1,0 +1,268 @@
+import { University } from "@/types";
+
+export const universities: University[] = [
+  {
+    id: "rca",
+    name: "Royal College of Art",
+    shortName: "RCA",
+    lat: 51.5014,
+    lng: -0.1795,
+    color: "#E63946",
+    country: "United Kingdom",
+    projects: [
+      {
+        id: "rca-1",
+        title: "Tepui Islands",
+        description:
+          "An interactive 3D terrain visualization exploring the relationship between landscape, memory, and digital fabrication. Participants mapped personal journeys onto procedurally generated island terrains.",
+        year: 2024,
+        thumbnail: "/thumbnails/tepui.jpg",
+        participants: 8,
+        tags: ["3D", "Terrain", "Interactive"],
+        markerOffset: { lat: 0.3, lng: 0.2 },
+      },
+      {
+        id: "rca-2",
+        title: "Material Echoes",
+        description:
+          "A speculative design project investigating how discarded materials can be transformed into narrative objects through community workshops and digital archiving.",
+        year: 2024,
+        thumbnail: "/thumbnails/echoes.jpg",
+        participants: 12,
+        tags: ["Speculative", "Materials", "Workshop"],
+        markerOffset: { lat: -0.2, lng: 0.4 },
+      },
+      {
+        id: "rca-3",
+        title: "Drift Protocols",
+        description:
+          "A series of participatory walks through London documenting urban decay and regeneration cycles through photography, sound recording, and GPS mapping.",
+        year: 2025,
+        thumbnail: "/thumbnails/drift.jpg",
+        participants: 6,
+        tags: ["Urban", "Participatory", "Mapping"],
+        markerOffset: { lat: 0.4, lng: -0.3 },
+      },
+    ],
+  },
+  {
+    id: "mit",
+    name: "Massachusetts Institute of Technology",
+    shortName: "MIT",
+    lat: 42.3601,
+    lng: -71.0942,
+    color: "#457B9D",
+    country: "United States",
+    projects: [
+      {
+        id: "mit-1",
+        title: "Synthetic Biomes",
+        description:
+          "An interdisciplinary project combining computational biology and architectural design to create self-sustaining micro-ecosystems within urban environments.",
+        year: 2025,
+        thumbnail: "/thumbnails/biomes.jpg",
+        participants: 15,
+        tags: ["Bio-design", "Architecture", "Computation"],
+        markerOffset: { lat: 0.25, lng: 0.3 },
+      },
+      {
+        id: "mit-2",
+        title: "Data Sculpture",
+        description:
+          "Physical sculptures generated from real-time environmental data streams, exploring the tangibility of invisible phenomena like air quality and electromagnetic fields.",
+        year: 2024,
+        thumbnail: "/thumbnails/sculpture.jpg",
+        participants: 9,
+        tags: ["Data Viz", "Sculpture", "Environment"],
+        markerOffset: { lat: -0.3, lng: 0.2 },
+      },
+      {
+        id: "mit-3",
+        title: "Neural Cartography",
+        description:
+          "Mapping brain activity patterns during creative processes and translating them into navigable 3D landscapes that others can explore in VR.",
+        year: 2025,
+        thumbnail: "/thumbnails/neural.jpg",
+        participants: 7,
+        tags: ["Neuroscience", "VR", "Mapping"],
+        markerOffset: { lat: 0.2, lng: -0.4 },
+      },
+    ],
+  },
+  {
+    id: "tu-delft",
+    name: "Delft University of Technology",
+    shortName: "TU Delft",
+    lat: 52.0021,
+    lng: 4.3738,
+    color: "#2A9D8F",
+    country: "Netherlands",
+    projects: [
+      {
+        id: "tud-1",
+        title: "Circular Futures",
+        description:
+          "Designing closed-loop material systems for the built environment, prototyping modular building components from recycled ocean plastics.",
+        year: 2024,
+        thumbnail: "/thumbnails/circular.jpg",
+        participants: 11,
+        tags: ["Circular Design", "Architecture", "Sustainability"],
+        markerOffset: { lat: 0.3, lng: -0.2 },
+      },
+      {
+        id: "tud-2",
+        title: "Wind Dialogues",
+        description:
+          "Interactive kinetic installations that make wind patterns visible and audible in public spaces, creating awareness of microclimate dynamics.",
+        year: 2025,
+        thumbnail: "/thumbnails/wind.jpg",
+        participants: 5,
+        tags: ["Kinetic", "Public Space", "Climate"],
+        markerOffset: { lat: -0.25, lng: 0.35 },
+      },
+      {
+        id: "tud-3",
+        title: "Aqua Terrains",
+        description:
+          "Speculative water management landscapes designed for 2100 sea level scenarios, combining hydrological modeling with participatory design.",
+        year: 2024,
+        thumbnail: "/thumbnails/aqua.jpg",
+        participants: 8,
+        tags: ["Water", "Speculative", "Landscape"],
+        markerOffset: { lat: 0.15, lng: 0.25 },
+      },
+    ],
+  },
+  {
+    id: "nus",
+    name: "National University of Singapore",
+    shortName: "NUS",
+    lat: 1.2966,
+    lng: 103.7764,
+    color: "#F4A261",
+    country: "Singapore",
+    projects: [
+      {
+        id: "nus-1",
+        title: "Tropical Algorithms",
+        description:
+          "Using machine learning to analyze and recreate the spatial patterns of tropical rainforest canopies for biophilic architectural design.",
+        year: 2025,
+        thumbnail: "/thumbnails/tropical.jpg",
+        participants: 10,
+        tags: ["AI", "Biophilic", "Tropical"],
+        markerOffset: { lat: 0.2, lng: 0.3 },
+      },
+      {
+        id: "nus-2",
+        title: "Hawker Heritage",
+        description:
+          "Documenting and reimagining Singapore's hawker culture through spatial analysis, oral histories, and interactive digital archives.",
+        year: 2024,
+        thumbnail: "/thumbnails/hawker.jpg",
+        participants: 14,
+        tags: ["Heritage", "Food", "Archive"],
+        markerOffset: { lat: -0.3, lng: -0.2 },
+      },
+      {
+        id: "nus-3",
+        title: "Monsoon Machines",
+        description:
+          "Designing responsive building facades that harness monsoon rainfall for passive cooling and water harvesting in tropical climates.",
+        year: 2025,
+        thumbnail: "/thumbnails/monsoon.jpg",
+        participants: 6,
+        tags: ["Climate", "Facade", "Responsive"],
+        markerOffset: { lat: 0.35, lng: -0.15 },
+      },
+    ],
+  },
+  {
+    id: "u-tokyo",
+    name: "University of Tokyo",
+    shortName: "UTokyo",
+    lat: 35.7128,
+    lng: 139.7621,
+    color: "#C855D8",
+    country: "Japan",
+    projects: [
+      {
+        id: "ut-1",
+        title: "Kintsugi Networks",
+        description:
+          "Applying the philosophy of kintsugi (golden repair) to urban infrastructure, mapping and beautifying cracks in the city's physical and social fabric.",
+        year: 2024,
+        thumbnail: "/thumbnails/kintsugi.jpg",
+        participants: 9,
+        tags: ["Urban", "Philosophy", "Repair"],
+        markerOffset: { lat: 0.3, lng: 0.2 },
+      },
+      {
+        id: "ut-2",
+        title: "Seismic Origami",
+        description:
+          "Exploring origami-inspired structural systems for earthquake-resilient emergency shelters that can be rapidly deployed and reconfigured.",
+        year: 2025,
+        thumbnail: "/thumbnails/origami.jpg",
+        participants: 7,
+        tags: ["Structure", "Emergency", "Origami"],
+        markerOffset: { lat: -0.2, lng: 0.35 },
+      },
+      {
+        id: "ut-3",
+        title: "Ghost Stations",
+        description:
+          "Investigating abandoned railway stations across Japan as sites for cultural intervention, creating immersive installations in forgotten transit spaces.",
+        year: 2024,
+        thumbnail: "/thumbnails/ghost.jpg",
+        participants: 5,
+        tags: ["Installation", "Transit", "Cultural"],
+        markerOffset: { lat: 0.25, lng: -0.3 },
+      },
+    ],
+  },
+  {
+    id: "risd",
+    name: "Rhode Island School of Design",
+    shortName: "RISD",
+    lat: 41.826,
+    lng: -71.407,
+    color: "#F77F00",
+    country: "United States",
+    projects: [
+      {
+        id: "risd-1",
+        title: "Fungal Futures",
+        description:
+          "Growing mycelium-based materials as alternatives to synthetic packaging, exploring the aesthetics and function of bio-fabricated design objects.",
+        year: 2025,
+        thumbnail: "/thumbnails/fungal.jpg",
+        participants: 8,
+        tags: ["Bio-design", "Materials", "Packaging"],
+        markerOffset: { lat: 0.2, lng: 0.3 },
+      },
+      {
+        id: "risd-2",
+        title: "Invisible Ink",
+        description:
+          "A typography and printmaking project exploring hidden messages, censorship, and the politics of visibility through experimental publishing.",
+        year: 2024,
+        thumbnail: "/thumbnails/ink.jpg",
+        participants: 6,
+        tags: ["Typography", "Print", "Political"],
+        markerOffset: { lat: -0.25, lng: 0.2 },
+      },
+      {
+        id: "risd-3",
+        title: "Sonic Textiles",
+        description:
+          "Weaving conductive fibers into fabrics to create touch-responsive sound instruments, blurring boundaries between textile and musical interface.",
+        year: 2025,
+        thumbnail: "/thumbnails/sonic.jpg",
+        participants: 4,
+        tags: ["Textile", "Sound", "Interface"],
+        markerOffset: { lat: 0.3, lng: -0.25 },
+      },
+    ],
+  },
+];
