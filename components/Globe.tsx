@@ -12,18 +12,73 @@ interface GlobeProps {
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   hoveredProject: string | null;
-  onHoverProject: (id: string | null) => void;
 }
 
 interface MarkerData {
   id: string;
   lat: number;
   lng: number;
-  color: string;
   label: string;
   type: "university" | "project";
   universityId: string;
   size: number;
+}
+
+/**
+ * Render GeoJSON country features onto a 2D canvas as an equirectangular
+ * texture. This is then mapped onto the globe sphere — pure texture,
+ * zero z-fighting.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function renderGlobeTexture(features: any[]): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
+  canvas.width = 2048;
+  canvas.height = 1024;
+  const ctx = canvas.getContext("2d")!;
+  const { width, height } = canvas;
+
+  // Ocean
+  ctx.fillStyle = "#f5f5f5";
+  ctx.fillRect(0, 0, width, height);
+
+  // Land fill + country border strokes in one pass
+  ctx.fillStyle = "#ebebeb";
+  ctx.strokeStyle = "#333333";
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = "round";
+
+  for (const feature of features) {
+    if (!feature.geometry) continue;
+    const { type, coordinates } = feature.geometry;
+    const polygons = type === "Polygon" ? [coordinates] : coordinates;
+
+    for (const polygon of polygons) {
+      ctx.beginPath();
+      for (const ring of polygon) {
+        for (let i = 0; i < ring.length; i++) {
+          const [lng, lat] = ring[i];
+          const x = ((lng + 180) / 360) * width;
+          const y = ((90 - lat) / 180) * height;
+
+          if (i === 0) {
+            ctx.moveTo(x, y);
+          } else {
+            // Skip segments that cross the antimeridian
+            const [prevLng] = ring[i - 1];
+            if (Math.abs(lng - prevLng) > 180) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+          }
+        }
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+
+  return canvas;
 }
 
 export default function Globe({
@@ -31,14 +86,15 @@ export default function Globe({
   selectedUniversity,
   onSelectUniversity,
   hoveredProject,
-  onHoverProject,
 }: GlobeProps) {
   const globeRef = useRef<GlobeMethods | undefined>(undefined);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [globeReady, setGlobeReady] = useState(false);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [projectMarkersVisible, setProjectMarkersVisible] = useState(false);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [globeMaterial, setGlobeMaterial] = useState<any>(null);
 
-  // Store callbacks in refs so HTML elements can access latest versions
   const onSelectRef = useRef(onSelectUniversity);
   const universitiesRef = useRef(universities);
   const selectedRef = useRef(selectedUniversity);
@@ -46,22 +102,51 @@ export default function Globe({
   universitiesRef.current = universities;
   selectedRef.current = selectedUniversity;
 
-  // Track dimensions
+  // Load world data, render to canvas texture, create material
   useEffect(() => {
-    const update = () =>
-      setDimensions({ width: window.innerWidth, height: window.innerHeight });
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    Promise.all([
+      import("three"),
+      import("topojson-client"),
+      fetch("https://unpkg.com/world-atlas@2/countries-110m.json").then((r) =>
+        r.json()
+      ),
+    ]).then(([THREE, topojson, worldData]) => {
+      const geojson = topojson.feature(
+        worldData,
+        worldData.objects.countries
+      );
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const canvas = renderGlobeTexture((geojson as any).features);
+      const texture = new THREE.CanvasTexture(canvas);
+
+      setGlobeMaterial(
+        new THREE.MeshBasicMaterial({
+          map: texture,
+        })
+      );
+    });
   }, []);
 
-  // Called by react-globe.gl when the globe is fully initialized
+  // Track container dimensions
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const update = () => {
+      const rect = el.getBoundingClientRect();
+      setDimensions({ width: rect.width, height: rect.height });
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const handleGlobeReady = useCallback(() => {
     if (!globeRef.current) return;
     const controls = globeRef.current.controls();
     if (controls) {
       controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.4;
+      controls.autoRotateSpeed = 0.3;
       controls.enableZoom = true;
     }
     globeRef.current.pointOfView({ lat: 30, lng: 10, altitude: 2.5 });
@@ -88,7 +173,10 @@ export default function Globe({
       return () => clearTimeout(timer);
     } else {
       if (controls) controls.autoRotate = true;
-      globeRef.current.pointOfView({ lat: 30, lng: 10, altitude: 2.5 }, 1200);
+      globeRef.current.pointOfView(
+        { lat: 30, lng: 10, altitude: 2.5 },
+        1200
+      );
       setProjectMarkersVisible(false);
     }
   }, [selectedUniversity, globeReady]);
@@ -102,11 +190,10 @@ export default function Globe({
         id: selectedUniversity.id,
         lat: selectedUniversity.lat,
         lng: selectedUniversity.lng,
-        color: selectedUniversity.color,
         label: selectedUniversity.shortName,
         type: "university",
         universityId: selectedUniversity.id,
-        size: 18,
+        size: 14,
       });
 
       if (projectMarkersVisible) {
@@ -115,11 +202,10 @@ export default function Globe({
             id: p.id,
             lat: selectedUniversity.lat + p.markerOffset.lat,
             lng: selectedUniversity.lng + p.markerOffset.lng,
-            color: selectedUniversity.color,
             label: p.title,
             type: "project",
             universityId: selectedUniversity.id,
-            size: 12,
+            size: 8,
           });
         });
       }
@@ -129,11 +215,10 @@ export default function Globe({
           id: uni.id,
           lat: uni.lat,
           lng: uni.lng,
-          color: uni.color,
           label: uni.shortName,
           type: "university",
           universityId: uni.id,
-          size: 14,
+          size: 10,
         });
       });
     }
@@ -141,7 +226,7 @@ export default function Globe({
     return result;
   }, [universities, selectedUniversity, projectMarkersVisible]);
 
-  // Create HTML element for each marker — attach click handlers directly
+  // Create marker HTML elements
   const createMarkerElement = useCallback(
     (d: object) => {
       const marker = d as MarkerData;
@@ -155,7 +240,6 @@ export default function Globe({
         transition: transform 0.3s ease, opacity 0.5s ease;
       `;
 
-      // Click handler on the element itself
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         if (marker.type === "university") {
@@ -174,49 +258,31 @@ export default function Globe({
       const isHovered = hoveredProject === marker.id;
       const dotSize = isHovered ? marker.size + 4 : marker.size;
 
-      // Dot
+      // Dot — monochrome
       const dot = document.createElement("div");
       dot.style.cssText = `
         width: ${dotSize}px;
         height: ${dotSize}px;
-        background: ${marker.color};
+        background: #000000;
         border-radius: 50%;
-        border: 2px solid rgba(255,255,255,0.9);
-        box-shadow: 0 0 ${isHovered ? 20 : 12}px ${marker.color}80,
-                    0 0 ${isHovered ? 40 : 24}px ${marker.color}40;
+        border: 1.5px solid #ffffff;
         transition: all 0.3s ease;
+        ${isHovered ? "box-shadow: 0 0 0 3px rgba(0,0,0,0.15);" : ""}
       `;
-
-      // Ripple ring for project markers
-      if (isProject) {
-        const ripple = document.createElement("div");
-        ripple.style.cssText = `
-          position: absolute;
-          width: ${dotSize + 16}px;
-          height: ${dotSize + 16}px;
-          border-radius: 50%;
-          border: 1px solid ${marker.color}60;
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%);
-          animation: markerRipple 2s ease-out infinite;
-        `;
-        el.style.position = "relative";
-        el.appendChild(ripple);
-      }
 
       // Label
       const label = document.createElement("div");
       label.textContent = marker.label;
       label.style.cssText = `
-        margin-top: 6px;
-        font-size: ${isProject ? 10 : 11}px;
-        font-weight: ${isProject ? "400" : "600"};
-        color: #fff;
-        text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+        margin-top: 4px;
+        font-size: ${isProject ? 9 : 11}px;
+        font-weight: ${isProject ? "500" : "600"};
+        color: #171717;
         white-space: nowrap;
-        letter-spacing: 0.5px;
-        opacity: ${isProject && !isHovered ? 0.8 : 1};
+        letter-spacing: 0.3px;
+        font-family: "Inter", -apple-system, sans-serif;
+        opacity: ${isProject && !isHovered ? 0 : 1};
+        transition: opacity 0.2s ease;
       `;
 
       el.appendChild(dot);
@@ -234,33 +300,24 @@ export default function Globe({
   }, []);
 
   return (
-    <div className="absolute inset-0">
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-            @keyframes markerRipple {
-              0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
-              100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
-            }
-          `,
-        }}
-      />
-      <GlobeGL
-        ref={globeRef}
-        width={dimensions.width}
-        height={dimensions.height}
-        backgroundColor="rgba(0,0,0,0)"
-        globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
-        atmosphereColor="#6b4ce6"
-        atmosphereAltitude={0.2}
-        htmlElementsData={markers}
-        htmlLat="lat"
-        htmlLng="lng"
-        htmlElement={createMarkerElement}
-        onGlobeClick={handleGlobeClick}
-        onGlobeReady={handleGlobeReady}
-        animateIn={true}
-      />
+    <div ref={containerRef} className="w-full h-full relative">
+      {dimensions.width > 0 && globeMaterial && (
+        <GlobeGL
+          ref={globeRef}
+          width={dimensions.width}
+          height={dimensions.height}
+          backgroundColor="rgba(0,0,0,0)"
+          globeMaterial={globeMaterial}
+          showAtmosphere={false}
+          htmlElementsData={markers}
+          htmlLat="lat"
+          htmlLng="lng"
+          htmlElement={createMarkerElement}
+          onGlobeClick={handleGlobeClick}
+          onGlobeReady={handleGlobeReady}
+          animateIn={true}
+        />
+      )}
     </div>
   );
 }

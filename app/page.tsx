@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Globe from "@/components/Globe";
-import UniversityList from "@/components/UniversityList";
-import ProjectPanel from "@/components/ProjectPanel";
+import Sidebar from "@/components/Sidebar";
 import { universities } from "@/data/mock";
 import { University } from "@/types";
 
@@ -13,39 +12,35 @@ export default function Home() {
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden">
-      {/* Globe background */}
-      <Globe
-        universities={universities}
-        selectedUniversity={selectedUniversity}
-        onSelectUniversity={setSelectedUniversity}
-        hoveredProject={hoveredProject}
-        onHoverProject={setHoveredProject}
-      />
-
-      {/* Title */}
-      <div className="absolute top-8 left-1/2 -translate-x-1/2 z-20 text-center pointer-events-none">
-        <h1 className="text-2xl font-semibold tracking-wider text-white/90 drop-shadow-lg">
+    <main className="w-screen h-screen overflow-hidden flex flex-col">
+      {/* Header */}
+      <header className="h-14 border-b-2 border-black flex items-center justify-between px-8 shrink-0 bg-white">
+        <h1 className="text-sm font-bold tracking-[0.12em] uppercase text-[#171717]">
           JUNK GLOBAL
         </h1>
-        <p className="text-xs text-white/40 mt-1 tracking-widest uppercase">
+        <span className="text-xs text-[#6B6B6B] font-medium tracking-wide">
           University Design Projects
-        </p>
+        </span>
+      </header>
+
+      {/* Body */}
+      <div className="flex-1 flex overflow-hidden">
+        <Sidebar
+          universities={universities}
+          selectedUniversity={selectedUniversity}
+          onSelect={setSelectedUniversity}
+          onHoverProject={setHoveredProject}
+        />
+
+        <div className="flex-1 relative bg-white">
+          <Globe
+            universities={universities}
+            selectedUniversity={selectedUniversity}
+            onSelectUniversity={setSelectedUniversity}
+            hoveredProject={hoveredProject}
+          />
+        </div>
       </div>
-
-      {/* University list - left side */}
-      <UniversityList
-        universities={universities}
-        selectedUniversity={selectedUniversity}
-        onSelect={setSelectedUniversity}
-      />
-
-      {/* Project panel - right side */}
-      <ProjectPanel
-        university={selectedUniversity}
-        hoveredProject={hoveredProject}
-        onHoverProject={setHoveredProject}
-      />
     </main>
   );
 }

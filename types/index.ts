@@ -13,9 +13,11 @@ export interface University {
   id: string;
   name: string;
   shortName: string;
+  city: string;
   lat: number;
   lng: number;
   color: string;
   country: string;
+  disciplines: string[];
   projects: Project[];
 }

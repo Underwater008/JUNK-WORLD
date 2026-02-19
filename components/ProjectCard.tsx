@@ -5,7 +5,6 @@ import { Project } from "@/types";
 
 interface ProjectCardProps {
   project: Project;
-  color: string;
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
@@ -14,7 +13,6 @@ interface ProjectCardProps {
 
 export default function ProjectCard({
   project,
-  color,
   index,
   isExpanded,
   onToggle,
@@ -23,47 +21,49 @@ export default function ProjectCard({
   return (
     <motion.div
       layout
-      initial={{ opacity: 0, y: 20, scale: 0.95 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+      initial={{ opacity: 0, y: 15 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 10 }}
       transition={{
-        duration: 0.4,
-        delay: index * 0.1,
-        layout: { duration: 0.3 },
+        duration: 0.3,
+        delay: index * 0.08,
+        layout: { duration: 0.25 },
       }}
       onClick={onToggle}
       onMouseEnter={() => onHover(project.id)}
       onMouseLeave={() => onHover(null)}
       className={`
-        rounded-xl border cursor-pointer transition-colors
-        ${
-          isExpanded
-            ? "bg-white/8 border-white/15"
-            : "bg-white/4 border-white/8 hover:bg-white/6 hover:border-white/12"
-        }
+        border-2 border-black cursor-pointer transition-colors
+        ${isExpanded ? "bg-black text-white" : "bg-white hover:bg-[#FAFAFA]"}
       `}
     >
       {/* Compact view */}
       <div className="p-4">
-        <div className="flex items-start gap-3">
-          {/* Color accent line */}
-          <div
-            className="w-1 h-10 rounded-full shrink-0 mt-0.5"
-            style={{ backgroundColor: color }}
-          />
-
+        <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
-            <h3 className="text-sm font-semibold text-[var(--text-primary)] leading-tight">
+            <h3
+              className={`text-sm font-semibold leading-tight ${
+                isExpanded ? "text-white" : "text-[#171717]"
+              }`}
+            >
               {project.title}
             </h3>
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xs text-[var(--text-secondary)]">
+              <span
+                className={`text-xs ${
+                  isExpanded ? "text-white/60" : "text-[#6B6B6B]"
+                }`}
+              >
                 {project.year}
               </span>
-              <span className="text-[var(--text-secondary)] opacity-30">
+              <span className={isExpanded ? "text-white/30" : "text-[#D4D4D4]"}>
                 ·
               </span>
-              <span className="text-xs text-[var(--text-secondary)]">
+              <span
+                className={`text-xs ${
+                  isExpanded ? "text-white/60" : "text-[#6B6B6B]"
+                }`}
+              >
                 {project.participants} participants
               </span>
             </div>
@@ -78,8 +78,10 @@ export default function ProjectCard({
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
-            className="text-[var(--text-secondary)] shrink-0 mt-1"
+            strokeWidth="2"
+            className={`shrink-0 mt-0.5 ${
+              isExpanded ? "text-white/60" : "text-[#6B6B6B]"
+            }`}
           >
             <path d="M4 6L8 10L12 6" />
           </motion.svg>
@@ -92,51 +94,43 @@ export default function ProjectCard({
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.2, delay: 0.1 }}
-          className="px-4 pb-4 pt-0"
+          className="px-4 pb-4"
         >
-          <div className="ml-4 border-l border-white/8 pl-3">
-            <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
-              {project.description}
-            </p>
+          <p className="text-xs leading-relaxed text-white/70">
+            {project.description}
+          </p>
 
-            {/* Tags */}
-            <div className="flex flex-wrap gap-1.5 mt-3">
-              {project.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="px-2 py-0.5 text-[10px] rounded-full font-medium"
-                  style={{
-                    backgroundColor: `${color}20`,
-                    color: color,
-                  }}
-                >
-                  {tag}
-                </span>
-              ))}
-            </div>
-
-            {/* View project button */}
-            <button
-              className="mt-3 flex items-center gap-1.5 text-xs font-medium transition-opacity hover:opacity-80"
-              style={{ color }}
-              onClick={(e) => {
-                e.stopPropagation();
-                // Future: navigate to project terrain page
-              }}
-            >
-              View Project
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
+          {/* Tags */}
+          <div className="flex flex-wrap gap-1.5 mt-3">
+            {project.tags.map((tag) => (
+              <span
+                key={tag}
+                className="px-2 py-0.5 text-[10px] font-medium border border-white/30 text-white/80"
               >
-                <path d="M6 4L10 8L6 12" />
-              </svg>
-            </button>
+                {tag}
+              </span>
+            ))}
           </div>
+
+          {/* View project */}
+          <button
+            className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-white hover:text-white/80 transition-colors"
+            onClick={(e) => {
+              e.stopPropagation();
+            }}
+          >
+            View Project
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <path d="M6 4L10 8L6 12" />
+            </svg>
+          </button>
         </motion.div>
       )}
     </motion.div>
