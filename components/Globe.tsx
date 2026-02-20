@@ -52,6 +52,8 @@ export default function Globe({
   const frameRef = useRef(0);
   const compactRef = useRef(compact);
   const universitiesRef = useRef(universities);
+  const labelsReadyRef = useRef(false);
+  const prevVisibleRef = useRef<Set<number>>(new Set());
 
   // Keep refs in sync
   useEffect(() => {
@@ -375,11 +377,36 @@ export default function Globe({
       }
 
       // Apply resolved positions
+      const nowVisible = new Set<number>();
       for (const v of visible) {
         const label = labelsRef.current[v.idx];
         if (!label) continue;
+        nowVisible.add(v.idx);
+
+        const newlyAppearing = !prevVisibleRef.current.has(v.idx);
+        if (newlyAppearing && labelsReadyRef.current) {
+          // Snap position without transition, keep opacity transition
+          label.style.transition = 'opacity 300ms ease-out';
+          label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
+          label.getBoundingClientRect(); // force reflow so snap applies
+          label.style.transition = 'transform 300ms ease-out, opacity 300ms ease-out';
+        } else {
+          label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
+        }
         label.style.opacity = String(v.opacity);
-        label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
+      }
+      prevVisibleRef.current = nowVisible;
+
+      // After first positioning, enable smooth transform transitions
+      if (!labelsReadyRef.current && visible.length > 0) {
+        labelsReadyRef.current = true;
+        requestAnimationFrame(() => {
+          for (const label of labelsRef.current) {
+            if (label) {
+              label.style.transition = 'transform 300ms ease-out, opacity 300ms ease-out';
+            }
+          }
+        });
       }
     };
     animate();
