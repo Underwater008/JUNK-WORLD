@@ -17,9 +17,11 @@ function getInitials(name: string): string {
 export default function MemberCard({
   member,
   index,
+  onSelect,
 }: {
   member: Member;
   index: number;
+  onSelect?: (universityId: string | undefined) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -30,7 +32,10 @@ export default function MemberCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.06, ease: "easeOut" }}
-      onClick={() => setExpanded(!expanded)}
+      onClick={() => {
+        setExpanded(!expanded);
+        onSelect?.(member.universityId);
+      }}
       className="group cursor-pointer border-t-2 border-black pt-6 pb-8"
     >
       {/* Photo / Initials */}

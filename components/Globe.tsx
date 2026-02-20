@@ -63,7 +63,6 @@ export default function Globe({
     const s = sceneRef.current;
     if (s && s.renderer) {
       if (compact) {
-        s.targetQ = null;
         s.drag.active = false;
         s.renderer.domElement.style.cursor = "default";
       } else {
@@ -276,7 +275,7 @@ export default function Globe({
       // Rotation logic
       if (!isCompact && s.drag.active) {
         // Drag handled in onMove
-      } else if (!isCompact && s.targetQ) {
+      } else if (s.targetQ) {
         s.rot.slerp(s.targetQ, 0.05);
       } else {
         // Auto-rotate

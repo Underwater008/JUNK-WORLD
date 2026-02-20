@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { Suspense, useState, useEffect, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Globe from "@/components/Globe";
 import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import AboutContent from "@/components/AboutContent";
+import MembersContent from "@/components/MembersContent";
 import { universities as rawUniversities } from "@/data/mock";
 import { University } from "@/types";
+
+type View = "about" | "consortium" | "members";
 
 const universities = [...rawUniversities].sort((a, b) => {
   const aActive = a.status !== "inactive";
@@ -17,40 +20,89 @@ const universities = [...rawUniversities].sort((a, b) => {
   return a.name.localeCompare(b.name);
 });
 
+function getViewFromParams(params: URLSearchParams): View {
+  const v = params.get("view");
+  if (v === "consortium" || v === "members") return v;
+  return "about";
+}
+
+const panelWidth: Record<View, string> = {
+  about: "58%",
+  consortium: "320px",
+  members: "70%",
+};
+
+const logoLeft: Record<View, string> = {
+  about: "calc(79% + 176px)",
+  consortium: "calc(50% + 161px)",
+  members: "calc(85% + 175px)",
+};
+
+const globeContainerWidth: Record<View, string> = {
+  about: "calc(100% + 350px)",
+  consortium: "100%",
+  members: "calc(100% + 350px)",
+};
+
+const ease = [0.4, 0, 0.2, 1] as const;
+
 export default function Home() {
+  return (
+    <Suspense>
+      <HomeContent />
+    </Suspense>
+  );
+}
+
+function HomeContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const [view, setView] = useState<View>(() => getViewFromParams(searchParams));
   const [selectedUniversity, setSelectedUniversity] =
     useState<University | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
-  const [showAbout, setShowAbout] = useState(
-    searchParams.get("view") !== "consortium"
-  );
 
+  // Sync view from URL changes (e.g. browser back/forward)
   useEffect(() => {
-    setShowAbout(searchParams.get("view") !== "consortium");
+    setView(getViewFromParams(searchParams));
   }, [searchParams]);
 
-  const handleToggleAbout = () => {
-    const entering = !showAbout;
-    if (entering) {
+  const handleViewChange = useCallback(
+    (newView: View) => {
+      if (newView === view) return;
       setSelectedUniversity(null);
-    }
-    setShowAbout(entering);
-  };
+      setView(newView);
+      const url = newView === "about" ? "/" : `/?view=${newView}`;
+      router.replace(url, { scroll: false });
+    },
+    [view, router]
+  );
+
+  const handleSelectMember = useCallback(
+    (universityId: string | undefined) => {
+      if (!universityId) {
+        setSelectedUniversity(null);
+        return;
+      }
+      const uni = universities.find((u) => u.id === universityId) || null;
+      setSelectedUniversity(uni);
+    },
+    []
+  );
+
+  const isCompact = view !== "consortium";
 
   return (
     <main className="w-screen h-screen overflow-hidden flex flex-col relative">
-      <Header showAbout={showAbout} onToggleAbout={handleToggleAbout} />
+      <Header view={view} onViewChange={handleViewChange} />
 
       {/* JUNK logo — sits in header row, horizontally tracks globe center */}
       <motion.div
         className="absolute top-0 h-14 flex items-center pointer-events-none z-20"
         initial={false}
-        animate={{
-          left: showAbout ? "calc(79% + 176px)" : "calc(50% + 161px)",
-        }}
+        animate={{ left: logoLeft[view] }}
         style={{ x: "-50%" }}
-        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+        transition={{ duration: 0.5, ease }}
       >
         <img
           src="/images/JUNK logos/JUNK-logo.gif"
@@ -61,18 +113,16 @@ export default function Home() {
 
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left panel: animated width between sidebar (320px) and about content (55%) */}
+        {/* Left panel: animated width between views */}
         <motion.div
           className="shrink-0 overflow-hidden bg-white"
           initial={false}
-          animate={{
-            width: showAbout ? "58%" : "320px",
-          }}
-          transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+          animate={{ width: panelWidth[view] }}
+          transition={{ duration: 0.5, ease }}
           style={{ borderRight: "2px solid black" }}
         >
           <AnimatePresence mode="wait">
-            {showAbout ? (
+            {view === "about" && (
               <motion.div
                 key="about"
                 className="h-full"
@@ -83,7 +133,8 @@ export default function Home() {
               >
                 <AboutContent />
               </motion.div>
-            ) : (
+            )}
+            {view === "consortium" && (
               <motion.div
                 key="sidebar"
                 className="h-full"
@@ -100,6 +151,18 @@ export default function Home() {
                 />
               </motion.div>
             )}
+            {view === "members" && (
+              <motion.div
+                key="members"
+                className="h-full"
+                initial={{ opacity: 0, x: -40 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -40 }}
+                transition={{ duration: 0.35, ease: "easeOut", delay: 0.15 }}
+              >
+                <MembersContent onSelectMember={handleSelectMember} />
+              </motion.div>
+            )}
           </AnimatePresence>
         </motion.div>
 
@@ -107,14 +170,14 @@ export default function Home() {
         <div className="flex-1 relative bg-white overflow-hidden">
           <div
             className="absolute inset-y-0 left-0 transition-[width] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
-            style={{ width: showAbout ? "calc(100% + 350px)" : "100%" }}
+            style={{ width: globeContainerWidth[view] }}
           >
             <Globe
               universities={universities}
               selectedUniversity={selectedUniversity}
               onSelectUniversity={setSelectedUniversity}
               hoveredProject={hoveredProject}
-              compact={showAbout}
+              compact={isCompact}
             />
           </div>
         </div>

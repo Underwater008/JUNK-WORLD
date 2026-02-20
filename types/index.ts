@@ -29,6 +29,7 @@ export interface Member {
   name: string;
   title: string;
   university: string;
+  universityId?: string;
   country: string;
   city: string;
   bio: string;

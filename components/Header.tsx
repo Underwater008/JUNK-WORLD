@@ -1,72 +1,34 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+type View = "about" | "consortium" | "members";
 
 interface HeaderProps {
-  showAbout?: boolean;
-  onToggleAbout?: () => void;
+  view: View;
+  onViewChange: (view: View) => void;
 }
 
-export default function Header({ showAbout, onToggleAbout }: HeaderProps) {
-  const pathname = usePathname();
-  const isHome = pathname === "/";
-  const isMembers = pathname === "/members";
+const views: { key: View; label: string }[] = [
+  { key: "about", label: "About" },
+  { key: "consortium", label: "Consortium" },
+  { key: "members", label: "Members" },
+];
 
+export default function Header({ view, onViewChange }: HeaderProps) {
   return (
     <header className="h-14 border-b-2 border-black flex items-center justify-between px-8 shrink-0 bg-white">
       <nav className="flex items-center gap-6">
-        {isHome && onToggleAbout ? (
-          <>
-            <button
-              onClick={() => !showAbout && onToggleAbout()}
-              className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
-                showAbout ? "text-black" : "text-[#888] hover:text-black"
-              }`}
-            >
-              About
-            </button>
-            <button
-              onClick={() => showAbout && onToggleAbout()}
-              className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
-                !showAbout ? "text-black" : "text-[#888] hover:text-black"
-              }`}
-            >
-              Consortium
-            </button>
-          </>
-        ) : (
-          <>
-            <Link
-              href="/"
-              className="text-xs font-semibold uppercase tracking-[0.12em] transition-colors text-[#888] hover:text-black"
-            >
-              About
-            </Link>
-            <Link
-              href="/?view=consortium"
-              className="text-xs font-semibold uppercase tracking-[0.12em] transition-colors text-[#888] hover:text-black"
-            >
-              Consortium
-            </Link>
-          </>
-        )}
-        <Link
-          href="/members"
-          className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors ${
-            isMembers ? "text-black" : "text-[#888] hover:text-black"
-          }`}
-        >
-          Members
-        </Link>
+        {views.map(({ key, label }) => (
+          <button
+            key={key}
+            onClick={() => onViewChange(key)}
+            className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
+              view === key ? "text-black" : "text-[#888] hover:text-black"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </nav>
-      {!isHome && (
-        <img
-          src="/images/JUNK logos/JUNK-logo.gif"
-          alt="JUNK"
-          className="h-8"
-        />
-      )}
     </header>
   );
 }
