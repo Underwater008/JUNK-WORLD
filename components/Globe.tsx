@@ -6,7 +6,8 @@ import { feature } from "topojson-client";
 import { University } from "@/types";
 
 const R = 100;
-const LAND_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
+const COUNTRIES_URL =
+  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 function toVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
@@ -25,36 +26,35 @@ interface GlobeProps {
   hoveredProject: string | null;
 }
 
-export default function Globe({ universities, selectedUniversity }: GlobeProps) {
+export default function Globe({
+  universities,
+  selectedUniversity,
+}: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const phiRef = useRef(0);
-  const thetaRef = useRef(0.3);
-  const focusRef = useRef<{ phi: number; theta: number } | null>(null);
-  const dragRef = useRef({ active: false, x: 0 });
+  const rotRef = useRef(
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, 0, 0, "YXZ"))
+  );
+  const targetQRef = useRef<THREE.Quaternion | null>(null);
+  const dragRef = useRef({ active: false, x: 0, y: 0 });
   const frameRef = useRef(0);
 
   // Focus on selected university
   useEffect(() => {
     if (!selectedUniversity) {
-      focusRef.current = null;
+      targetQRef.current = null;
       return;
     }
 
-    const targetPhi = -(selectedUniversity.lng + 90) * (Math.PI / 180);
-    const targetTheta = selectedUniversity.lat * (Math.PI / 180);
-
-    let bestPhi = targetPhi;
-    for (let offset = -4; offset <= 4; offset++) {
-      const candidate = targetPhi + offset * 2 * Math.PI;
-      if (
-        Math.abs(candidate - phiRef.current) <
-        Math.abs(bestPhi - phiRef.current)
-      ) {
-        bestPhi = candidate;
-      }
-    }
-
-    focusRef.current = { phi: bestPhi, theta: targetTheta };
+    const pointDir = toVec3(
+      selectedUniversity.lat,
+      selectedUniversity.lng,
+      1
+    ).normalize();
+    const front = new THREE.Vector3(0, 0, 1);
+    targetQRef.current = new THREE.Quaternion().setFromUnitVectors(
+      pointDir,
+      front
+    );
   }, [selectedUniversity]);
 
   // Three.js scene
@@ -84,9 +84,8 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
       el.style.opacity = "1";
     });
 
-    // Globe group — all content rotates together
+    // Globe group
     const globe = new THREE.Group();
-    globe.rotation.order = "YXZ";
     scene.add(globe);
 
     // White sphere (occludes back-facing lines)
@@ -102,41 +101,10 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
       )
     );
 
-    // Graticule — light gray grid lines (#D4D4D4)
-    const gPts: number[] = [];
-    const gR = R + 0.3;
-    for (let lng = -180; lng < 180; lng += 30) {
-      for (let lat = -90; lat < 90; lat += 2) {
-        const a = toVec3(lat, lng, gR);
-        const b = toVec3(lat + 2, lng, gR);
-        gPts.push(a.x, a.y, a.z, b.x, b.y, b.z);
-      }
-    }
-    for (let lat = -60; lat <= 60; lat += 30) {
-      for (let lng = -180; lng < 180; lng += 2) {
-        const a = toVec3(lat, lng, gR);
-        const b = toVec3(lat, lng + 2, gR);
-        gPts.push(a.x, a.y, a.z, b.x, b.y, b.z);
-      }
-    }
-    const gratGeom = new THREE.BufferGeometry();
-    gratGeom.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(gPts, 3)
-    );
-    globe.add(
-      new THREE.LineSegments(
-        gratGeom,
-        new THREE.LineBasicMaterial({ color: 0xd4d4d4 })
-      )
-    );
-
-    // Continent outlines — black lines from TopoJSON
-    fetch(LAND_URL)
+    // Country borders from TopoJSON
+    fetch(COUNTRIES_URL)
       .then((r) => r.json())
       .then((topo) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const land = feature(topo as any, (topo as any).objects.land) as any;
         const lR = R + 0.5;
         const pts: number[] = [];
 
@@ -160,10 +128,15 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
           }
         };
 
-        if (land.type === "FeatureCollection") {
-          for (const f of land.features) processGeom(f.geometry);
-        } else if (land.type === "Feature") {
-          processGeom(land.geometry);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const countries = feature(
+          topo as any,
+          (topo as any).objects.countries
+        ) as any;
+        if (countries.type === "FeatureCollection") {
+          for (const f of countries.features) processGeom(f.geometry);
+        } else if (countries.type === "Feature") {
+          processGeom(countries.geometry);
         }
 
         if (pts.length > 0) {
@@ -180,12 +153,10 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
           );
         }
       })
-      .catch(() => {
-        /* globe renders without continents if fetch fails */
-      });
+      .catch(() => {});
 
-    // University markers — small black spheres
-    const mkGeo = new THREE.SphereGeometry(1.5, 12, 12);
+    // University markers
+    const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
     const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     for (const uni of universities) {
       const m = new THREE.Mesh(mkGeo, mkMat);
@@ -197,19 +168,20 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
 
-      const focus = focusRef.current;
+      const target = targetQRef.current;
       if (dragRef.current.active) {
-        // dragging — don't override
-      } else if (focus) {
-        phiRef.current += (focus.phi - phiRef.current) * 0.05;
-        thetaRef.current += (focus.theta - thetaRef.current) * 0.05;
+        // dragging
+      } else if (target) {
+        rotRef.current.slerp(target, 0.05);
       } else {
-        phiRef.current += 0.003;
-        thetaRef.current += (0.3 - thetaRef.current) * 0.05;
+        const autoQ = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          0.001
+        );
+        rotRef.current.premultiply(autoQ);
       }
 
-      globe.rotation.y = phiRef.current;
-      globe.rotation.x = thetaRef.current;
+      globe.quaternion.copy(rotRef.current);
       renderer.render(scene, camera);
     };
     animate();
@@ -226,7 +198,7 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
 
     // Drag interaction
     const onDown = (e: PointerEvent) => {
-      dragRef.current = { active: true, x: e.clientX };
+      dragRef.current = { active: true, x: e.clientX, y: e.clientY };
       el.style.cursor = "grabbing";
     };
     const onUp = () => {
@@ -236,16 +208,25 @@ export default function Globe({ universities, selectedUniversity }: GlobeProps) 
     const onMove = (e: PointerEvent) => {
       if (dragRef.current.active) {
         const dx = e.clientX - dragRef.current.x;
+        const dy = e.clientY - dragRef.current.y;
         dragRef.current.x = e.clientX;
-        phiRef.current -= dx * 0.005;
-        focusRef.current = null;
+        dragRef.current.y = e.clientY;
+        const qY = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(0, 1, 0),
+          dx * 0.005
+        );
+        const qX = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(1, 0, 0),
+          dy * 0.005
+        );
+        rotRef.current.premultiply(qY).premultiply(qX);
+        targetQRef.current = null;
       }
     };
     el.addEventListener("pointerdown", onDown);
     window.addEventListener("pointerup", onUp);
     window.addEventListener("pointermove", onMove);
 
-    // Cleanup
     return () => {
       cancelAnimationFrame(frameRef.current);
       window.removeEventListener("resize", onResize);

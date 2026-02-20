@@ -33,7 +33,7 @@ export default function ProjectCard({
       onMouseEnter={() => onHover(project.id)}
       onMouseLeave={() => onHover(null)}
       className={`
-        border-2 border-black cursor-pointer transition-colors
+        border-2 border-black cursor-pointer transition-colors duration-200
         ${isExpanded ? "bg-black text-white" : "bg-white hover:bg-[#FAFAFA]"}
       `}
     >
@@ -42,26 +42,26 @@ export default function ProjectCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <h3
-              className={`text-sm font-semibold leading-tight ${
-                isExpanded ? "text-white" : "text-[#171717]"
+              className={`text-sm font-bold leading-tight ${
+                isExpanded ? "text-white" : "text-black"
               }`}
             >
               {project.title}
             </h3>
             <div className="flex items-center gap-2 mt-1.5">
               <span
-                className={`text-xs ${
-                  isExpanded ? "text-white/60" : "text-[#6B6B6B]"
+                className={`text-xs font-medium ${
+                  isExpanded ? "text-white/60" : "text-[#888]"
                 }`}
               >
                 {project.year}
               </span>
-              <span className={isExpanded ? "text-white/30" : "text-[#D4D4D4]"}>
+              <span className={isExpanded ? "text-white/30" : "text-[#CCC]"}>
                 ·
               </span>
               <span
-                className={`text-xs ${
-                  isExpanded ? "text-white/60" : "text-[#6B6B6B]"
+                className={`text-xs font-medium ${
+                  isExpanded ? "text-white/60" : "text-[#888]"
                 }`}
               >
                 {project.participants} participants
@@ -78,9 +78,9 @@ export default function ProjectCard({
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            strokeWidth="2"
+            strokeWidth="2.5"
             className={`shrink-0 mt-0.5 ${
-              isExpanded ? "text-white/60" : "text-[#6B6B6B]"
+              isExpanded ? "text-white/60" : "text-[#888]"
             }`}
           >
             <path d="M4 6L8 10L12 6" />
@@ -96,7 +96,7 @@ export default function ProjectCard({
           transition={{ duration: 0.2, delay: 0.1 }}
           className="px-4 pb-4"
         >
-          <p className="text-xs leading-relaxed text-white/70">
+          <p className="text-xs leading-relaxed text-white/70 font-medium">
             {project.description}
           </p>
 
@@ -105,7 +105,7 @@ export default function ProjectCard({
             {project.tags.map((tag) => (
               <span
                 key={tag}
-                className="px-2 py-0.5 text-[10px] font-medium border border-white/30 text-white/80"
+                className="px-2 py-0.5 text-[10px] font-semibold border border-white/30 text-white/80 uppercase tracking-wide"
               >
                 {tag}
               </span>
@@ -114,7 +114,7 @@ export default function ProjectCard({
 
           {/* View project */}
           <button
-            className="mt-3 flex items-center gap-1.5 text-xs font-semibold text-white hover:text-white/80 transition-colors"
+            className="mt-3 flex items-center gap-1.5 text-xs font-bold text-white hover:text-white/80 transition-colors"
             onClick={(e) => {
               e.stopPropagation();
             }}
@@ -126,7 +126,7 @@ export default function ProjectCard({
               viewBox="0 0 16 16"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.5"
             >
               <path d="M6 4L10 8L6 12" />
             </svg>

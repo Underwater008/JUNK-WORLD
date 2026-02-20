@@ -15,10 +15,10 @@ export default function Home() {
     <main className="w-screen h-screen overflow-hidden flex flex-col">
       {/* Header */}
       <header className="h-14 border-b-2 border-black flex items-center justify-between px-8 shrink-0 bg-white">
-        <h1 className="text-sm font-bold tracking-[0.12em] uppercase text-[#171717]">
+        <h1 className="text-sm font-bold tracking-[0.2em] uppercase text-black">
           JUNK GLOBAL
         </h1>
-        <span className="text-xs text-[#6B6B6B] font-medium tracking-wide">
+        <span className="text-xs text-[#888] font-medium tracking-wide">
           University Design Projects
         </span>
       </header>
