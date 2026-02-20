@@ -21,4 +21,18 @@ export interface University {
   disciplines: string[];
   projects: Project[];
   logo?: string;
+  status?: "active" | "inactive";
+}
+
+export interface Member {
+  id: string;
+  name: string;
+  title: string;
+  university: string;
+  country: string;
+  city: string;
+  bio: string;
+  image?: string;
+  profileUrl?: string;
+  websiteUrl?: string;
 }

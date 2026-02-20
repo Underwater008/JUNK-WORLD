@@ -13,6 +13,7 @@ export const universities: University[] = [
     disciplines: ["Production design"],
     projects: [],
     logo: "/images/logos/nederlandse-filmacademie.png",
+    status: "active",
   },
   {
     id: "film-university-babelsberg",
@@ -25,6 +26,7 @@ export const universities: University[] = [
     country: "Germany",
     disciplines: ["Screenwriting", "Production design", "Film production"],
     projects: [],
+    status: "active",
   },
   {
     id: "royal-danish-academy",
@@ -38,6 +40,7 @@ export const universities: University[] = [
     disciplines: ["Game design"],
     projects: [],
     logo: "/images/logos/royal-danish-academy.png",
+    status: "active",
   },
   {
     id: "st-helens-college",
@@ -51,6 +54,7 @@ export const universities: University[] = [
     disciplines: [],
     projects: [],
     logo: "/images/logos/st-helens-college.png",
+    status: "inactive",
   },
   {
     id: "szkola-filmowa-lodz",
@@ -64,6 +68,7 @@ export const universities: University[] = [
     disciplines: ["Film production"],
     projects: [],
     logo: "/images/logos/szkola-filmowa-lodz.png",
+    status: "active",
   },
   {
     id: "ubc",
@@ -77,6 +82,7 @@ export const universities: University[] = [
     disciplines: ["Anthropology & Language"],
     projects: [],
     logo: "/images/logos/ubc.png",
+    status: "active",
   },
   {
     id: "unl",
@@ -90,6 +96,7 @@ export const universities: University[] = [
     disciplines: ["Interdisciplinary"],
     projects: [],
     logo: "/images/logos/unl.png",
+    status: "inactive",
   },
   {
     id: "u-miami",
@@ -103,6 +110,7 @@ export const universities: University[] = [
     disciplines: [],
     projects: [],
     logo: "/images/logos/u-miami.png",
+    status: "active",
   },
   {
     id: "usc",
@@ -116,6 +124,7 @@ export const universities: University[] = [
     disciplines: ["Interdisciplinary"],
     projects: [],
     logo: "/images/logos/usc.png",
+    status: "active",
   },
   {
     id: "uc3m",
@@ -129,6 +138,7 @@ export const universities: University[] = [
     disciplines: ["Audiovisual communication"],
     projects: [],
     logo: "/images/logos/uc3m.png",
+    status: "active",
   },
   {
     id: "polimi",
@@ -142,6 +152,7 @@ export const universities: University[] = [
     disciplines: ["Toys design"],
     projects: [],
     logo: "/images/logos/polimi.png",
+    status: "inactive",
   },
   {
     id: "domus-academy",
@@ -155,6 +166,7 @@ export const universities: University[] = [
     disciplines: ["Product", "Urban", "Architecture"],
     projects: [],
     logo: "/images/logos/domus-academy.png",
+    status: "active",
   },
   {
     id: "uanl",
@@ -168,6 +180,7 @@ export const universities: University[] = [
     disciplines: ["Industrial design"],
     projects: [],
     logo: "/images/logos/uanl.png",
+    status: "active",
   },
   {
     id: "u-externado",
@@ -181,6 +194,7 @@ export const universities: University[] = [
     disciplines: [],
     projects: [],
     logo: "/images/logos/u-externado.png",
+    status: "active",
   },
   {
     id: "kamehameha",
@@ -194,6 +208,7 @@ export const universities: University[] = [
     disciplines: [],
     projects: [],
     logo: "/images/logos/kamehameha.png",
+    status: "active",
   },
   {
     id: "espm",
@@ -207,6 +222,7 @@ export const universities: University[] = [
     disciplines: ["Journalism", "Transmedia"],
     projects: [],
     logo: "/images/logos/espm.png",
+    status: "active",
   },
   {
     id: "u-austral",
@@ -225,6 +241,7 @@ export const universities: University[] = [
     ],
     projects: [],
     logo: "/images/logos/u-austral.png",
+    status: "active",
   },
   {
     id: "u-montevideo",
@@ -238,6 +255,7 @@ export const universities: University[] = [
     disciplines: ["Audiovisual communication"],
     projects: [],
     logo: "/images/logos/u-montevideo.png",
+    status: "inactive",
   },
   {
     id: "strathmore",
@@ -251,6 +269,7 @@ export const universities: University[] = [
     disciplines: ["Audiovisual communications", "Philosophy"],
     projects: [],
     logo: "/images/logos/strathmore.png",
+    status: "inactive",
   },
   {
     id: "griffith",
@@ -264,6 +283,7 @@ export const universities: University[] = [
     disciplines: ["Film"],
     projects: [],
     logo: "/images/logos/griffith.png",
+    status: "inactive",
   },
   {
     id: "nid",
@@ -277,5 +297,6 @@ export const universities: University[] = [
     disciplines: ["Communication", "Textile", "Experiential design"],
     projects: [],
     logo: "/images/logos/nid.png",
+    status: "active",
   },
 ];

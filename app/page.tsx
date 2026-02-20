@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import Globe from "@/components/Globe";
 import Sidebar from "@/components/Sidebar";
@@ -9,15 +10,25 @@ import AboutContent from "@/components/AboutContent";
 import { universities as rawUniversities } from "@/data/mock";
 import { University } from "@/types";
 
-const universities = [...rawUniversities].sort((a, b) =>
-  a.name.localeCompare(b.name)
-);
+const universities = [...rawUniversities].sort((a, b) => {
+  const aActive = a.status !== "inactive";
+  const bActive = b.status !== "inactive";
+  if (aActive !== bActive) return aActive ? -1 : 1;
+  return a.name.localeCompare(b.name);
+});
 
 export default function Home() {
+  const searchParams = useSearchParams();
   const [selectedUniversity, setSelectedUniversity] =
     useState<University | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
-  const [showAbout, setShowAbout] = useState(true);
+  const [showAbout, setShowAbout] = useState(
+    searchParams.get("view") !== "consortium"
+  );
+
+  useEffect(() => {
+    setShowAbout(searchParams.get("view") !== "consortium");
+  }, [searchParams]);
 
   const handleToggleAbout = () => {
     const entering = !showAbout;
@@ -34,6 +45,7 @@ export default function Home() {
       {/* JUNK logo — sits in header row, horizontally tracks globe center */}
       <motion.div
         className="absolute top-0 h-14 flex items-center pointer-events-none z-20"
+        initial={false}
         animate={{
           left: showAbout ? "calc(79% + 176px)" : "calc(50% + 161px)",
         }}
