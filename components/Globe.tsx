@@ -35,7 +35,7 @@ export default function Globe({
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
-  
+
   // Scene state refs
   const sceneRef = useRef<{
     scene: THREE.Scene;
@@ -257,6 +257,7 @@ export default function Globe({
     // 5. Animation Loop
     const _tempVec = new THREE.Vector3();
     const _projVec = new THREE.Vector3();
+    const _autoAxisVec = new THREE.Vector3();
 
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
@@ -278,8 +279,19 @@ export default function Globe({
       } else {
         // Auto-rotate
         const speed = isCompact ? 0.0015 : 0.001;
-        s.autoQ.setFromAxisAngle(autoAxis, speed);
-        s.rot.premultiply(s.autoQ);
+        if (isCompact) {
+          // Steady Y-axis spin + gentle tilt oscillation to center each continent
+          s.autoQ.setFromAxisAngle(autoAxis, speed);
+          s.rot.premultiply(s.autoQ);
+          // Slow latitude rock (~120s period) so different latitudes get centered
+          const tiltAngle = Math.sin(performance.now() * 0.00005) * 0.0004;
+          _autoAxisVec.set(1, 0, 0);
+          s.autoQ.setFromAxisAngle(_autoAxisVec, tiltAngle);
+          s.rot.premultiply(s.autoQ);
+        } else {
+          s.autoQ.setFromAxisAngle(autoAxis, speed);
+          s.rot.premultiply(s.autoQ);
+        }
       }
 
       // Dynamic scale logic
@@ -291,7 +303,9 @@ export default function Globe({
       s.globe.quaternion.copy(s.rot);
       s.renderer.render(s.scene, s.camera);
 
-      // Label positioning
+      // Label positioning with collision avoidance
+      const visible: { idx: number; x: number; y: number; w: number; h: number; opacity: number }[] = [];
+
       for (let i = 0; i < currentUniversities.length; i++) {
         const label = labelsRef.current[i];
         if (!label) continue;
@@ -301,13 +315,13 @@ export default function Globe({
           continue;
         }
 
-        const uni = currentUniversities[i]; 
+        const uni = currentUniversities[i];
         if (!uni) continue;
 
         const phi = (90 - uni.lat) * (Math.PI / 180);
         const theta = (uni.lng + 180) * (Math.PI / 180);
         const r = R + 3;
-        
+
         _tempVec.set(
             -r * Math.sin(phi) * Math.cos(theta),
             r * Math.cos(phi),
@@ -321,18 +335,51 @@ export default function Globe({
         }
 
         _projVec.copy(_tempVec).project(s.camera);
-        // Recalculate dimensions in case they changed
-        const width = s.renderer.domElement.width / s.renderer.getPixelRatio();
-        const height = s.renderer.domElement.height / s.renderer.getPixelRatio();
-        
-        const x = (_projVec.x * 0.5 + 0.5) * width;
-        const y = (-_projVec.y * 0.5 + 0.5) * height;
+        const canvasW = s.renderer.domElement.width / s.renderer.getPixelRatio();
+        const canvasH = s.renderer.domElement.height / s.renderer.getPixelRatio();
+
+        const x = (_projVec.x * 0.5 + 0.5) * canvasW;
+        const y = (-_projVec.y * 0.5 + 0.5) * canvasH;
 
         const frontFacing = _tempVec.z / R;
         const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
 
-        label.style.opacity = String(opacity);
-        label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+        visible.push({ idx: i, x, y, w: label.offsetWidth || 36, h: label.offsetHeight || 36, opacity });
+      }
+
+      // Full collision resolution
+      const PAD = 14;
+      for (let iter = 0; iter < 8; iter++) {
+        for (let i = 0; i < visible.length; i++) {
+          for (let j = i + 1; j < visible.length; j++) {
+            const a = visible[i], b = visible[j];
+            const dx = b.x - a.x;
+            const dy = (b.y - b.h / 2) - (a.y - a.h / 2);
+            const overlapX = (a.w / 2 + b.w / 2 + PAD) - Math.abs(dx);
+            const overlapY = (a.h / 2 + b.h / 2 + PAD) - Math.abs(dy);
+            if (overlapX > 0 && overlapY > 0) {
+              if (overlapX < overlapY) {
+                const push = overlapX * 0.5;
+                const sign = dx >= 0 ? 1 : -1;
+                a.x -= sign * push;
+                b.x += sign * push;
+              } else {
+                const push = overlapY * 0.5;
+                const sign = dy >= 0 ? 1 : -1;
+                a.y -= sign * push;
+                b.y += sign * push;
+              }
+            }
+          }
+        }
+      }
+
+      // Apply resolved positions
+      for (const v of visible) {
+        const label = labelsRef.current[v.idx];
+        if (!label) continue;
+        label.style.opacity = String(v.opacity);
+        label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
       }
     };
     animate();
@@ -391,7 +438,7 @@ export default function Globe({
             ref={(el) => {
               labelsRef.current[i] = el;
             }}
-            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap transition-opacity duration-300"
+            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap transition-[transform,opacity] duration-300 ease-out"
             style={{ opacity: 0 }}
           >
             {uni.logo ? (
