@@ -33,7 +33,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-[320px] border-r-2 border-black bg-white flex flex-col shrink-0">
+    <div className="w-full bg-white flex flex-col h-full">
       <div className="flex-1 overflow-y-auto sidebar-scroll">
         <AnimatePresence mode="wait">
           {selectedUniversity ? (

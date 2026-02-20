@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import * as THREE from "three";
 import { feature } from "topojson-client";
 import { University } from "@/types";
@@ -24,19 +24,36 @@ interface GlobeProps {
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   hoveredProject: string | null;
+  compact?: boolean;
 }
 
 export default function Globe({
   universities,
   selectedUniversity,
+  compact = false,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
   const rotRef = useRef(
     new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, 0, 0, "YXZ"))
   );
   const targetQRef = useRef<THREE.Quaternion | null>(null);
   const dragRef = useRef({ active: false, x: 0, y: 0 });
   const frameRef = useRef(0);
+  const compactRef = useRef(compact);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Keep compactRef in sync
+  useEffect(() => {
+    compactRef.current = compact;
+    if (compact) {
+      targetQRef.current = null;
+      dragRef.current.active = false;
+      if (canvasRef.current) canvasRef.current.style.cursor = "default";
+    } else {
+      if (canvasRef.current) canvasRef.current.style.cursor = "grab";
+    }
+  }, [compact]);
 
   // Focus on selected university
   useEffect(() => {
@@ -56,6 +73,14 @@ export default function Globe({
       front
     );
   }, [selectedUniversity]);
+
+  // Store label ref callback
+  const setLabelRef = useCallback(
+    (i: number) => (el: HTMLDivElement | null) => {
+      labelsRef.current[i] = el;
+    },
+    []
+  );
 
   // Three.js scene
   useEffect(() => {
@@ -77,9 +102,10 @@ export default function Globe({
     container.appendChild(renderer.domElement);
 
     const el = renderer.domElement;
+    canvasRef.current = el;
     el.style.opacity = "0";
     el.style.transition = "opacity 0.8s ease";
-    el.style.cursor = "grab";
+    el.style.cursor = compactRef.current ? "default" : "grab";
     requestAnimationFrame(() => {
       el.style.opacity = "1";
     });
@@ -168,44 +194,90 @@ export default function Globe({
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
 
+      const isCompact = compactRef.current;
       const target = targetQRef.current;
-      if (dragRef.current.active) {
-        // dragging
-      } else if (target) {
+
+      if (!isCompact && dragRef.current.active) {
+        // dragging — rotation handled in pointermove
+      } else if (!isCompact && target) {
         rotRef.current.slerp(target, 0.05);
       } else {
+        // Auto-rotate (slightly faster when compact)
+        const speed = isCompact ? 0.0015 : 0.001;
         const autoQ = new THREE.Quaternion().setFromAxisAngle(
           new THREE.Vector3(0, 1, 0),
-          0.001
+          speed
         );
         rotRef.current.premultiply(autoQ);
       }
 
       globe.quaternion.copy(rotRef.current);
       renderer.render(scene, camera);
+
+      // Update label positions (compact mode only)
+      const cw = container.offsetWidth;
+      const ch = container.offsetHeight;
+      for (let i = 0; i < universities.length; i++) {
+        const label = labelsRef.current[i];
+        if (!label) continue;
+
+        if (!isCompact) {
+          label.style.opacity = "0";
+          continue;
+        }
+
+        // Get marker world position after globe rotation
+        const pos = toVec3(
+          universities[i].lat,
+          universities[i].lng,
+          R + 3
+        ).applyQuaternion(globe.quaternion);
+
+        // Front-facing check: positive z means facing camera
+        if (pos.z < 10) {
+          label.style.opacity = "0";
+          continue;
+        }
+
+        // Project to screen coordinates
+        const projected = pos.clone().project(camera);
+        const x = (projected.x * 0.5 + 0.5) * cw;
+        const y = (-projected.y * 0.5 + 0.5) * ch;
+
+        // Opacity based on how front-facing the marker is
+        const frontFacing = pos.z / R;
+        const opacity = Math.min(1, Math.max(0, frontFacing * 1.2 - 0.2));
+
+        label.style.opacity = String(opacity);
+        label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
+      }
     };
     animate();
 
-    // Resize
-    const onResize = () => {
+    // ResizeObserver for container-based resizing
+    const resizeObserver = new ResizeObserver(() => {
       const nw = container.offsetWidth;
       const nh = container.offsetHeight;
+      if (nw === 0 || nh === 0) return;
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
       renderer.setSize(nw, nh);
-    };
-    window.addEventListener("resize", onResize);
+    });
+    resizeObserver.observe(container);
 
     // Drag interaction
     const onDown = (e: PointerEvent) => {
+      if (compactRef.current) return;
       dragRef.current = { active: true, x: e.clientX, y: e.clientY };
       el.style.cursor = "grabbing";
     };
     const onUp = () => {
+      if (compactRef.current) return;
       dragRef.current.active = false;
       el.style.cursor = "grab";
     };
     const onMove = (e: PointerEvent) => {
+      if (compactRef.current) return;
       if (dragRef.current.active) {
         const dx = e.clientX - dragRef.current.x;
         const dy = e.clientY - dragRef.current.y;
@@ -229,7 +301,7 @@ export default function Globe({
 
     return () => {
       cancelAnimationFrame(frameRef.current);
-      window.removeEventListener("resize", onResize);
+      resizeObserver.disconnect();
       el.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointermove", onMove);
@@ -244,5 +316,23 @@ export default function Globe({
     };
   }, [universities]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  return (
+    <div ref={containerRef} className="w-full h-full relative">
+      {/* Three.js canvas appended here by useEffect */}
+
+      {/* University labels overlay (compact mode) */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {universities.map((uni, i) => (
+          <div
+            key={uni.id}
+            ref={setLabelRef(i)}
+            className="absolute left-0 top-0 text-[9px] font-bold uppercase tracking-[0.1em] text-black whitespace-nowrap"
+            style={{ opacity: 0 }}
+          >
+            {uni.shortName}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
