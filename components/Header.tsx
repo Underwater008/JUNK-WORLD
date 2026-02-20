@@ -14,28 +14,24 @@ export default function Header({ showAbout, onToggleAbout }: HeaderProps) {
         className="h-8"
       />
 
-      <button
-        onClick={onToggleAbout}
-        className="text-xs font-semibold uppercase tracking-[0.12em] text-[#888] hover:text-black transition-colors cursor-pointer flex items-center gap-2"
-      >
-        {showAbout ? (
-          <>
-            Close
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-            >
-              <path d="M4 4L12 12M12 4L4 12" />
-            </svg>
-          </>
-        ) : (
-          "About"
-        )}
-      </button>
+      <nav className="flex items-center gap-6">
+        <button
+          onClick={() => showAbout && onToggleAbout()}
+          className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
+            !showAbout ? "text-black" : "text-[#888] hover:text-black"
+          }`}
+        >
+          Consortium
+        </button>
+        <button
+          onClick={() => !showAbout && onToggleAbout()}
+          className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
+            showAbout ? "text-black" : "text-[#888] hover:text-black"
+          }`}
+        >
+          About
+        </button>
+      </nav>
     </header>
   );
 }

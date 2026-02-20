@@ -17,7 +17,7 @@ export default function Home() {
   const [selectedUniversity, setSelectedUniversity] =
     useState<University | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
-  const [showAbout, setShowAbout] = useState(false);
+  const [showAbout, setShowAbout] = useState(true);
 
   const handleToggleAbout = () => {
     const entering = !showAbout;

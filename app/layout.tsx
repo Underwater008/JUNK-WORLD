@@ -10,7 +10,7 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "JUNK World",
+  title: "JUNK",
   description: "A global showcase of university design projects",
 };
 

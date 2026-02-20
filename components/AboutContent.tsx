@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import { universities } from "@/data/mock";
 
 const stagger = {
   hidden: {},
@@ -18,10 +19,14 @@ const fadeUp = {
   },
 };
 
+const countryCount = new Set(universities.map((u) => u.country)).size;
+const disciplineCount = new Set(universities.flatMap((u) => u.disciplines)).size;
+
 const stats = [
-  { value: "200+", label: "Students" },
-  { value: "4", label: "Continents" },
-  { value: "3", label: "Years" },
+  { value: String(countryCount), label: "Countries" },
+  { value: String(universities.length), label: "Universities" },
+  { value: String(disciplineCount), label: "Disciplines" },
+  { value: "400+", label: "Worlds Built" },
 ];
 
 export default function AboutContent() {

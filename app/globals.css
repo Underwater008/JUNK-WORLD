@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
-@theme {
-  --font-serif: var(--font-serif), Georgia, serif;
+.font-serif {
+  font-family: var(--font-serif), Georgia, serif;
 }
 
 * {

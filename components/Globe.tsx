@@ -1,11 +1,12 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { feature } from "topojson-client";
 import { University } from "@/types";
 
 const R = 100;
+const LABEL_Z_THRESHOLD = 10;
 const COUNTRIES_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
@@ -74,31 +75,24 @@ export default function Globe({
     );
   }, [selectedUniversity]);
 
-  // Store label ref callback
-  const setLabelRef = useCallback(
-    (i: number) => (el: HTMLDivElement | null) => {
-      labelsRef.current[i] = el;
-    },
-    []
-  );
-
   // Three.js scene
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    const w = container.offsetWidth;
-    const h = container.offsetHeight;
+    // Cached container dimensions — updated by ResizeObserver
+    let cw = container.offsetWidth;
+    let ch = container.offsetHeight;
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xffffff);
 
-    const camera = new THREE.PerspectiveCamera(45, w / h, 1, 1000);
+    const camera = new THREE.PerspectiveCamera(45, cw / ch, 1, 1000);
     camera.position.z = 280;
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(w, h);
+    renderer.setSize(cw, ch);
     container.appendChild(renderer.domElement);
 
     const el = renderer.domElement;
@@ -190,6 +184,12 @@ export default function Globe({
       globe.add(m);
     }
 
+    // Reusable temp objects for animation loop (avoid per-frame allocations)
+    const _autoAxis = new THREE.Vector3(0, 1, 0);
+    const _autoQ = new THREE.Quaternion();
+    const _tempVec = new THREE.Vector3();
+    const _projVec = new THREE.Vector3();
+
     // Animation loop
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
@@ -204,19 +204,14 @@ export default function Globe({
       } else {
         // Auto-rotate (slightly faster when compact)
         const speed = isCompact ? 0.0015 : 0.001;
-        const autoQ = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          speed
-        );
-        rotRef.current.premultiply(autoQ);
+        _autoQ.setFromAxisAngle(_autoAxis, speed);
+        rotRef.current.premultiply(_autoQ);
       }
 
       globe.quaternion.copy(rotRef.current);
       renderer.render(scene, camera);
 
       // Update label positions (compact mode only)
-      const cw = container.offsetWidth;
-      const ch = container.offsetHeight;
       for (let i = 0; i < universities.length; i++) {
         const label = labelsRef.current[i];
         if (!label) continue;
@@ -227,25 +222,31 @@ export default function Globe({
         }
 
         // Get marker world position after globe rotation
-        const pos = toVec3(
-          universities[i].lat,
-          universities[i].lng,
-          R + 3
-        ).applyQuaternion(globe.quaternion);
+        const uni = universities[i];
+        const phi = (90 - uni.lat) * (Math.PI / 180);
+        const theta = (uni.lng + 180) * (Math.PI / 180);
+        const r = R + 3;
+        _tempVec
+          .set(
+            -r * Math.sin(phi) * Math.cos(theta),
+            r * Math.cos(phi),
+            r * Math.sin(phi) * Math.sin(theta)
+          )
+          .applyQuaternion(globe.quaternion);
 
         // Front-facing check: positive z means facing camera
-        if (pos.z < 10) {
+        if (_tempVec.z < LABEL_Z_THRESHOLD) {
           label.style.opacity = "0";
           continue;
         }
 
         // Project to screen coordinates
-        const projected = pos.clone().project(camera);
-        const x = (projected.x * 0.5 + 0.5) * cw;
-        const y = (-projected.y * 0.5 + 0.5) * ch;
+        _projVec.copy(_tempVec).project(camera);
+        const x = (_projVec.x * 0.5 + 0.5) * cw;
+        const y = (-_projVec.y * 0.5 + 0.5) * ch;
 
         // Opacity based on how front-facing the marker is
-        const frontFacing = pos.z / R;
+        const frontFacing = _tempVec.z / R;
         const opacity = Math.min(1, Math.max(0, frontFacing * 1.2 - 0.2));
 
         label.style.opacity = String(opacity);
@@ -254,11 +255,13 @@ export default function Globe({
     };
     animate();
 
-    // ResizeObserver for container-based resizing
+    // ResizeObserver for container-based resizing (caches dimensions)
     const resizeObserver = new ResizeObserver(() => {
       const nw = container.offsetWidth;
       const nh = container.offsetHeight;
       if (nw === 0 || nh === 0) return;
+      cw = nw;
+      ch = nh;
       camera.aspect = nw / nh;
       camera.updateProjectionMatrix();
       renderer.setSize(nw, nh);
@@ -325,8 +328,10 @@ export default function Globe({
         {universities.map((uni, i) => (
           <div
             key={uni.id}
-            ref={setLabelRef(i)}
-            className="absolute left-0 top-0 text-[9px] font-bold uppercase tracking-[0.1em] text-black whitespace-nowrap"
+            ref={(el) => {
+              labelsRef.current[i] = el;
+            }}
+            className="absolute left-0 top-0 text-[9px] font-bold uppercase tracking-[0.1em] text-black whitespace-nowrap will-change-[transform,opacity]"
             style={{ opacity: 0 }}
           >
             {uni.shortName}
