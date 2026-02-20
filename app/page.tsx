@@ -3,7 +3,11 @@
 import { useState } from "react";
 import Globe from "@/components/Globe";
 import Sidebar from "@/components/Sidebar";
-import { universities } from "@/data/mock";
+import { universities as rawUniversities } from "@/data/mock";
+
+const universities = [...rawUniversities].sort((a, b) =>
+  a.name.localeCompare(b.name)
+);
 import { University } from "@/types";
 
 export default function Home() {
