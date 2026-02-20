@@ -5,7 +5,7 @@ import * as THREE from "three";
 import { feature } from "topojson-client";
 import { University } from "@/types";
 
-const R = 100;
+const R = 70;
 const LABEL_Z_THRESHOLD = 10;
 const COUNTRIES_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
@@ -35,31 +35,48 @@ export default function Globe({
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
-  const rotRef = useRef(
-    new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, 0, 0, "YXZ"))
-  );
-  const targetQRef = useRef<THREE.Quaternion | null>(null);
-  const dragRef = useRef({ active: false, x: 0, y: 0 });
+  
+  // Scene state refs
+  const sceneRef = useRef<{
+    scene: THREE.Scene;
+    camera: THREE.PerspectiveCamera;
+    renderer: THREE.WebGLRenderer;
+    globe: THREE.Group;
+    markersGroup: THREE.Group;
+    rot: THREE.Quaternion;
+    targetQ: THREE.Quaternion | null;
+    autoQ: THREE.Quaternion;
+    drag: { active: boolean; x: number; y: number };
+  } | null>(null);
+
   const frameRef = useRef(0);
   const compactRef = useRef(compact);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const universitiesRef = useRef(universities);
 
-  // Keep compactRef in sync
+  // Keep refs in sync
   useEffect(() => {
     compactRef.current = compact;
-    if (compact) {
-      targetQRef.current = null;
-      dragRef.current.active = false;
-      if (canvasRef.current) canvasRef.current.style.cursor = "default";
-    } else {
-      if (canvasRef.current) canvasRef.current.style.cursor = "grab";
+    universitiesRef.current = universities;
+    
+    const s = sceneRef.current;
+    if (s && s.renderer) {
+      if (compact) {
+        s.targetQ = null;
+        s.drag.active = false;
+        s.renderer.domElement.style.cursor = "default";
+      } else {
+        s.renderer.domElement.style.cursor = "grab";
+      }
     }
-  }, [compact]);
+  }, [compact, universities]);
 
   // Focus on selected university
   useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return;
+
     if (!selectedUniversity) {
-      targetQRef.current = null;
+      s.targetQ = null;
       return;
     }
 
@@ -69,45 +86,61 @@ export default function Globe({
       1
     ).normalize();
     const front = new THREE.Vector3(0, 0, 1);
-    targetQRef.current = new THREE.Quaternion().setFromUnitVectors(
-      pointDir,
-      front
-    );
+    s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
   }, [selectedUniversity]);
 
-  // Three.js scene
+  // Initialize Three.js scene (ONCE)
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
 
-    // Cached container dimensions — updated by ResizeObserver
-    let cw = container.offsetWidth;
-    let ch = container.offsetHeight;
-
+    // 1. Setup Scene
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xffffff);
-
+    // Removed scene.background to allow transparency
+    
+    const cw = container.offsetWidth;
+    const ch = container.offsetHeight;
     const camera = new THREE.PerspectiveCamera(45, cw / ch, 1, 1000);
     camera.position.z = 280;
 
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(cw, ch);
-    container.appendChild(renderer.domElement);
-
+    // Set buffer size but DO NOT update style (handled by CSS to prevent flicker)
+    renderer.setSize(cw, ch, false);
+    
     const el = renderer.domElement;
-    canvasRef.current = el;
-    el.style.opacity = "0";
-    el.style.transition = "opacity 0.8s ease";
-    el.style.cursor = compactRef.current ? "default" : "grab";
-    requestAnimationFrame(() => {
-      el.style.opacity = "1";
-    });
+    el.style.width = "100%";
+    el.style.height = "100%";
+    el.style.outline = "none";
+    container.appendChild(el);
 
-    // Globe group
     const globe = new THREE.Group();
     scene.add(globe);
 
+    const markersGroup = new THREE.Group();
+    globe.add(markersGroup);
+
+    // Initial rotation state
+    const rot = new THREE.Quaternion().setFromEuler(
+      new THREE.Euler(0.3, 0, 0, "YXZ")
+    );
+    const autoAxis = new THREE.Vector3(0, 1, 0);
+    const autoQ = new THREE.Quaternion();
+
+    // Store in ref
+    sceneRef.current = {
+      scene,
+      camera,
+      renderer,
+      globe,
+      markersGroup,
+      rot,
+      targetQ: null,
+      autoQ,
+      drag: { active: false, x: 0, y: 0 },
+    };
+
+    // 2. Build Globe Geometry (Static)
     // White sphere (occludes back-facing lines)
     globe.add(
       new THREE.Mesh(
@@ -121,12 +154,14 @@ export default function Globe({
       )
     );
 
-    // Country borders from TopoJSON
+    // Country borders
     fetch(COUNTRIES_URL)
       .then((r) => r.json())
       .then((topo) => {
-        const lR = R + 0.5;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const countries = feature(topo as any, (topo as any).objects.countries) as any;
         const pts: number[] = [];
+        const lR = R + 0.5;
 
         const processRing = (coords: number[][]) => {
           for (let i = 0; i < coords.length - 1; i++) {
@@ -138,21 +173,14 @@ export default function Globe({
           }
         };
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const processGeom = (geom: any) => {
           if (geom.type === "MultiPolygon") {
-            for (const poly of geom.coordinates)
-              for (const ring of poly) processRing(ring);
+            for (const poly of geom.coordinates) for (const ring of poly) processRing(ring);
           } else if (geom.type === "Polygon") {
             for (const ring of geom.coordinates) processRing(ring);
           }
         };
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const countries = feature(
-          topo as any,
-          (topo as any).objects.countries
-        ) as any;
         if (countries.type === "FeatureCollection") {
           for (const f of countries.features) processGeom(f.geometry);
         } else if (countries.type === "Feature") {
@@ -161,10 +189,7 @@ export default function Globe({
 
         if (pts.length > 0) {
           const geom = new THREE.BufferGeometry();
-          geom.setAttribute(
-            "position",
-            new THREE.Float32BufferAttribute(pts, 3)
-          );
+          geom.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
           globe.add(
             new THREE.LineSegments(
               geom,
@@ -175,44 +200,99 @@ export default function Globe({
       })
       .catch(() => {});
 
-    // University markers
-    const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
-    const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-    for (const uni of universities) {
-      const m = new THREE.Mesh(mkGeo, mkMat);
-      m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
-      globe.add(m);
-    }
+    // 3. Resize Observer
+    const resizeObserver = new ResizeObserver(() => {
+      if (!container || !renderer || !camera) return;
+      const nw = container.offsetWidth;
+      const nh = container.offsetHeight;
+      if (nw === 0 || nh === 0) return;
+      
+      camera.aspect = nw / nh;
+      camera.updateProjectionMatrix();
+      renderer.setSize(nw, nh, false);
+      
+      // Force render immediately to prevent flickering/blank frames during resize
+      if (sceneRef.current) {
+        renderer.render(sceneRef.current.scene, camera);
+      }
+    });
+    resizeObserver.observe(container);
 
-    // Reusable temp objects for animation loop (avoid per-frame allocations)
-    const _autoAxis = new THREE.Vector3(0, 1, 0);
-    const _autoQ = new THREE.Quaternion();
+    // 4. Interaction Handlers
+    
+    const onDown = (e: PointerEvent) => {
+      if (compactRef.current || !sceneRef.current) return;
+      sceneRef.current.drag = { active: true, x: e.clientX, y: e.clientY };
+      el.style.cursor = "grabbing";
+    };
+    
+    const onUp = () => {
+      if (!sceneRef.current) return;
+      sceneRef.current.drag.active = false;
+      if (!compactRef.current) el.style.cursor = "grab";
+    };
+
+    const onMove = (e: PointerEvent) => {
+      const s = sceneRef.current;
+      if (!s || compactRef.current) return;
+      
+      if (s.drag.active) {
+        const dx = e.clientX - s.drag.x;
+        const dy = e.clientY - s.drag.y;
+        s.drag.x = e.clientX;
+        s.drag.y = e.clientY;
+        
+        const qY = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), dx * 0.005);
+        const qX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), dy * 0.005);
+        
+        s.rot.premultiply(qY).premultiply(qX);
+        s.targetQ = null;
+      }
+    };
+
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointermove", onMove);
+
+    // 5. Animation Loop
     const _tempVec = new THREE.Vector3();
     const _projVec = new THREE.Vector3();
 
-    // Animation loop
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
+      const s = sceneRef.current;
+      if (!s || !s.renderer) return;
+
+      // Skip render if canvas has no size (prevents white flash/glitches during layout changes)
+      const canvas = s.renderer.domElement;
+      if (canvas.width === 0 || canvas.height === 0) return;
 
       const isCompact = compactRef.current;
-      const target = targetQRef.current;
+      const currentUniversities = universitiesRef.current;
 
-      if (!isCompact && dragRef.current.active) {
-        // dragging — rotation handled in pointermove
-      } else if (!isCompact && target) {
-        rotRef.current.slerp(target, 0.05);
+      // Rotation logic
+      if (!isCompact && s.drag.active) {
+        // Drag handled in onMove
+      } else if (!isCompact && s.targetQ) {
+        s.rot.slerp(s.targetQ, 0.05);
       } else {
-        // Auto-rotate (slightly faster when compact)
+        // Auto-rotate
         const speed = isCompact ? 0.0015 : 0.001;
-        _autoQ.setFromAxisAngle(_autoAxis, speed);
-        rotRef.current.premultiply(_autoQ);
+        s.autoQ.setFromAxisAngle(autoAxis, speed);
+        s.rot.premultiply(s.autoQ);
       }
 
-      globe.quaternion.copy(rotRef.current);
-      renderer.render(scene, camera);
+      // Dynamic scale logic
+      const targetScale = isCompact ? 1.0 : 1.15;
+      const currentScale = s.globe.scale.x;
+      const newScale = currentScale + (targetScale - currentScale) * 0.02;
+      s.globe.scale.setScalar(newScale);
 
-      // Update label positions (compact mode only)
-      for (let i = 0; i < universities.length; i++) {
+      s.globe.quaternion.copy(s.rot);
+      s.renderer.render(s.scene, s.camera);
+
+      // Label positioning
+      for (let i = 0; i < currentUniversities.length; i++) {
         const label = labelsRef.current[i];
         if (!label) continue;
 
@@ -221,33 +301,35 @@ export default function Globe({
           continue;
         }
 
-        // Get marker world position after globe rotation
-        const uni = universities[i];
+        const uni = currentUniversities[i]; 
+        if (!uni) continue;
+
         const phi = (90 - uni.lat) * (Math.PI / 180);
         const theta = (uni.lng + 180) * (Math.PI / 180);
         const r = R + 3;
-        _tempVec
-          .set(
+        
+        _tempVec.set(
             -r * Math.sin(phi) * Math.cos(theta),
             r * Math.cos(phi),
             r * Math.sin(phi) * Math.sin(theta)
           )
-          .applyQuaternion(globe.quaternion);
+          .applyQuaternion(s.globe.quaternion);
 
-        // Front-facing check: positive z means facing camera
         if (_tempVec.z < LABEL_Z_THRESHOLD) {
           label.style.opacity = "0";
           continue;
         }
 
-        // Project to screen coordinates
-        _projVec.copy(_tempVec).project(camera);
-        const x = (_projVec.x * 0.5 + 0.5) * cw;
-        const y = (-_projVec.y * 0.5 + 0.5) * ch;
+        _projVec.copy(_tempVec).project(s.camera);
+        // Recalculate dimensions in case they changed
+        const width = s.renderer.domElement.width / s.renderer.getPixelRatio();
+        const height = s.renderer.domElement.height / s.renderer.getPixelRatio();
+        
+        const x = (_projVec.x * 0.5 + 0.5) * width;
+        const y = (-_projVec.y * 0.5 + 0.5) * height;
 
-        // Opacity based on how front-facing the marker is
         const frontFacing = _tempVec.z / R;
-        const opacity = Math.min(1, Math.max(0, frontFacing * 1.2 - 0.2));
+        const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
 
         label.style.opacity = String(opacity);
         label.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
@@ -255,75 +337,53 @@ export default function Globe({
     };
     animate();
 
-    // ResizeObserver for container-based resizing (caches dimensions)
-    const resizeObserver = new ResizeObserver(() => {
-      const nw = container.offsetWidth;
-      const nh = container.offsetHeight;
-      if (nw === 0 || nh === 0) return;
-      cw = nw;
-      ch = nh;
-      camera.aspect = nw / nh;
-      camera.updateProjectionMatrix();
-      renderer.setSize(nw, nh);
-    });
-    resizeObserver.observe(container);
-
-    // Drag interaction
-    const onDown = (e: PointerEvent) => {
-      if (compactRef.current) return;
-      dragRef.current = { active: true, x: e.clientX, y: e.clientY };
-      el.style.cursor = "grabbing";
-    };
-    const onUp = () => {
-      if (compactRef.current) return;
-      dragRef.current.active = false;
-      el.style.cursor = "grab";
-    };
-    const onMove = (e: PointerEvent) => {
-      if (compactRef.current) return;
-      if (dragRef.current.active) {
-        const dx = e.clientX - dragRef.current.x;
-        const dy = e.clientY - dragRef.current.y;
-        dragRef.current.x = e.clientX;
-        dragRef.current.y = e.clientY;
-        const qY = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(0, 1, 0),
-          dx * 0.005
-        );
-        const qX = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(1, 0, 0),
-          dy * 0.005
-        );
-        rotRef.current.premultiply(qY).premultiply(qX);
-        targetQRef.current = null;
-      }
-    };
-    el.addEventListener("pointerdown", onDown);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointermove", onMove);
-
     return () => {
       cancelAnimationFrame(frameRef.current);
       resizeObserver.disconnect();
       el.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointerup", onUp);
       window.removeEventListener("pointermove", onMove);
-      globe.traverse((obj) => {
-        if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments) {
-          obj.geometry.dispose();
-          if (obj.material instanceof THREE.Material) obj.material.dispose();
-        }
-      });
-      renderer.dispose();
+      
+      // Dispose logic
       if (container.contains(el)) container.removeChild(el);
+      renderer.dispose();
+      sceneRef.current = null;
     };
+  }, []); // Empty dependency array = mount once
+
+  // Update Markers when universities change
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return;
+
+    // Clear old markers
+    while(s.markersGroup.children.length > 0){ 
+        const child = s.markersGroup.children[0];
+        if (child instanceof THREE.Mesh) {
+            child.geometry.dispose();
+            if (Array.isArray(child.material)) {
+                child.material.forEach(m => m.dispose());
+            } else {
+                child.material.dispose();
+            }
+        }
+        s.markersGroup.remove(child); 
+    }
+
+    // Add new markers
+    const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
+    const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+    universities.forEach(uni => {
+      const m = new THREE.Mesh(mkGeo, mkMat);
+      m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
+      s.markersGroup.add(m);
+    });
+
   }, [universities]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative">
-      {/* Three.js canvas appended here by useEffect */}
-
-      {/* University labels overlay (compact mode) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {universities.map((uni, i) => (
           <div
@@ -331,10 +391,23 @@ export default function Globe({
             ref={(el) => {
               labelsRef.current[i] = el;
             }}
-            className="absolute left-0 top-0 text-[9px] font-bold uppercase tracking-[0.1em] text-black whitespace-nowrap will-change-[transform,opacity]"
+            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap transition-opacity duration-300"
             style={{ opacity: 0 }}
           >
-            {uni.shortName}
+            {uni.logo ? (
+              <img
+                src={uni.logo}
+                alt={uni.shortName}
+                width={36}
+                height={36}
+                style={{ objectFit: "contain", display: "block" }}
+                draggable={false}
+              />
+            ) : (
+              <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">
+                {uni.shortName}
+              </span>
+            )}
           </div>
         ))}
       </div>

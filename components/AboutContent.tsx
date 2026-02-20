@@ -37,15 +37,21 @@ export default function AboutContent() {
       animate="visible"
       variants={stagger}
     >
-      <div className="px-10 py-12 max-w-[640px]">
+      <div className="px-10 py-12">
+        {/* Logo */}
+        <motion.img
+          variants={fadeUp}
+          src="/images/JUNK logos/JUNK-logo.gif"
+          alt="JUNK"
+          className="h-24"
+        />
+
         {/* Heading */}
         <motion.h1
           variants={fadeUp}
-          className="font-serif text-6xl md:text-7xl leading-[0.95] tracking-tight text-black"
+          className="font-serif text-6xl md:text-7xl leading-[0.95] tracking-tight text-black mt-6"
         >
-          World
-          <br />
-          Building
+          World Building
         </motion.h1>
 
         {/* Divider */}

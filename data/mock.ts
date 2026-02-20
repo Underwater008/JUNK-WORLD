@@ -12,6 +12,7 @@ export const universities: University[] = [
     country: "Netherlands",
     disciplines: ["Production design"],
     projects: [],
+    logo: "/images/logos/nederlandse-filmacademie.png",
   },
   {
     id: "film-university-babelsberg",
@@ -36,6 +37,7 @@ export const universities: University[] = [
     country: "Denmark",
     disciplines: ["Game design"],
     projects: [],
+    logo: "/images/logos/royal-danish-academy.png",
   },
   {
     id: "st-helens-college",
@@ -48,6 +50,7 @@ export const universities: University[] = [
     country: "United Kingdom",
     disciplines: [],
     projects: [],
+    logo: "/images/logos/st-helens-college.png",
   },
   {
     id: "szkola-filmowa-lodz",
@@ -60,6 +63,7 @@ export const universities: University[] = [
     country: "Poland",
     disciplines: ["Film production"],
     projects: [],
+    logo: "/images/logos/szkola-filmowa-lodz.png",
   },
   {
     id: "ubc",
@@ -72,6 +76,7 @@ export const universities: University[] = [
     country: "Canada",
     disciplines: ["Anthropology & Language"],
     projects: [],
+    logo: "/images/logos/ubc.png",
   },
   {
     id: "unl",
@@ -84,6 +89,7 @@ export const universities: University[] = [
     country: "United States",
     disciplines: ["Interdisciplinary"],
     projects: [],
+    logo: "/images/logos/unl.png",
   },
   {
     id: "u-miami",
@@ -96,6 +102,7 @@ export const universities: University[] = [
     country: "United States",
     disciplines: [],
     projects: [],
+    logo: "/images/logos/u-miami.png",
   },
   {
     id: "usc",
@@ -108,6 +115,7 @@ export const universities: University[] = [
     country: "United States",
     disciplines: ["Interdisciplinary"],
     projects: [],
+    logo: "/images/logos/usc.png",
   },
   {
     id: "uc3m",
@@ -120,6 +128,7 @@ export const universities: University[] = [
     country: "Spain",
     disciplines: ["Audiovisual communication"],
     projects: [],
+    logo: "/images/logos/uc3m.png",
   },
   {
     id: "polimi",
@@ -132,6 +141,7 @@ export const universities: University[] = [
     country: "Italy",
     disciplines: ["Toys design"],
     projects: [],
+    logo: "/images/logos/polimi.png",
   },
   {
     id: "domus-academy",
@@ -144,6 +154,7 @@ export const universities: University[] = [
     country: "Italy",
     disciplines: ["Product", "Urban", "Architecture"],
     projects: [],
+    logo: "/images/logos/domus-academy.png",
   },
   {
     id: "uanl",
@@ -156,6 +167,7 @@ export const universities: University[] = [
     country: "Mexico",
     disciplines: ["Industrial design"],
     projects: [],
+    logo: "/images/logos/uanl.png",
   },
   {
     id: "u-externado",
@@ -168,6 +180,7 @@ export const universities: University[] = [
     country: "Colombia",
     disciplines: [],
     projects: [],
+    logo: "/images/logos/u-externado.png",
   },
   {
     id: "kamehameha",
@@ -180,6 +193,7 @@ export const universities: University[] = [
     country: "United States",
     disciplines: [],
     projects: [],
+    logo: "/images/logos/kamehameha.png",
   },
   {
     id: "espm",
@@ -192,6 +206,7 @@ export const universities: University[] = [
     country: "Brazil",
     disciplines: ["Journalism", "Transmedia"],
     projects: [],
+    logo: "/images/logos/espm.png",
   },
   {
     id: "u-austral",
@@ -209,6 +224,7 @@ export const universities: University[] = [
       "International relations and business",
     ],
     projects: [],
+    logo: "/images/logos/u-austral.png",
   },
   {
     id: "u-montevideo",
@@ -221,6 +237,7 @@ export const universities: University[] = [
     country: "Uruguay",
     disciplines: ["Audiovisual communication"],
     projects: [],
+    logo: "/images/logos/u-montevideo.png",
   },
   {
     id: "strathmore",
@@ -233,6 +250,7 @@ export const universities: University[] = [
     country: "Kenya",
     disciplines: ["Audiovisual communications", "Philosophy"],
     projects: [],
+    logo: "/images/logos/strathmore.png",
   },
   {
     id: "griffith",
@@ -245,6 +263,7 @@ export const universities: University[] = [
     country: "Australia",
     disciplines: ["Film"],
     projects: [],
+    logo: "/images/logos/griffith.png",
   },
   {
     id: "nid",
@@ -257,5 +276,6 @@ export const universities: University[] = [
     country: "India",
     disciplines: ["Communication", "Textile", "Experiential design"],
     projects: [],
+    logo: "/images/logos/nid.png",
   },
 ];

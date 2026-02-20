@@ -36,8 +36,9 @@ export default function Home() {
         {/* Left panel: animated width between sidebar (320px) and about content (55%) */}
         <motion.div
           className="shrink-0 overflow-hidden bg-white"
+          initial={false}
           animate={{
-            width: showAbout ? "55%" : "320px",
+            width: showAbout ? "58%" : "320px",
           }}
           transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
           style={{ borderRight: "2px solid black" }}
@@ -74,15 +75,20 @@ export default function Home() {
           </AnimatePresence>
         </motion.div>
 
-        {/* Globe container: fills remaining space */}
-        <div className="flex-1 relative bg-white">
-          <Globe
-            universities={universities}
-            selectedUniversity={selectedUniversity}
-            onSelectUniversity={setSelectedUniversity}
-            hoveredProject={hoveredProject}
-            compact={showAbout}
-          />
+        {/* Globe container: fills remaining space, overflow hidden clips right edge */}
+        <div className="flex-1 relative bg-white overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 transition-[width] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
+            style={{ width: showAbout ? "calc(100% + 350px)" : "100%" }}
+          >
+            <Globe
+              universities={universities}
+              selectedUniversity={selectedUniversity}
+              onSelectUniversity={setSelectedUniversity}
+              hoveredProject={hoveredProject}
+              compact={showAbout}
+            />
+          </div>
         </div>
       </div>
     </main>

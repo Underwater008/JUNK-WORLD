@@ -20,4 +20,5 @@ export interface University {
   country: string;
   disciplines: string[];
   projects: Project[];
+  logo?: string;
 }
