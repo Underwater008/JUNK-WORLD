@@ -35,13 +35,13 @@ const panelWidth: Record<View, string> = {
 const logoLeft: Record<View, string> = {
   about: "calc(79% + 176px)",
   consortium: "calc(50% + 161px)",
-  members: "calc(85% + 175px)",
+  members: "calc(85%)",
 };
 
 const globeContainerWidth: Record<View, string> = {
   about: "calc(100% + 350px)",
   consortium: "100%",
-  members: "calc(100% + 350px)",
+  members: "100%",
 };
 
 const ease = [0.4, 0, 0.2, 1] as const;
