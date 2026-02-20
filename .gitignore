@@ -24,3 +24,10 @@ npm-debug.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# agent/editor skills
+.agents/
+.claude/skills/
+.cursor/
+skills/
+docs/plans/
