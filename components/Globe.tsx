@@ -1,11 +1,22 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback, useMemo } from "react";
-import dynamic from "next/dynamic";
-import type { GlobeMethods } from "react-globe.gl";
+import { useRef, useEffect } from "react";
+import * as THREE from "three";
+import { feature } from "topojson-client";
 import { University } from "@/types";
 
-const GlobeGL = dynamic(() => import("react-globe.gl"), { ssr: false });
+const R = 100;
+const LAND_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/land-110m.json";
+
+function toVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
+  const phi = (90 - lat) * (Math.PI / 180);
+  const theta = (lng + 180) * (Math.PI / 180);
+  return new THREE.Vector3(
+    -radius * Math.sin(phi) * Math.cos(theta),
+    radius * Math.cos(phi),
+    radius * Math.sin(phi) * Math.sin(theta)
+  );
+}
 
 interface GlobeProps {
   universities: University[];
@@ -14,310 +25,243 @@ interface GlobeProps {
   hoveredProject: string | null;
 }
 
-interface MarkerData {
-  id: string;
-  lat: number;
-  lng: number;
-  label: string;
-  type: "university" | "project";
-  universityId: string;
-  size: number;
-}
-
-/**
- * Render GeoJSON country features onto a 2D canvas as an equirectangular
- * texture. This is then mapped onto the globe sphere — pure texture,
- * zero z-fighting.
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function renderGlobeTexture(features: any[]): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = 2048;
-  canvas.height = 1024;
-  const ctx = canvas.getContext("2d")!;
-  const { width, height } = canvas;
-
-  // Ocean
-  ctx.fillStyle = "#f5f5f5";
-  ctx.fillRect(0, 0, width, height);
-
-  // Land fill + country border strokes in one pass
-  ctx.fillStyle = "#ebebeb";
-  ctx.strokeStyle = "#333333";
-  ctx.lineWidth = 1.5;
-  ctx.lineJoin = "round";
-
-  for (const feature of features) {
-    if (!feature.geometry) continue;
-    const { type, coordinates } = feature.geometry;
-    const polygons = type === "Polygon" ? [coordinates] : coordinates;
-
-    for (const polygon of polygons) {
-      ctx.beginPath();
-      for (const ring of polygon) {
-        for (let i = 0; i < ring.length; i++) {
-          const [lng, lat] = ring[i];
-          const x = ((lng + 180) / 360) * width;
-          const y = ((90 - lat) / 180) * height;
-
-          if (i === 0) {
-            ctx.moveTo(x, y);
-          } else {
-            // Skip segments that cross the antimeridian
-            const [prevLng] = ring[i - 1];
-            if (Math.abs(lng - prevLng) > 180) {
-              ctx.moveTo(x, y);
-            } else {
-              ctx.lineTo(x, y);
-            }
-          }
-        }
-      }
-      ctx.fill();
-      ctx.stroke();
-    }
-  }
-
-  return canvas;
-}
-
-export default function Globe({
-  universities,
-  selectedUniversity,
-  onSelectUniversity,
-  hoveredProject,
-}: GlobeProps) {
-  const globeRef = useRef<GlobeMethods | undefined>(undefined);
+export default function Globe({ universities, selectedUniversity }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [globeReady, setGlobeReady] = useState(false);
-  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
-  const [projectMarkersVisible, setProjectMarkersVisible] = useState(false);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [globeMaterial, setGlobeMaterial] = useState<any>(null);
+  const phiRef = useRef(0);
+  const thetaRef = useRef(0.3);
+  const focusRef = useRef<{ phi: number; theta: number } | null>(null);
+  const dragRef = useRef({ active: false, x: 0 });
+  const frameRef = useRef(0);
 
-  const onSelectRef = useRef(onSelectUniversity);
-  const universitiesRef = useRef(universities);
-  const selectedRef = useRef(selectedUniversity);
-  onSelectRef.current = onSelectUniversity;
-  universitiesRef.current = universities;
-  selectedRef.current = selectedUniversity;
-
-  // Load world data, render to canvas texture, create material
+  // Focus on selected university
   useEffect(() => {
-    Promise.all([
-      import("three"),
-      import("topojson-client"),
-      fetch("https://unpkg.com/world-atlas@2/countries-110m.json").then((r) =>
-        r.json()
-      ),
-    ]).then(([THREE, topojson, worldData]) => {
-      const geojson = topojson.feature(
-        worldData,
-        worldData.objects.countries
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const canvas = renderGlobeTexture((geojson as any).features);
-      const texture = new THREE.CanvasTexture(canvas);
-
-      setGlobeMaterial(
-        new THREE.MeshBasicMaterial({
-          map: texture,
-        })
-      );
-    });
-  }, []);
-
-  // Track container dimensions
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const update = () => {
-      const rect = el.getBoundingClientRect();
-      setDimensions({ width: rect.width, height: rect.height });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
-
-  const handleGlobeReady = useCallback(() => {
-    if (!globeRef.current) return;
-    const controls = globeRef.current.controls();
-    if (controls) {
-      controls.autoRotate = true;
-      controls.autoRotateSpeed = 0.3;
-      controls.enableZoom = true;
+    if (!selectedUniversity) {
+      focusRef.current = null;
+      return;
     }
-    globeRef.current.pointOfView({ lat: 30, lng: 10, altitude: 2.5 });
-    setGlobeReady(true);
-  }, []);
 
-  // Animate to selected university
-  useEffect(() => {
-    if (!globeRef.current || !globeReady) return;
-    const controls = globeRef.current.controls();
+    const targetPhi = -(selectedUniversity.lng + 90) * (Math.PI / 180);
+    const targetTheta = selectedUniversity.lat * (Math.PI / 180);
 
-    if (selectedUniversity) {
-      if (controls) controls.autoRotate = false;
-      globeRef.current.pointOfView(
-        {
-          lat: selectedUniversity.lat,
-          lng: selectedUniversity.lng,
-          altitude: 1.8,
-        },
-        1200
-      );
-      setProjectMarkersVisible(false);
-      const timer = setTimeout(() => setProjectMarkersVisible(true), 800);
-      return () => clearTimeout(timer);
-    } else {
-      if (controls) controls.autoRotate = true;
-      globeRef.current.pointOfView(
-        { lat: 30, lng: 10, altitude: 2.5 },
-        1200
-      );
-      setProjectMarkersVisible(false);
-    }
-  }, [selectedUniversity, globeReady]);
-
-  // Build marker data
-  const markers: MarkerData[] = useMemo(() => {
-    const result: MarkerData[] = [];
-
-    if (selectedUniversity) {
-      result.push({
-        id: selectedUniversity.id,
-        lat: selectedUniversity.lat,
-        lng: selectedUniversity.lng,
-        label: selectedUniversity.shortName,
-        type: "university",
-        universityId: selectedUniversity.id,
-        size: 14,
-      });
-
-      if (projectMarkersVisible) {
-        selectedUniversity.projects.forEach((p) => {
-          result.push({
-            id: p.id,
-            lat: selectedUniversity.lat + p.markerOffset.lat,
-            lng: selectedUniversity.lng + p.markerOffset.lng,
-            label: p.title,
-            type: "project",
-            universityId: selectedUniversity.id,
-            size: 8,
-          });
-        });
+    let bestPhi = targetPhi;
+    for (let offset = -4; offset <= 4; offset++) {
+      const candidate = targetPhi + offset * 2 * Math.PI;
+      if (
+        Math.abs(candidate - phiRef.current) <
+        Math.abs(bestPhi - phiRef.current)
+      ) {
+        bestPhi = candidate;
       }
-    } else {
-      universities.forEach((uni) => {
-        result.push({
-          id: uni.id,
-          lat: uni.lat,
-          lng: uni.lng,
-          label: uni.shortName,
-          type: "university",
-          universityId: uni.id,
-          size: 10,
-        });
-      });
     }
 
-    return result;
-  }, [universities, selectedUniversity, projectMarkersVisible]);
+    focusRef.current = { phi: bestPhi, theta: targetTheta };
+  }, [selectedUniversity]);
 
-  // Create marker HTML elements
-  const createMarkerElement = useCallback(
-    (d: object) => {
-      const marker = d as MarkerData;
-      const el = document.createElement("div");
-      el.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        cursor: pointer;
-        pointer-events: auto;
-        transition: transform 0.3s ease, opacity 0.5s ease;
-      `;
+  // Three.js scene
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
 
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (marker.type === "university") {
-          if (selectedRef.current?.id === marker.id) {
-            onSelectRef.current(null);
-          } else {
-            const uni = universitiesRef.current.find(
-              (u) => u.id === marker.id
-            );
-            if (uni) onSelectRef.current(uni);
+    const w = container.offsetWidth;
+    const h = container.offsetHeight;
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+
+    const camera = new THREE.PerspectiveCamera(45, w / h, 1, 1000);
+    camera.position.z = 280;
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(w, h);
+    container.appendChild(renderer.domElement);
+
+    const el = renderer.domElement;
+    el.style.opacity = "0";
+    el.style.transition = "opacity 0.8s ease";
+    el.style.cursor = "grab";
+    requestAnimationFrame(() => {
+      el.style.opacity = "1";
+    });
+
+    // Globe group — all content rotates together
+    const globe = new THREE.Group();
+    globe.rotation.order = "YXZ";
+    scene.add(globe);
+
+    // White sphere (occludes back-facing lines)
+    globe.add(
+      new THREE.Mesh(
+        new THREE.SphereGeometry(R, 64, 64),
+        new THREE.MeshBasicMaterial({
+          color: 0xffffff,
+          polygonOffset: true,
+          polygonOffsetFactor: 1,
+          polygonOffsetUnits: 1,
+        })
+      )
+    );
+
+    // Graticule — light gray grid lines (#D4D4D4)
+    const gPts: number[] = [];
+    const gR = R + 0.3;
+    for (let lng = -180; lng < 180; lng += 30) {
+      for (let lat = -90; lat < 90; lat += 2) {
+        const a = toVec3(lat, lng, gR);
+        const b = toVec3(lat + 2, lng, gR);
+        gPts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    for (let lat = -60; lat <= 60; lat += 30) {
+      for (let lng = -180; lng < 180; lng += 2) {
+        const a = toVec3(lat, lng, gR);
+        const b = toVec3(lat, lng + 2, gR);
+        gPts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      }
+    }
+    const gratGeom = new THREE.BufferGeometry();
+    gratGeom.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(gPts, 3)
+    );
+    globe.add(
+      new THREE.LineSegments(
+        gratGeom,
+        new THREE.LineBasicMaterial({ color: 0xd4d4d4 })
+      )
+    );
+
+    // Continent outlines — black lines from TopoJSON
+    fetch(LAND_URL)
+      .then((r) => r.json())
+      .then((topo) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const land = feature(topo as any, (topo as any).objects.land) as any;
+        const lR = R + 0.5;
+        const pts: number[] = [];
+
+        const processRing = (coords: number[][]) => {
+          for (let i = 0; i < coords.length - 1; i++) {
+            const [lng1, lat1] = coords[i];
+            const [lng2, lat2] = coords[i + 1];
+            const a = toVec3(lat1, lng1, lR);
+            const b = toVec3(lat2, lng2, lR);
+            pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
           }
+        };
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const processGeom = (geom: any) => {
+          if (geom.type === "MultiPolygon") {
+            for (const poly of geom.coordinates)
+              for (const ring of poly) processRing(ring);
+          } else if (geom.type === "Polygon") {
+            for (const ring of geom.coordinates) processRing(ring);
+          }
+        };
+
+        if (land.type === "FeatureCollection") {
+          for (const f of land.features) processGeom(f.geometry);
+        } else if (land.type === "Feature") {
+          processGeom(land.geometry);
+        }
+
+        if (pts.length > 0) {
+          const geom = new THREE.BufferGeometry();
+          geom.setAttribute(
+            "position",
+            new THREE.Float32BufferAttribute(pts, 3)
+          );
+          globe.add(
+            new THREE.LineSegments(
+              geom,
+              new THREE.LineBasicMaterial({ color: 0x000000 })
+            )
+          );
+        }
+      })
+      .catch(() => {
+        /* globe renders without continents if fetch fails */
+      });
+
+    // University markers — small black spheres
+    const mkGeo = new THREE.SphereGeometry(1.5, 12, 12);
+    const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+    for (const uni of universities) {
+      const m = new THREE.Mesh(mkGeo, mkMat);
+      m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
+      globe.add(m);
+    }
+
+    // Animation loop
+    const animate = () => {
+      frameRef.current = requestAnimationFrame(animate);
+
+      const focus = focusRef.current;
+      if (dragRef.current.active) {
+        // dragging — don't override
+      } else if (focus) {
+        phiRef.current += (focus.phi - phiRef.current) * 0.05;
+        thetaRef.current += (focus.theta - thetaRef.current) * 0.05;
+      } else {
+        phiRef.current += 0.003;
+        thetaRef.current += (0.3 - thetaRef.current) * 0.05;
+      }
+
+      globe.rotation.y = phiRef.current;
+      globe.rotation.x = thetaRef.current;
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    // Resize
+    const onResize = () => {
+      const nw = container.offsetWidth;
+      const nh = container.offsetHeight;
+      camera.aspect = nw / nh;
+      camera.updateProjectionMatrix();
+      renderer.setSize(nw, nh);
+    };
+    window.addEventListener("resize", onResize);
+
+    // Drag interaction
+    const onDown = (e: PointerEvent) => {
+      dragRef.current = { active: true, x: e.clientX };
+      el.style.cursor = "grabbing";
+    };
+    const onUp = () => {
+      dragRef.current.active = false;
+      el.style.cursor = "grab";
+    };
+    const onMove = (e: PointerEvent) => {
+      if (dragRef.current.active) {
+        const dx = e.clientX - dragRef.current.x;
+        dragRef.current.x = e.clientX;
+        phiRef.current -= dx * 0.005;
+        focusRef.current = null;
+      }
+    };
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointermove", onMove);
+
+    // Cleanup
+    return () => {
+      cancelAnimationFrame(frameRef.current);
+      window.removeEventListener("resize", onResize);
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointermove", onMove);
+      globe.traverse((obj) => {
+        if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments) {
+          obj.geometry.dispose();
+          if (obj.material instanceof THREE.Material) obj.material.dispose();
         }
       });
+      renderer.dispose();
+      if (container.contains(el)) container.removeChild(el);
+    };
+  }, [universities]);
 
-      const isProject = marker.type === "project";
-      const isHovered = hoveredProject === marker.id;
-      const dotSize = isHovered ? marker.size + 4 : marker.size;
-
-      // Dot — monochrome
-      const dot = document.createElement("div");
-      dot.style.cssText = `
-        width: ${dotSize}px;
-        height: ${dotSize}px;
-        background: #000000;
-        border-radius: 50%;
-        border: 1.5px solid #ffffff;
-        transition: all 0.3s ease;
-        ${isHovered ? "box-shadow: 0 0 0 3px rgba(0,0,0,0.15);" : ""}
-      `;
-
-      // Label
-      const label = document.createElement("div");
-      label.textContent = marker.label;
-      label.style.cssText = `
-        margin-top: 4px;
-        font-size: ${isProject ? 9 : 11}px;
-        font-weight: ${isProject ? "500" : "600"};
-        color: #171717;
-        white-space: nowrap;
-        letter-spacing: 0.3px;
-        font-family: "Inter", -apple-system, sans-serif;
-        opacity: ${isProject && !isHovered ? 0 : 1};
-        transition: opacity 0.2s ease;
-      `;
-
-      el.appendChild(dot);
-      el.appendChild(label);
-
-      return el;
-    },
-    [hoveredProject]
-  );
-
-  const handleGlobeClick = useCallback(() => {
-    if (selectedRef.current) {
-      onSelectRef.current(null);
-    }
-  }, []);
-
-  return (
-    <div ref={containerRef} className="w-full h-full relative">
-      {dimensions.width > 0 && globeMaterial && (
-        <GlobeGL
-          ref={globeRef}
-          width={dimensions.width}
-          height={dimensions.height}
-          backgroundColor="rgba(0,0,0,0)"
-          globeMaterial={globeMaterial}
-          showAtmosphere={false}
-          htmlElementsData={markers}
-          htmlLat="lat"
-          htmlLng="lng"
-          htmlElement={createMarkerElement}
-          onGlobeClick={handleGlobeClick}
-          onGlobeReady={handleGlobeReady}
-          animateIn={true}
-        />
-      )}
-    </div>
-  );
+  return <div ref={containerRef} className="w-full h-full" />;
 }
