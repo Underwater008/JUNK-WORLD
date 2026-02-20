@@ -35,7 +35,7 @@ const panelWidth: Record<View, string> = {
 const logoLeft: Record<View, string> = {
   about: "calc(79% + 176px)",
   consortium: "calc(50% + 161px)",
-  members: "calc(85%)",
+  members: "calc(85% + 0px)",
 };
 
 const globeContainerWidth: Record<View, string> = {

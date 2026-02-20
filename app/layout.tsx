@@ -12,6 +12,23 @@ const instrumentSerif = Instrument_Serif({
 export const metadata: Metadata = {
   title: "JUNK",
   description: "A global showcase of university design projects",
+  openGraph: {
+    title: "JUNK",
+    description: "A global showcase of university design projects",
+    images: [
+      {
+        url: "/images/JUNK logos/JUNK-logo.gif",
+        alt: "JUNK logo",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "JUNK",
+    description: "A global showcase of university design projects",
+    images: ["/images/JUNK logos/JUNK-logo.gif"],
+  },
 };
 
 export default function RootLayout({
