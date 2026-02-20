@@ -134,8 +134,18 @@ export default function Sidebar({
                   transition={{ duration: 0.3, delay: i * 0.04 }}
                   className="w-full flex items-center gap-4 px-6 py-5 text-left border-b border-[#E5E5E5] hover:bg-[#FAFAFA] transition-colors cursor-pointer group"
                 >
-                  {/* Black dot */}
-                  <div className="w-2 h-2 rounded-full bg-black shrink-0" />
+                  {/* University logo */}
+                  {uni.logo ? (
+                    <img
+                      src={uni.logo}
+                      alt={uni.shortName}
+                      className="w-8 h-8 object-contain shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-[#E5E5E5] shrink-0 flex items-center justify-center text-[10px] font-bold text-[#888]">
+                      {uni.shortName}
+                    </div>
+                  )}
 
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-semibold text-black block leading-tight">
