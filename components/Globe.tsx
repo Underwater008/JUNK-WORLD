@@ -438,7 +438,7 @@ export default function Globe({
             ref={(el) => {
               labelsRef.current[i] = el;
             }}
-            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap transition-[transform,opacity] duration-300 ease-out"
+            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap transition-opacity duration-300 ease-out"
             style={{ opacity: 0 }}
           >
             {uni.logo ? (
