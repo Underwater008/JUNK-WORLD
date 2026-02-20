@@ -28,8 +28,24 @@ export default function Home() {
   };
 
   return (
-    <main className="w-screen h-screen overflow-hidden flex flex-col">
+    <main className="w-screen h-screen overflow-hidden flex flex-col relative">
       <Header showAbout={showAbout} onToggleAbout={handleToggleAbout} />
+
+      {/* JUNK logo — sits in header row, horizontally tracks globe center */}
+      <motion.div
+        className="absolute top-0 h-14 flex items-center pointer-events-none z-20"
+        animate={{
+          left: showAbout ? "calc(79% + 176px)" : "calc(50% + 161px)",
+        }}
+        style={{ x: "-50%" }}
+        transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
+      >
+        <img
+          src="/images/JUNK logos/JUNK-logo.gif"
+          alt="JUNK"
+          className="h-8"
+        />
+      </motion.div>
 
       {/* Body */}
       <div className="flex-1 flex overflow-hidden">

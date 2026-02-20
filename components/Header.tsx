@@ -26,12 +26,6 @@ export default function Header({ showAbout, onToggleAbout }: HeaderProps) {
           Consortium
         </button>
       </nav>
-
-      <img
-        src="/images/JUNK logos/JUNK-logo.gif"
-        alt="JUNK"
-        className="h-8"
-      />
     </header>
   );
 }
