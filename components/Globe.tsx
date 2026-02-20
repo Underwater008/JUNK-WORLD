@@ -26,12 +26,14 @@ interface GlobeProps {
   onSelectUniversity: (uni: University | null) => void;
   hoveredProject: string | null;
   compact?: boolean;
+  scale?: number;
 }
 
 export default function Globe({
   universities,
   selectedUniversity,
   compact = false,
+  scale,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -51,6 +53,7 @@ export default function Globe({
 
   const frameRef = useRef(0);
   const compactRef = useRef(compact);
+  const scaleRef = useRef(scale);
   const universitiesRef = useRef(universities);
   const labelsReadyRef = useRef(false);
   const prevVisibleRef = useRef<Set<number>>(new Set());
@@ -58,6 +61,7 @@ export default function Globe({
   // Keep refs in sync
   useEffect(() => {
     compactRef.current = compact;
+    scaleRef.current = scale;
     universitiesRef.current = universities;
     
     const s = sceneRef.current;
@@ -69,7 +73,7 @@ export default function Globe({
         s.renderer.domElement.style.cursor = "grab";
       }
     }
-  }, [compact, universities]);
+  }, [compact, scale, universities]);
 
   // Focus on selected university
   useEffect(() => {
@@ -296,7 +300,7 @@ export default function Globe({
       }
 
       // Dynamic scale logic
-      const targetScale = isCompact ? 1.0 : 1.15;
+      const targetScale = scaleRef.current ?? (isCompact ? 1.0 : 1.15);
       const currentScale = s.globe.scale.x;
       const newScale = currentScale + (targetScale - currentScale) * 0.02;
       s.globe.scale.setScalar(newScale);

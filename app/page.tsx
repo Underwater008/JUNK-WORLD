@@ -178,6 +178,7 @@ function HomeContent() {
               onSelectUniversity={setSelectedUniversity}
               hoveredProject={hoveredProject}
               compact={isCompact}
+              scale={view === "members" ? 0.8 : undefined}
             />
           </div>
         </div>
