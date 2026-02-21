@@ -29,6 +29,8 @@ interface GlobeProps {
   scale?: number;
   allowDragInCompact?: boolean;
   hideLabels?: boolean;
+  soloLabelId?: string;
+  maxLabels?: number;
 }
 
 export default function Globe({
@@ -38,6 +40,8 @@ export default function Globe({
   scale,
   allowDragInCompact = false,
   hideLabels = false,
+  soloLabelId,
+  maxLabels,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -60,6 +64,8 @@ export default function Globe({
   const scaleRef = useRef(scale);
   const allowDragInCompactRef = useRef(allowDragInCompact);
   const universitiesRef = useRef(universities);
+  const soloLabelIdRef = useRef(soloLabelId);
+  const maxLabelsRef = useRef(maxLabels);
   const labelsReadyRef = useRef(false);
   const prevVisibleRef = useRef<Set<number>>(new Set());
 
@@ -69,6 +75,8 @@ export default function Globe({
     scaleRef.current = scale;
     allowDragInCompactRef.current = allowDragInCompact;
     universitiesRef.current = universities;
+    soloLabelIdRef.current = soloLabelId;
+    maxLabelsRef.current = maxLabels;
 
     const s = sceneRef.current;
     if (s && s.renderer) {
@@ -79,7 +87,7 @@ export default function Globe({
         s.renderer.domElement.style.cursor = "grab";
       }
     }
-  }, [compact, scale, allowDragInCompact, universities]);
+  }, [compact, scale, allowDragInCompact, universities, soloLabelId, maxLabels]);
 
   // Focus on selected university
   useEffect(() => {
@@ -332,6 +340,13 @@ export default function Globe({
         const uni = currentUniversities[i];
         if (!uni) continue;
 
+        // Solo mode: only show the specified university's label
+        const solo = soloLabelIdRef.current;
+        if (solo && uni.id !== solo) {
+          label.style.opacity = "0";
+          continue;
+        }
+
         const phi = (90 - uni.lat) * (Math.PI / 180);
         const theta = (uni.lng + 180) * (Math.PI / 180);
         const r = R + 3;
@@ -359,6 +374,17 @@ export default function Globe({
         const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
 
         visible.push({ idx: i, x, y, w: label.offsetWidth || 36, h: label.offsetHeight || 36, opacity });
+      }
+
+      // Limit to most front-facing labels
+      visible.sort((a, b) => b.opacity - a.opacity);
+      const MAX_LABELS = maxLabelsRef.current ?? 8;
+      if (visible.length > MAX_LABELS) {
+        for (const v of visible.slice(MAX_LABELS)) {
+          const label = labelsRef.current[v.idx];
+          if (label) label.style.opacity = "0";
+        }
+        visible.length = MAX_LABELS;
       }
 
       // Full collision resolution
@@ -398,10 +424,10 @@ export default function Globe({
         const newlyAppearing = !prevVisibleRef.current.has(v.idx);
         if (newlyAppearing && labelsReadyRef.current) {
           // Snap position without transition, keep opacity transition
-          label.style.transition = 'opacity 300ms ease-out';
+          label.style.transition = 'opacity 400ms ease-out';
           label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
           label.getBoundingClientRect(); // force reflow so snap applies
-          label.style.transition = 'transform 300ms ease-out, opacity 300ms ease-out';
+          label.style.transition = 'transform 800ms ease-out, opacity 400ms ease-out';
         } else {
           label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
         }
@@ -415,7 +441,7 @@ export default function Globe({
         requestAnimationFrame(() => {
           for (const label of labelsRef.current) {
             if (label) {
-              label.style.transition = 'transform 300ms ease-out, opacity 300ms ease-out';
+              label.style.transition = 'transform 800ms ease-out, opacity 400ms ease-out';
             }
           }
         });
@@ -470,7 +496,7 @@ export default function Globe({
 
   return (
     <div ref={containerRef} className="w-full h-full relative" style={{ touchAction: "none" }}>
-      <div className={`absolute inset-0 pointer-events-none overflow-hidden transition-opacity duration-300 ${hideLabels ? "opacity-0" : ""}`}>
+      <div className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${hideLabels ? "opacity-0" : ""}`}>
         {universities.map((uni, i) => (
           <div
             key={uni.id}

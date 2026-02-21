@@ -33,8 +33,9 @@ export default function MemberCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay: index * 0.06, ease: "easeOut" }}
       onClick={() => {
-        setExpanded(!expanded);
-        onSelect?.(member.universityId);
+        const willExpand = !expanded;
+        setExpanded(willExpand);
+        onSelect?.(willExpand ? member.universityId : undefined);
       }}
       className="group cursor-pointer border-t-2 border-black pt-6 pb-8"
     >

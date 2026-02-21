@@ -89,7 +89,9 @@ export default function MobileLayout({
           compact={true}
           allowDragInCompact={view === "consortium"}
           scale={globeScale[view]}
-          hideLabels={view === "about"}
+          hideLabels={false}
+          maxLabels={view === "about" ? 4 : undefined}
+          soloLabelId={view === "members" ? (selectedUniversity?.id ?? "__none__") : undefined}
         />
       </motion.div>
 
