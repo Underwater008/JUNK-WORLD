@@ -197,6 +197,7 @@ function HomeContent() {
               hoveredProject={hoveredProject}
               compact={isCompact}
               scale={view === "members" ? 0.8 : undefined}
+              soloLabelId={view === "members" && selectedUniversity ? selectedUniversity.id : undefined}
             />
           </div>
         </div>
