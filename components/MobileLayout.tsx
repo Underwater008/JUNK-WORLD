@@ -90,8 +90,14 @@ export default function MobileLayout({
           allowDragInCompact={view === "consortium"}
           scale={globeScale[view]}
           hideLabels={false}
-          maxLabels={view === "about" ? 4 : undefined}
-          soloLabelId={view !== "about" && selectedUniversity ? selectedUniversity.id : undefined}
+          maxLabels={view === "about" ? 4 : view === "consortium" ? 5 : undefined}
+          soloLabelId={
+            view === "members"
+              ? (selectedUniversity?.id ?? "__none__")
+              : view === "consortium" && selectedUniversity
+                ? selectedUniversity.id
+                : undefined
+          }
         />
       </motion.div>
 
