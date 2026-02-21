@@ -91,7 +91,7 @@ export default function MobileLayout({
           scale={globeScale[view]}
           hideLabels={false}
           maxLabels={view === "about" ? 4 : undefined}
-          soloLabelId={view === "members" ? (selectedUniversity?.id ?? "__none__") : undefined}
+          soloLabelId={view !== "about" && selectedUniversity ? selectedUniversity.id : undefined}
         />
       </motion.div>
 

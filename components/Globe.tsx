@@ -66,6 +66,7 @@ export default function Globe({
   const universitiesRef = useRef(universities);
   const soloLabelIdRef = useRef(soloLabelId);
   const maxLabelsRef = useRef(maxLabels);
+  const hideLabelsRef = useRef(hideLabels);
   const labelsReadyRef = useRef(false);
   const prevVisibleRef = useRef<Set<number>>(new Set());
 
@@ -77,6 +78,7 @@ export default function Globe({
     universitiesRef.current = universities;
     soloLabelIdRef.current = soloLabelId;
     maxLabelsRef.current = maxLabels;
+    hideLabelsRef.current = hideLabels;
 
     const s = sceneRef.current;
     if (s && s.renderer) {
@@ -87,7 +89,7 @@ export default function Globe({
         s.renderer.domElement.style.cursor = "grab";
       }
     }
-  }, [compact, scale, allowDragInCompact, universities, soloLabelId, maxLabels]);
+  }, [compact, scale, allowDragInCompact, universities, soloLabelId, maxLabels, hideLabels]);
 
   // Focus on selected university
   useEffect(() => {
@@ -332,16 +334,18 @@ export default function Globe({
         const label = labelsRef.current[i];
         if (!label) continue;
 
-        if (!isCompact) {
-          label.style.opacity = "0";
-          continue;
-        }
-
         const uni = currentUniversities[i];
         if (!uni) continue;
 
         // Solo mode: only show the specified university's label
         const solo = soloLabelIdRef.current;
+
+        // In non-compact mode, hide all labels unless this is the solo label
+        if (!isCompact && !(solo && uni.id === solo)) {
+          label.style.opacity = "0";
+          continue;
+        }
+
         if (solo && uni.id !== solo) {
           label.style.opacity = "0";
           continue;
