@@ -27,6 +27,8 @@ interface GlobeProps {
   hoveredProject: string | null;
   compact?: boolean;
   scale?: number;
+  allowDragInCompact?: boolean;
+  hideLabels?: boolean;
 }
 
 export default function Globe({
@@ -34,6 +36,8 @@ export default function Globe({
   selectedUniversity,
   compact = false,
   scale,
+  allowDragInCompact = false,
+  hideLabels = false,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -54,6 +58,7 @@ export default function Globe({
   const frameRef = useRef(0);
   const compactRef = useRef(compact);
   const scaleRef = useRef(scale);
+  const allowDragInCompactRef = useRef(allowDragInCompact);
   const universitiesRef = useRef(universities);
   const labelsReadyRef = useRef(false);
   const prevVisibleRef = useRef<Set<number>>(new Set());
@@ -62,18 +67,19 @@ export default function Globe({
   useEffect(() => {
     compactRef.current = compact;
     scaleRef.current = scale;
+    allowDragInCompactRef.current = allowDragInCompact;
     universitiesRef.current = universities;
-    
+
     const s = sceneRef.current;
     if (s && s.renderer) {
-      if (compact) {
+      if (compact && !allowDragInCompact) {
         s.drag.active = false;
         s.renderer.domElement.style.cursor = "default";
       } else {
         s.renderer.domElement.style.cursor = "grab";
       }
     }
-  }, [compact, scale, universities]);
+  }, [compact, scale, allowDragInCompact, universities]);
 
   // Focus on selected university
   useEffect(() => {
@@ -226,7 +232,7 @@ export default function Globe({
     // 4. Interaction Handlers
     
     const onDown = (e: PointerEvent) => {
-      if (compactRef.current || !sceneRef.current) return;
+      if ((compactRef.current && !allowDragInCompactRef.current) || !sceneRef.current) return;
       sceneRef.current.drag = { active: true, x: e.clientX, y: e.clientY };
       el.style.cursor = "grabbing";
     };
@@ -234,12 +240,14 @@ export default function Globe({
     const onUp = () => {
       if (!sceneRef.current) return;
       sceneRef.current.drag.active = false;
-      if (!compactRef.current) el.style.cursor = "grab";
+      if (!compactRef.current || allowDragInCompactRef.current) {
+        el.style.cursor = "grab";
+      }
     };
 
     const onMove = (e: PointerEvent) => {
       const s = sceneRef.current;
-      if (!s || compactRef.current) return;
+      if (!s || (compactRef.current && !allowDragInCompactRef.current)) return;
       
       if (s.drag.active) {
         const dx = e.clientX - s.drag.x;
@@ -277,8 +285,9 @@ export default function Globe({
       const currentUniversities = universitiesRef.current;
 
       // Rotation logic
-      if (!isCompact && s.drag.active) {
-        // Drag handled in onMove
+      const canDrag = !isCompact || allowDragInCompactRef.current;
+      if (canDrag && s.drag.active) {
+        // Drag handled in onMove — skip auto-rotate
       } else if (s.targetQ) {
         s.rot.slerp(s.targetQ, 0.05);
       } else {
@@ -460,8 +469,8 @@ export default function Globe({
   }, [universities]);
 
   return (
-    <div ref={containerRef} className="w-full h-full relative">
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div ref={containerRef} className="w-full h-full relative" style={{ touchAction: "none" }}>
+      <div className={`absolute inset-0 pointer-events-none overflow-hidden transition-opacity duration-300 ${hideLabels ? "opacity-0" : ""}`}>
         {universities.map((uni, i) => (
           <div
             key={uni.id}

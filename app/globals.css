@@ -35,3 +35,10 @@ body {
   background: #ccc;
   border-radius: 3px;
 }
+
+/* Mobile safe area */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

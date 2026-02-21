@@ -32,7 +32,7 @@ export default function MembersContent({ onSelectMember }: MembersContentProps) 
       animate="visible"
       variants={stagger}
     >
-      <div className="px-10 py-12">
+      <div className="px-6 py-8 md:px-10 md:py-12">
         <motion.h1
           variants={fadeUp}
           className="font-serif text-6xl md:text-7xl leading-[0.95] tracking-tight text-black"

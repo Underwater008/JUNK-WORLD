@@ -8,6 +8,8 @@ import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
+import MobileLayout from "@/components/MobileLayout";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { universities as rawUniversities } from "@/data/mock";
 import { University } from "@/types";
 
@@ -90,7 +92,23 @@ function HomeContent() {
     []
   );
 
+  const isMobile = useIsMobile();
   const isCompact = view !== "consortium";
+
+  if (isMobile) {
+    return (
+      <MobileLayout
+        view={view}
+        onViewChange={handleViewChange}
+        universities={universities}
+        selectedUniversity={selectedUniversity}
+        onSelectUniversity={setSelectedUniversity}
+        hoveredProject={hoveredProject}
+        onHoverProject={setHoveredProject}
+        onSelectMember={handleSelectMember}
+      />
+    );
+  }
 
   return (
     <main className="w-screen h-screen overflow-hidden flex flex-col relative">

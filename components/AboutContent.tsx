@@ -37,7 +37,7 @@ export default function AboutContent() {
       animate="visible"
       variants={stagger}
     >
-      <div className="px-10 py-12">
+      <div className="px-6 py-8 md:px-10 md:py-12">
         {/* Logo */}
         <motion.img
           variants={fadeUp}
@@ -108,7 +108,7 @@ export default function AboutContent() {
               key={stat.label}
               className="flex-1 border-t-2 border-black pt-4 pr-6"
             >
-              <span className="font-serif text-4xl text-black block">
+              <span className="font-serif text-2xl md:text-4xl text-black block">
                 {stat.value}
               </span>
               <span className="text-[10px] uppercase tracking-[0.12em] text-[#888] font-bold mt-1 block">
