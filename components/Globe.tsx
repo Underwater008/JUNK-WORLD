@@ -45,6 +45,7 @@ export default function Globe({
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const projectLabelsRef = useRef<(HTMLDivElement | null)[]>([]);
 
   // Scene state refs
   const sceneRef = useRef<{
@@ -65,6 +66,7 @@ export default function Globe({
   const allowDragInCompactRef = useRef(allowDragInCompact);
   const universitiesRef = useRef(universities);
   const soloLabelIdRef = useRef(soloLabelId);
+  const selectedUniversityRef = useRef(selectedUniversity);
   const maxLabelsRef = useRef(maxLabels);
   const hideLabelsRef = useRef(hideLabels);
   const labelsReadyRef = useRef(false);
@@ -77,6 +79,7 @@ export default function Globe({
     allowDragInCompactRef.current = allowDragInCompact;
     universitiesRef.current = universities;
     soloLabelIdRef.current = soloLabelId;
+    selectedUniversityRef.current = selectedUniversity;
     maxLabelsRef.current = maxLabels;
     hideLabelsRef.current = hideLabels;
 
@@ -89,7 +92,7 @@ export default function Globe({
         s.renderer.domElement.style.cursor = "grab";
       }
     }
-  }, [compact, scale, allowDragInCompact, universities, soloLabelId, maxLabels, hideLabels]);
+  }, [compact, scale, allowDragInCompact, universities, soloLabelId, selectedUniversity, maxLabels, hideLabels]);
 
   // Focus on selected university
   useEffect(() => {
@@ -450,6 +453,49 @@ export default function Globe({
           }
         });
       }
+
+      // Project label positioning
+      for (let i = 0; i < projectLabelsRef.current.length; i++) {
+        const label = projectLabelsRef.current[i];
+        if (!label) continue;
+
+        const projects = selectedUniversityRef.current?.projects;
+        if (!projects || !projects[i]) {
+          label.style.opacity = "0";
+          continue;
+        }
+
+        const project = projects[i];
+        const { lat, lng } = project.markerOffset;
+
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lng + 180) * (Math.PI / 180);
+        const r = R + 3;
+
+        _tempVec.set(
+          -r * Math.sin(phi) * Math.cos(theta),
+          r * Math.cos(phi),
+          r * Math.sin(phi) * Math.sin(theta)
+        ).applyQuaternion(s.globe.quaternion);
+
+        if (_tempVec.z < LABEL_Z_THRESHOLD) {
+          label.style.opacity = "0";
+          continue;
+        }
+
+        _projVec.copy(_tempVec).project(s.camera);
+        const canvasW2 = s.renderer.domElement.width / s.renderer.getPixelRatio();
+        const canvasH2 = s.renderer.domElement.height / s.renderer.getPixelRatio();
+
+        const px = (_projVec.x * 0.5 + 0.5) * canvasW2;
+        const py = (-_projVec.y * 0.5 + 0.5) * canvasH2;
+
+        const frontFacing = _tempVec.z / R;
+        const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
+
+        label.style.transform = `translate(${px}px, ${py}px) translate(-50%, -100%)`;
+        label.style.opacity = String(opacity);
+      }
     };
     animate();
 
@@ -467,13 +513,13 @@ export default function Globe({
     };
   }, []); // Empty dependency array = mount once
 
-  // Update Markers when universities change
+  // Update Markers when universities or selection change
   useEffect(() => {
     const s = sceneRef.current;
     if (!s) return;
 
     // Clear old markers
-    while(s.markersGroup.children.length > 0){ 
+    while(s.markersGroup.children.length > 0){
         const child = s.markersGroup.children[0];
         if (child instanceof THREE.Mesh) {
             child.geometry.dispose();
@@ -483,10 +529,10 @@ export default function Globe({
                 child.material.dispose();
             }
         }
-        s.markersGroup.remove(child); 
+        s.markersGroup.remove(child);
     }
 
-    // Add new markers
+    // University markers
     const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
     const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
@@ -496,7 +542,22 @@ export default function Globe({
       s.markersGroup.add(m);
     });
 
-  }, [universities]);
+    // Project markers for selected university
+    if (selectedUniversity) {
+      const projGeo = new THREE.SphereGeometry(1.4, 12, 12);
+      const projMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(selectedUniversity.color) });
+
+      selectedUniversity.projects.forEach(project => {
+        const { lat, lng } = project.markerOffset;
+        // Skip if project is at the same location as the university
+        if (Math.abs(lat - selectedUniversity.lat) < 0.01 && Math.abs(lng - selectedUniversity.lng) < 0.01) return;
+        const m = new THREE.Mesh(projGeo, projMat);
+        m.position.copy(toVec3(lat, lng, R + 1));
+        s.markersGroup.add(m);
+      });
+    }
+
+  }, [universities, selectedUniversity]);
 
   return (
     <div ref={containerRef} className="w-full h-full relative" style={{ touchAction: "none" }}>
@@ -524,6 +585,30 @@ export default function Globe({
                 {uni.shortName}
               </span>
             )}
+          </div>
+        ))}
+      </div>
+      {/* Project location labels */}
+      <div className="absolute inset-0 pointer-events-none">
+        {(selectedUniversity?.projects ?? []).map((project, i) => (
+          <div
+            key={project.id}
+            ref={(el) => {
+              projectLabelsRef.current[i] = el;
+            }}
+            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap"
+            style={{ opacity: 0, transition: "transform 800ms ease-out, opacity 400ms ease-out" }}
+          >
+            <span
+              className="text-[8px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded-sm"
+              style={{
+                color: selectedUniversity?.color ?? "#000",
+                backgroundColor: "rgba(255,255,255,0.85)",
+                border: `1px solid ${selectedUniversity?.color ?? "#000"}`,
+              }}
+            >
+              {project.title}
+            </span>
           </div>
         ))}
       </div>
