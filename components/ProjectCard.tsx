@@ -30,8 +30,8 @@ export default function ProjectCard({
         layout: { duration: 0.25 },
       }}
       onClick={onToggle}
-      onMouseEnter={() => onHover(project.id)}
-      onMouseLeave={() => onHover(null)}
+      onMouseEnter={() => {}}
+      onMouseLeave={() => {}}
       className={`
         border-2 border-black cursor-pointer transition-colors duration-200
         ${isExpanded ? "bg-black text-white" : "bg-white hover:bg-[#FAFAFA]"}

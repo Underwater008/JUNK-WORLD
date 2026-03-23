@@ -100,11 +100,11 @@ export default function Sidebar({
                       project={project}
                       index={i}
                       isExpanded={expandedProjectId === project.id}
-                      onToggle={() =>
-                        setExpandedProjectId(
-                          expandedProjectId === project.id ? null : project.id
-                        )
-                      }
+                      onToggle={() => {
+                        const newId = expandedProjectId === project.id ? null : project.id;
+                        setExpandedProjectId(newId);
+                        onHoverProject(newId);
+                      }}
                       onHover={onHoverProject}
                     />
                   ))}

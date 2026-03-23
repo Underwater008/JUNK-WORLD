@@ -36,6 +36,7 @@ interface GlobeProps {
 export default function Globe({
   universities,
   selectedUniversity,
+  hoveredProject,
   compact = false,
   scale,
   allowDragInCompact = false,
@@ -94,10 +95,21 @@ export default function Globe({
     }
   }, [compact, scale, allowDragInCompact, universities, soloLabelId, selectedUniversity, maxLabels, hideLabels]);
 
-  // Focus on selected university
+  // Focus on selected university or hovered project
   useEffect(() => {
     const s = sceneRef.current;
     if (!s) return;
+
+    // If a project is hovered/expanded, rotate to its location
+    if (hoveredProject && selectedUniversity) {
+      const project = selectedUniversity.projects.find(p => p.id === hoveredProject);
+      if (project) {
+        const pointDir = toVec3(project.markerOffset.lat, project.markerOffset.lng, 1).normalize();
+        const front = new THREE.Vector3(0, 0, 1);
+        s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
+        return;
+      }
+    }
 
     if (!selectedUniversity) {
       s.targetQ = null;
@@ -111,7 +123,7 @@ export default function Globe({
     ).normalize();
     const front = new THREE.Vector3(0, 0, 1);
     s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
-  }, [selectedUniversity]);
+  }, [selectedUniversity, hoveredProject]);
 
   // Initialize Three.js scene (ONCE)
   useEffect(() => {
@@ -532,15 +544,21 @@ export default function Globe({
         s.markersGroup.remove(child);
     }
 
-    // University markers
+    // University markers — only show selected if one is selected, otherwise show all
     const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
     const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
-    universities.forEach(uni => {
+    if (selectedUniversity) {
       const m = new THREE.Mesh(mkGeo, mkMat);
-      m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
+      m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
       s.markersGroup.add(m);
-    });
+    } else {
+      universities.forEach(uni => {
+        const m = new THREE.Mesh(mkGeo, mkMat);
+        m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
+        s.markersGroup.add(m);
+      });
+    }
 
     // Project markers for selected university
     if (selectedUniversity) {
