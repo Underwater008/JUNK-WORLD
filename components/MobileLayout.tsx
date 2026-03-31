@@ -4,26 +4,30 @@ import { AnimatePresence, motion } from "framer-motion";
 import Globe from "@/components/Globe";
 import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
+import ProjectsView from "@/components/ProjectsView";
 import Sidebar from "@/components/Sidebar";
 import { University } from "@/types";
 
-type View = "about" | "consortium" | "members";
+type View = "about" | "consortium" | "projects" | "members";
 
 const views: { key: View; label: string }[] = [
   { key: "about", label: "About" },
   { key: "consortium", label: "Consortium" },
+  { key: "projects", label: "Projects" },
   { key: "members", label: "Members" },
 ];
 
 const globeHeight: Record<View, string> = {
   about: "25vh",
   consortium: "40vh",
+  projects: "0px",
   members: "20vh",
 };
 
 const globeScale: Record<View, number> = {
   about: 0.7,
   consortium: 0.85,
+  projects: 0.8,
   members: 0.6,
 };
 
@@ -50,21 +54,52 @@ export default function MobileLayout({
   onHoverProject,
   onSelectMember,
 }: MobileLayoutProps) {
+  if (view === "projects") {
+    return (
+      <main className="w-screen h-screen overflow-hidden flex flex-col bg-white">
+        <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-white">
+          <img
+            src="/images/JUNK logos/JUNK-logo.gif"
+            alt="JUNK"
+            className="h-5"
+          />
+          <nav className="flex items-center gap-3">
+            {views.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => onViewChange(key)}
+                className={`text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors cursor-pointer ${
+                  view === key ? "text-black" : "text-[#888]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </header>
+
+        <div className="flex-1 min-h-0 overflow-y-auto safe-bottom">
+          <ProjectsView universities={universities} mobile />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="w-screen h-screen overflow-hidden flex flex-col">
       {/* Header */}
-      <header className="h-12 border-b-2 border-black flex items-center justify-between px-5 shrink-0 bg-white">
+      <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-white">
         <img
           src="/images/JUNK logos/JUNK-logo.gif"
           alt="JUNK"
           className="h-5"
         />
-        <nav className="flex items-center gap-4">
+        <nav className="flex items-center gap-3">
           {views.map(({ key, label }) => (
             <button
               key={key}
               onClick={() => onViewChange(key)}
-              className={`text-xs font-semibold uppercase tracking-[0.12em] transition-colors cursor-pointer ${
+              className={`text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors cursor-pointer ${
                 view === key ? "text-black" : "text-[#888]"
               }`}
             >

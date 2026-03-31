@@ -43,7 +43,7 @@ export default function AboutContent() {
           variants={fadeUp}
           src="/images/JUNK logos/JUNK-logo.gif"
           alt="JUNK"
-          className="h-24"
+          className="h-56 md:h-64"
         />
 
         {/* Heading */}
