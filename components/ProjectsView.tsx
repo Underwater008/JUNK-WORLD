@@ -115,22 +115,26 @@ function ProjectImage({
         </>
       )}
 
-      <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/8 to-transparent" />
-      <div className="absolute inset-x-5 bottom-5 text-white">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
-          {project.city}, {project.country}
-        </p>
-        <p
-          className="mt-2 max-w-[16ch] overflow-hidden font-serif text-[1.5rem] leading-[0.92] text-white"
-          style={{
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-          }}
-        >
-          {project.title}
-        </p>
-      </div>
+      {hasThumbnail && (
+        <>
+          <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/8 to-transparent" />
+          <div className="absolute inset-x-5 bottom-5 text-white">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
+              {project.city}, {project.country}
+            </p>
+            <p
+              className="mt-2 max-w-[16ch] overflow-hidden font-serif text-[1.5rem] leading-[0.92] text-white"
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+              }}
+            >
+              {project.title}
+            </p>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -197,7 +201,7 @@ function ProjectCard({
             {extractPremise(project.description)}
           </p>
 
-          <div className="mt-3 flex max-h-7 flex-wrap gap-1.5 overflow-hidden">
+          <div className="mt-3 mb-3 flex flex-wrap gap-1.5">
             {project.tags.map((tag) => (
               <span
                 key={tag}

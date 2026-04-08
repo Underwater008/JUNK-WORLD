@@ -295,7 +295,7 @@ export const universities: University[] = [
         year: 2024,
         thumbnail: "",
         participants: 13,
-        tags: ["Transmedia & Interdisciplinary"],
+        tags: ["Transmedia", "Interdisciplinary"],
         markerOffset: { lat: -34.4588, lng: -58.9143 },
       },
     ],
