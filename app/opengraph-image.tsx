@@ -24,7 +24,7 @@ export default async function Image() {
           backgroundColor: "white",
         }}
       >
-        <img src={logoBase64} height={200} />
+        <img src={logoBase64} height={200} alt="" />
       </div>
     ),
     { ...size }

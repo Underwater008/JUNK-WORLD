@@ -10,9 +10,10 @@
 
 body {
   margin: 0;
-  background: #ffffff;
+  background: #f4f0e8;
   color: #000000;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -41,4 +42,16 @@ body {
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+}
+
+.project-body .bn-container {
+  background: transparent;
+}
+
+.project-body .bn-editor {
+  padding: 0;
+}
+
+.bn-shadcn .bn-editor {
+  min-height: inherit;
 }

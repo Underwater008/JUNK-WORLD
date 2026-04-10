@@ -9,6 +9,8 @@ const instrumentSerif = Instrument_Serif({
   variable: "--font-serif",
 });
 
+const metadataBaseUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
@@ -18,6 +20,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(metadataBaseUrl),
   title: "JUNK",
   description: "A global showcase of university design projects",
   openGraph: {

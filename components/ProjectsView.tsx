@@ -1,12 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Globe from "@/components/Globe";
-import { University } from "@/types";
+import LoginForm from "@/components/portal/LoginForm";
+import LogoutButton from "@/components/portal/LogoutButton";
+import ProjectEditor from "@/components/portal/ProjectEditor";
+import BlockNoteDocument from "@/components/projects/BlockNoteDocument";
+import { createEmptyProjectDocument } from "@/lib/projects/defaults";
+import { getPortalWriteDisabledMessage } from "@/lib/portal/mode";
+import { getBaseUniversities } from "@/lib/universities";
+import type { ProjectDocument, University } from "@/types";
+
+const NEW_PROJECT_SLUG = "__new__";
+const panelEase = [0.4, 0, 0.2, 1] as const;
 
 type ProjectEntry = {
   id: string;
+  slug: string;
   title: string;
   description: string;
   year: number;
@@ -14,17 +26,26 @@ type ProjectEntry = {
   participants: number;
   tags: string[];
   markerOffset: { lat: number; lng: number };
+  locationLabel: string;
+  universityId: string;
   university: string;
   shortName: string;
   city: string;
   country: string;
   color: string;
   logo?: string;
+  status: "draft" | "published";
+  hasUnpublishedChanges: boolean;
+  document: ProjectDocument | null;
 };
 
 interface ProjectsViewProps {
   universities: University[];
   mobile?: boolean;
+  editorSessionAvailable: boolean;
+  writesDisabled: boolean;
+  showGlobe?: boolean;
+  onPreviewProjectChange?: (slug: string | null) => void;
 }
 
 function formatIndex(index: number) {
@@ -33,27 +54,55 @@ function formatIndex(index: number) {
 
 function extractPremise(description: string) {
   const [sentence] = description.split(". ");
+  if (!sentence) return description;
   return sentence.endsWith(".") ? sentence : `${sentence}.`;
 }
 
-function formatCoordinate(value: number, positive: string, negative: string) {
-  const suffix = value >= 0 ? positive : negative;
-  return `${Math.abs(value).toFixed(2)}° ${suffix}`;
+function getProjectPath(slug: string) {
+  const params = new URLSearchParams({
+    view: "projects",
+    project: slug,
+  });
+  return `/?${params.toString()}`;
+}
+
+function StatusPill({
+  label,
+  filled = false,
+}: {
+  label: string;
+  filled?: boolean;
+}) {
+  return (
+    <span
+      className={`inline-flex items-center border px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] ${
+        filled ? "border-black bg-black text-white" : "border-black text-black"
+      }`}
+    >
+      {label}
+    </span>
+  );
 }
 
 function ProjectImage({
   project,
   index,
+  large = false,
 }: {
   project: ProjectEntry;
   index: number;
+  large?: boolean;
 }) {
   const imageSrc =
     project.thumbnail || project.logo || "/images/JUNK logos/junk-logo-square.png";
   const hasThumbnail = Boolean(project.thumbnail);
 
   return (
-    <div className="relative h-44 overflow-hidden border-b-2 border-black bg-[#F3F2EE] sm:h-48">
+    <div
+      className={`relative overflow-hidden border-b-2 border-black bg-[#F3F2EE] ${
+        large ? "h-[280px] sm:h-[360px] lg:h-[420px]" : "h-44 sm:h-48"
+      }`}
+    >
       {hasThumbnail ? (
         <img
           src={imageSrc}
@@ -65,7 +114,7 @@ function ProjectImage({
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(145deg, ${project.color}3B 0%, rgba(255,255,255,0.96) 48%, rgba(241,241,241,0.96) 100%)`,
+              background: `linear-gradient(145deg, ${project.color}36 0%, rgba(255,255,255,0.96) 48%, rgba(241,241,241,0.94) 100%)`,
             }}
           />
           <div
@@ -73,17 +122,21 @@ function ProjectImage({
             style={{
               backgroundImage:
                 "linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px)",
-              backgroundSize: "28px 28px",
+              backgroundSize: large ? "32px 32px" : "24px 24px",
             }}
           />
-          <span className="absolute left-3 top-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6A6A6A]">
+          <span className="absolute left-4 top-4 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6A6A6A]">
             Archive Still / {formatIndex(index)}
           </span>
           <span
-            className="absolute right-3 top-3 h-3 w-3 rounded-full border border-black/20"
+            className="absolute right-4 top-4 h-3 w-3 rounded-full border border-black/20"
             style={{ backgroundColor: project.color }}
           />
-          <span className="absolute -left-3 bottom-2 font-serif text-[6rem] leading-none text-black/6">
+          <span
+            className={`absolute -left-4 bottom-0 font-serif leading-none text-black/6 ${
+              large ? "text-[8rem]" : "text-[6rem]"
+            }`}
+          >
             {formatIndex(index)}
           </span>
           <div className="absolute inset-x-5 bottom-5">
@@ -93,10 +146,12 @@ function ProjectImage({
                   {project.shortName} / {project.year}
                 </p>
                 <p
-                  className="mt-2 max-w-[16ch] overflow-hidden font-serif text-[1.45rem] leading-[0.92] text-black"
+                  className={`mt-2 max-w-[16ch] overflow-hidden font-serif leading-[0.92] text-black ${
+                    large ? "text-[2.6rem]" : "text-[1.45rem]"
+                  }`}
                   style={{
                     display: "-webkit-box",
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: large ? 3 : 2,
                     WebkitBoxOrient: "vertical",
                   }}
                 >
@@ -107,7 +162,9 @@ function ProjectImage({
                 <img
                   src={project.logo}
                   alt={project.university}
-                  className="h-12 w-auto max-w-[130px] object-contain grayscale"
+                  className={`w-auto max-w-[140px] object-contain grayscale ${
+                    large ? "h-16" : "h-12"
+                  }`}
                 />
               ) : null}
             </div>
@@ -115,18 +172,20 @@ function ProjectImage({
         </>
       )}
 
-      {hasThumbnail && (
+      {hasThumbnail ? (
         <>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/8 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/10 to-transparent" />
           <div className="absolute inset-x-5 bottom-5 text-white">
             <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
-              {project.city}, {project.country}
+              {project.locationLabel || `${project.city}, ${project.country}`}
             </p>
             <p
-              className="mt-2 max-w-[16ch] overflow-hidden font-serif text-[1.5rem] leading-[0.92] text-white"
+              className={`mt-2 max-w-[16ch] overflow-hidden font-serif leading-[0.92] text-white ${
+                large ? "text-[2.7rem]" : "text-[1.5rem]"
+              }`}
               style={{
                 display: "-webkit-box",
-                WebkitLineClamp: 2,
+                WebkitLineClamp: large ? 3 : 2,
                 WebkitBoxOrient: "vertical",
               }}
             >
@@ -134,7 +193,7 @@ function ProjectImage({
             </p>
           </div>
         </>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -142,92 +201,362 @@ function ProjectImage({
 function ProjectCard({
   project,
   index,
-  active,
-  onActivate,
+  onSelect,
+  onPreview,
+  onPreviewEnd,
+  showBadges,
 }: {
   project: ProjectEntry;
   index: number;
-  active: boolean;
-  onActivate: () => void;
+  onSelect: () => void;
+  onPreview: () => void;
+  onPreviewEnd: () => void;
+  showBadges: boolean;
+}) {
+  return (
+    <motion.button
+      type="button"
+      layoutId={`project-card-${project.slug}`}
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: 18 }}
+      transition={{ duration: 0.45, delay: index * 0.04 }}
+      whileHover={{ y: -4 }}
+      onMouseEnter={onPreview}
+      onMouseLeave={onPreviewEnd}
+      onFocus={onPreview}
+      onBlur={onPreviewEnd}
+      onClick={onSelect}
+      className="group flex h-full flex-col overflow-hidden border-2 border-black bg-white text-left shadow-[6px_6px_0_#000] transition-shadow hover:shadow-[10px_10px_0_#000]"
+    >
+      <ProjectImage project={project} index={index} />
+
+      <div className="flex flex-1 flex-col px-4 py-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+              {project.shortName} / {project.year}
+            </p>
+            <h2
+              className="mt-2 min-h-[2.8rem] overflow-hidden font-serif text-[1.55rem] leading-[0.94] text-black"
+              style={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+              }}
+            >
+              {project.title}
+            </h2>
+          </div>
+          <span className="font-serif text-3xl leading-none text-black/15">
+            {formatIndex(index)}
+          </span>
+        </div>
+
+        <p
+          className="mt-3 overflow-hidden text-[13px] leading-5 text-black/85"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+          }}
+        >
+          {extractPremise(project.description)}
+        </p>
+
+        <div className="mt-4 flex flex-wrap gap-1.5">
+          {project.tags.map((tag) => (
+            <span
+              key={tag}
+              className="border border-black px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-black"
+            >
+              {tag}
+            </span>
+          ))}
+          {showBadges ? (
+            <>
+              <StatusPill label={project.status} />
+              {project.hasUnpublishedChanges ? <StatusPill label="Draft Changes" filled /> : null}
+            </>
+          ) : null}
+        </div>
+
+        <div className="mt-auto flex items-end justify-between gap-4 border-t border-black pt-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+              Origin
+            </p>
+            <p className="mt-1 text-[13px] leading-5 text-black">{project.university}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/55">
+              Open
+            </span>
+            <div className="h-[3px] w-12 shrink-0" style={{ backgroundColor: project.color }} />
+          </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
+
+function FocusedHeroCard({
+  project,
+  index,
+  showBadges,
+}: {
+  project: ProjectEntry;
+  index: number;
+  showBadges: boolean;
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45, delay: index * 0.05 }}
-      whileHover={{ y: -4 }}
-      onMouseEnter={onActivate}
-      onFocus={onActivate}
-      onClick={onActivate}
-      className="h-full pb-[8px] pr-[8px]"
+      layoutId={`project-card-${project.slug}`}
+      className="overflow-hidden border-2 border-black bg-white shadow-[10px_10px_0_#000]"
     >
-      <article
-        className={`group flex h-full flex-col overflow-hidden border-2 border-black bg-white transition-shadow ${
-          active ? "shadow-[8px_8px_0_#000]" : "hover:shadow-[6px_6px_0_#000]"
-        }`}
-      >
-        <ProjectImage project={project} index={index} />
-
-        <div className="flex flex-1 flex-col px-3 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-                {project.shortName} / {project.year}
-              </p>
-              <h2
-                className="mt-1.5 min-h-[2.7rem] overflow-hidden font-serif text-[1.45rem] leading-[0.94] text-black"
-                style={{
-                  display: "-webkit-box",
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: "vertical",
-                }}
-              >
-                {project.title}
-              </h2>
-            </div>
-            <span className="font-serif text-3xl leading-none text-black/15">
-              {formatIndex(index)}
-            </span>
+      <ProjectImage project={project} index={index} large />
+      <div className="border-t-2 border-black bg-white px-5 py-5 sm:px-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+              {project.shortName} / {project.year}
+            </p>
+            <h2 className="mt-3 font-serif text-[clamp(2.2rem,5vw,4.3rem)] leading-[0.92] text-black">
+              {project.title}
+            </h2>
+            <p className="mt-4 max-w-4xl text-sm leading-7 text-black/78 sm:text-base">
+              {project.description}
+            </p>
           </div>
-
-          <p
-            className="mt-2.5 overflow-hidden text-[13px] leading-5 text-black/85"
-            style={{
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-            }}
-          >
-            {extractPremise(project.description)}
-          </p>
-
-          <div className="mt-3 mb-3 flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-2">
             {project.tags.map((tag) => (
-              <span
-                key={tag}
-                className="border border-black px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-black"
-              >
-                {tag}
-              </span>
+              <StatusPill key={tag} label={tag} />
             ))}
-          </div>
-
-          <div className="mt-auto flex items-end justify-between gap-4 border-t border-black pt-2.5">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-                Origin
-              </p>
-              <p className="mt-1 text-[13px] leading-5 text-black">
-                {project.university}
-              </p>
-            </div>
-            <div
-              className="h-[3px] w-12 shrink-0"
-              style={{ backgroundColor: project.color }}
-            />
+            {showBadges ? <StatusPill label={project.status} /> : null}
+            {showBadges && project.hasUnpublishedChanges ? (
+              <StatusPill label="Draft Changes" filled />
+            ) : null}
           </div>
         </div>
-      </article>
+      </div>
+    </motion.div>
+  );
+}
+
+function MetaBlock({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <div className="border border-black bg-white px-4 py-4">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+        {label}
+      </p>
+      <p className="mt-2 text-sm leading-6 text-black">{value}</p>
+    </div>
+  );
+}
+
+function ProjectContent({
+  project,
+  mobile = false,
+}: {
+  project: ProjectEntry;
+  mobile?: boolean;
+}) {
+  if (!project.document) {
+    return (
+      <div className="border-2 border-dashed border-black/35 bg-[#FBF8F1] px-5 py-10 text-sm leading-7 text-black/60">
+        This project does not have a published document yet.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div
+        className={`grid gap-4 ${
+          mobile ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"
+        }`}
+      >
+        <MetaBlock label="Location" value={project.locationLabel || `${project.city}, ${project.country}`} />
+        <MetaBlock label="Participants" value={project.participants} />
+        <MetaBlock label="University" value={project.university} />
+        <MetaBlock label="Year" value={project.year} />
+      </div>
+
+      <section className="overflow-hidden border-2 border-black bg-white">
+        <div className="border-b-2 border-black px-5 py-4">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+            Project Page
+          </p>
+        </div>
+        <div className="p-4 sm:p-5">
+          <BlockNoteDocument body={project.document.body} className="project-body" />
+        </div>
+      </section>
+
+      {project.document.gallery.length ? (
+        <section className="overflow-hidden border-2 border-black bg-white">
+          <div className="border-b-2 border-black px-5 py-4">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+              Gallery
+            </p>
+          </div>
+          <div className={`grid gap-px bg-black ${mobile ? "grid-cols-1" : "md:grid-cols-2"}`}>
+            {project.document.gallery.map((item) => (
+              <figure key={item.url} className="bg-white p-3">
+                <img
+                  src={item.url}
+                  alt={item.alt || project.title}
+                  className="aspect-[16/10] w-full object-cover"
+                />
+                {item.alt ? (
+                  <figcaption className="mt-2 text-sm text-black/60">{item.alt}</figcaption>
+                ) : null}
+              </figure>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <div className={`grid gap-5 ${mobile ? "grid-cols-1" : "xl:grid-cols-[minmax(0,0.9fr)_minmax(260px,0.5fr)]"}`}>
+        <section className="space-y-5">
+          {project.document.collaborators.length ? (
+            <div className="overflow-hidden border-2 border-black bg-white">
+              <div className="border-b-2 border-black px-5 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+                  Collaborators
+                </p>
+              </div>
+              <div className="grid gap-px bg-black sm:grid-cols-2">
+                {project.document.collaborators.map((person) => (
+                  <div
+                    key={`${person.name}-${person.role}`}
+                    className="bg-white px-4 py-4 text-sm leading-6 text-black"
+                  >
+                    <p className="font-semibold">{person.name}</p>
+                    <p className="text-black/65">{person.role}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {project.document.externalLinks.length ? (
+            <div className="overflow-hidden border-2 border-black bg-white">
+              <div className="border-b-2 border-black px-5 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+                  External Links
+                </p>
+              </div>
+              <div className="space-y-3 px-4 py-4">
+                {project.document.externalLinks.map((linkItem) => (
+                  <a
+                    key={`${linkItem.label}-${linkItem.url}`}
+                    href={linkItem.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block border border-black px-3 py-3 text-sm text-black transition hover:bg-black hover:text-white"
+                  >
+                    {linkItem.label}
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="space-y-5">
+          {project.document.credits.length ? (
+            <div className="overflow-hidden border-2 border-black bg-white">
+              <div className="border-b-2 border-black px-5 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+                  Credits
+                </p>
+              </div>
+              <dl className="space-y-4 px-4 py-4">
+                {project.document.credits.map((credit) => (
+                  <div key={`${credit.label}-${credit.value}`}>
+                    <dt className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6F6F6F]">
+                      {credit.label}
+                    </dt>
+                    <dd className="mt-2 text-sm leading-6 text-black">{credit.value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ) : null}
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function AccessGate({
+  nextPath,
+  onExit,
+}: {
+  nextPath: string;
+  onExit: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end bg-black/55 p-3 sm:items-center sm:justify-center sm:p-6"
+    >
+      <motion.div
+        initial={{ y: 24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 24, opacity: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="relative w-full max-w-2xl overflow-hidden border-2 border-black bg-[#F4F0E8] shadow-[12px_12px_0_#000]"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-45"
+          style={{
+            backgroundImage:
+              "linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px)",
+            backgroundSize: "36px 36px",
+          }}
+        />
+        <div className="relative grid gap-0 md:grid-cols-[minmax(0,0.95fr)_minmax(280px,0.7fr)]">
+          <section className="border-b-2 border-black bg-white px-5 py-5 md:border-b-0 md:border-r-2 md:px-6 md:py-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+              Edit Mode
+            </p>
+            <h2 className="mt-4 font-serif text-4xl leading-[0.94] text-black">
+              Unlock the live projects surface.
+            </h2>
+            <p className="mt-4 max-w-xl text-sm leading-7 text-black/75">
+              After login, the current screen stays in place and turns editable. You
+              can add cards, adjust globe targets, edit cover images, and build the
+              long-form body with block content.
+            </p>
+            <button
+              type="button"
+              onClick={onExit}
+              className="mt-6 border border-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+            >
+              Back To Public View
+            </button>
+          </section>
+          <section className="bg-[#F8F3EA] px-5 py-5 md:px-6 md:py-6">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+              Shared Password
+            </p>
+            <h3 className="mt-4 font-serif text-3xl leading-none text-black">
+              Enter editor access.
+            </h3>
+            <LoginForm nextPath={nextPath} submitLabel="Unlock Editor" />
+          </section>
+        </div>
+      </motion.div>
     </motion.div>
   );
 }
@@ -235,126 +564,435 @@ function ProjectCard({
 export default function ProjectsView({
   universities,
   mobile = false,
+  editorSessionAvailable,
+  writesDisabled,
+  showGlobe = true,
+  onPreviewProjectChange,
 }: ProjectsViewProps) {
-  const projects = useMemo<ProjectEntry[]>(
-    () =>
-      universities
-        .flatMap((university) =>
-          university.projects.map((project) => ({
-            ...project,
-            university: university.name,
-            shortName: university.shortName,
-            city: university.city,
-            country: university.country,
-            color: university.color,
-            logo: university.logo,
-          }))
-        )
-        .sort((a, b) => b.year - a.year || a.title.localeCompare(b.title)),
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const baseUniversities = useMemo(() => getBaseUniversities(), []);
+  const universitiesById = useMemo(
+    () => new Map(universities.map((university) => [university.id, university])),
     [universities]
   );
-
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(
-    projects[0]?.id ?? null
+  const baseUniversitiesById = useMemo(
+    () => new Map(baseUniversities.map((university) => [university.id, university])),
+    [baseUniversities]
   );
+  const [previewSlug, setPreviewSlug] = useState<string | null>(null);
+  const [localDraft, setLocalDraft] = useState<ProjectDocument | null>(null);
 
-  useEffect(() => {
-    if (!projects.length) {
-      setActiveProjectId(null);
-      return;
-    }
-    if (!projects.some((project) => project.id === activeProjectId)) {
-      setActiveProjectId(projects[0].id);
-    }
-  }, [projects, activeProjectId]);
+  const editRequested = searchParams.get("edit") === "1";
+  const selectedSlug = searchParams.get("project");
+  const editorUnlocked = editRequested && editorSessionAvailable;
+  const routeDraft = useMemo(
+    () =>
+      selectedSlug === NEW_PROJECT_SLUG && editorUnlocked
+        ? createEmptyProjectDocument()
+        : null,
+    [editorUnlocked, selectedSlug]
+  );
+  const pendingDraft = localDraft ?? routeDraft;
 
-  if (!projects.length) {
-    return (
-      <div className="bg-white px-6 py-12 text-black md:px-8 md:py-16">
-        <div className="mx-auto max-w-4xl border-2 border-black bg-white p-8">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-            Project Archive
-          </p>
-          <h1 className="mt-4 font-serif text-5xl leading-none">No projects yet</h1>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-black/80">
-            No project entries are available in the current archive.
-          </p>
-        </div>
-      </div>
-    );
+  const projects = useMemo<ProjectEntry[]>(() => {
+    const entries = universities
+      .flatMap((university) =>
+        university.projects.map((project) => ({
+          id: project.id,
+          slug: project.slug ?? project.id,
+          title: project.title,
+          description: project.description,
+          year: project.year,
+          thumbnail: project.thumbnail,
+          participants: project.participants,
+          tags: project.tags,
+          markerOffset: project.markerOffset,
+          locationLabel: project.locationLabel || `${university.city}, ${university.country}`,
+          universityId: university.id,
+          university: university.name,
+          shortName: university.shortName,
+          city: university.city,
+          country: university.country,
+          color: university.color,
+          logo: university.logo,
+          status: project.status ?? "published",
+          hasUnpublishedChanges: project.hasUnpublishedChanges ?? false,
+          document: project.document ?? null,
+        }))
+      )
+      .sort((a, b) => b.year - a.year || a.title.localeCompare(b.title));
+
+    if (editorUnlocked && pendingDraft) {
+      const draftUniversity = baseUniversitiesById.get(pendingDraft.universityId);
+
+      entries.unshift({
+        id: "local-draft",
+        slug: NEW_PROJECT_SLUG,
+        title: pendingDraft.title || "Untitled Draft",
+        description:
+          pendingDraft.summary ||
+          "New draft project. Add a title, set the globe location, and build the page body.",
+        year: pendingDraft.year,
+        thumbnail: pendingDraft.cardImageUrl || pendingDraft.coverImageUrl,
+        participants: pendingDraft.participantsCount,
+        tags: pendingDraft.tags,
+        markerOffset: pendingDraft.markerOffset,
+        locationLabel:
+          pendingDraft.locationLabel ||
+          (draftUniversity
+            ? `${draftUniversity.city}, ${draftUniversity.country}`
+            : "Location pending"),
+        universityId: pendingDraft.universityId,
+        university: draftUniversity?.name ?? "Unassigned",
+        shortName: draftUniversity?.shortName ?? "NEW",
+        city: draftUniversity?.city ?? "Unknown",
+        country: draftUniversity?.country ?? "",
+        color: draftUniversity?.color ?? "#000000",
+        logo: draftUniversity?.logo,
+        status: "draft",
+        hasUnpublishedChanges: true,
+        document: pendingDraft,
+      });
+    }
+
+    return entries;
+  }, [baseUniversitiesById, editorUnlocked, pendingDraft, universities]);
+
+  const selectedProject =
+    projects.find((project) => project.slug === selectedSlug) ?? null;
+  const previewProject =
+    selectedProject ||
+    projects.find((project) => project.slug === previewSlug) ||
+    projects[0] ||
+    null;
+  const focusProject = selectedProject ?? previewProject;
+
+  const focusedUniversity =
+    (focusProject?.universityId
+      ? universitiesById.get(focusProject.universityId)
+      : null) ?? null;
+
+  const currentPath = searchParams.toString()
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
+  const logoutPath = selectedProject
+    ? selectedProject.slug === NEW_PROJECT_SLUG
+      ? "/?view=projects"
+      : getProjectPath(selectedProject.slug)
+    : "/?view=projects";
+
+  function replaceQuery(mutator: (params: URLSearchParams) => void) {
+    const params = new URLSearchParams(searchParams.toString());
+    mutator(params);
+    const nextQuery = params.toString();
+    router.replace(nextQuery ? `${pathname}?${nextQuery}` : pathname, {
+      scroll: false,
+    });
   }
 
-  const yearValues = projects.map((project) => project.year);
-  const yearLabel = yearValues.length
-    ? `${Math.min(...yearValues)}-${Math.max(...yearValues)}`
-    : "Archive";
-  const activeProject =
-    projects.find((project) => project.id === activeProjectId) ?? projects[0];
+  function handleSelectProject(slug: string) {
+    replaceQuery((params) => {
+      params.set("view", "projects");
+      params.set("project", slug);
+    });
+  }
+
+  function handlePreviewChange(slug: string | null) {
+    setPreviewSlug(slug);
+    onPreviewProjectChange?.(slug);
+  }
+
+  function handleCloseProject() {
+    if (selectedSlug === NEW_PROJECT_SLUG) {
+      setLocalDraft(null);
+    }
+
+    handlePreviewChange(null);
+
+    replaceQuery((params) => {
+      params.delete("project");
+    });
+  }
+
+  function handleExitEditMode() {
+    setLocalDraft(null);
+    handlePreviewChange(null);
+    replaceQuery((params) => {
+      params.delete("edit");
+      if (params.get("project") === NEW_PROJECT_SLUG) {
+        params.delete("project");
+      }
+    });
+  }
+
+  function handleCreateProject() {
+    setLocalDraft(createEmptyProjectDocument());
+    replaceQuery((params) => {
+      params.set("view", "projects");
+      params.set("edit", "1");
+      params.set("project", NEW_PROJECT_SLUG);
+    });
+  }
+
+  const contentProject = selectedProject;
+  const selectedIndex = contentProject
+    ? Math.max(
+        0,
+        projects.findIndex((project) => project.slug === contentProject.slug)
+      )
+    : 0;
+  const showBadges = editorUnlocked;
+  const draftCount = projects.filter((project) => project.status === "draft").length;
+  const changedCount = projects.filter((project) => project.hasUnpublishedChanges).length;
 
   return (
-    <div className="relative overflow-x-hidden bg-white text-black">
+    <section
+      className={`relative bg-[#F4F0E8] ${
+        mobile ? "min-h-full" : showGlobe ? "min-h-[calc(100vh-56px)]" : "min-h-full"
+      }`}
+    >
       <div
-        className="pointer-events-none absolute inset-0 -z-20"
+        className="pointer-events-none absolute inset-0 opacity-45"
         style={{
           backgroundImage:
             "linear-gradient(rgba(0, 0, 0, 0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.045) 1px, transparent 1px)",
-          backgroundSize: "42px 42px",
+          backgroundSize: mobile ? "28px 28px" : "36px 36px",
         }}
       />
 
-      <section className="relative bg-white">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 h-full opacity-25 blur-3xl transition-all duration-700"
-          style={{
-            background: `radial-gradient(circle at 50% 32%, ${activeProject.color}, transparent 42%)`,
-          }}
-        />
-        <div className="mx-auto max-w-7xl px-6 py-6 md:px-8 md:py-8">
-          <div
-            className={`relative overflow-hidden ${
-              mobile ? "h-[220px]" : "h-[300px] md:h-[360px]"
-            }`}
+      <div className={`relative ${mobile ? "px-3 py-3" : "px-5 py-5 md:px-6 md:py-6"}`}>
+        {editorUnlocked || editRequested ? (
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-2">
+              <StatusPill label={`${projects.length} Projects`} />
+              {editorUnlocked ? <StatusPill label={`${draftCount} Drafts`} /> : null}
+              {editorUnlocked && changedCount ? (
+                <StatusPill label={`${changedCount} Unpublished`} filled />
+              ) : null}
+            </div>
+            {editorUnlocked ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreateProject}
+                  className="border border-black bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
+                >
+                  Add Project
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExitEditMode}
+                  className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+                >
+                  Public Mode
+                </button>
+                <LogoutButton redirectPath={logoutPath} />
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleExitEditMode}
+                className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+              >
+                Exit Locked Edit
+              </button>
+            )}
+          </div>
+        ) : null}
+
+        {editorUnlocked && writesDisabled ? (
+          <div className="mb-4 border-2 border-[#D97706] bg-[#FFF4E8] px-4 py-4 text-sm leading-7 text-[#8A3B12]">
+            {getPortalWriteDisabledMessage()}
+          </div>
+        ) : null}
+
+        {showGlobe ? (
+          <motion.section
+            layout
+            transition={{ duration: 0.45, ease: panelEase }}
+            className="relative mb-6 overflow-hidden border-b-2 border-black"
           >
             <div
-              className="absolute inset-0 opacity-60"
-              style={{
-                backgroundImage:
-                  "linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px)",
-                backgroundSize: "32px 32px",
-              }}
-            />
-            <div className="absolute inset-0">
+              className={`relative overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(255,252,246,0.92),_rgba(236,228,214,0.96)_58%,_rgba(244,240,232,1)_100%)] ${
+                mobile
+                  ? contentProject
+                    ? "h-[280px]"
+                    : "h-[240px]"
+                  : contentProject
+                    ? "h-[460px]"
+                    : "h-[390px]"
+              }`}
+            >
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-10 bg-gradient-to-b from-[#F4F0E8] via-[#F4F0E8]/80 to-transparent px-4 pb-10 pt-4 sm:px-5">
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="max-w-2xl">
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-black/55">
+                      Globe Focus
+                    </p>
+                    <h2 className="mt-3 font-serif text-[clamp(2rem,4vw,3.8rem)] leading-[0.92] text-black">
+                      {focusProject ? focusProject.title : "Browse the map"}
+                    </h2>
+                    <p className="mt-3 max-w-xl text-sm leading-7 text-black/72 sm:text-base">
+                      {focusProject
+                        ? `${focusProject.locationLabel || `${focusProject.city}, ${focusProject.country}`}. The globe is tracking this project point.`
+                        : "Hover or select a project card to rotate the globe toward that project's location."}
+                    </p>
+                  </div>
+                  {focusProject ? (
+                    <StatusPill label={focusProject.shortName} filled />
+                  ) : (
+                    <StatusPill label="All Nodes" />
+                  )}
+                </div>
+              </div>
+
               <Globe
                 universities={universities}
-                selectedUniversity={null}
+                selectedUniversity={focusedUniversity}
                 onSelectUniversity={() => {}}
-                hoveredProject={null}
+                hoveredProject={focusProject?.id ?? null}
                 compact
-                allowDragInCompact={false}
-                scale={mobile ? 0.8 : 1.05}
-                maxLabels={mobile ? 4 : 6}
+                allowDragInCompact
+                scale={
+                  mobile
+                    ? contentProject
+                      ? 1.12
+                      : 0.96
+                    : contentProject
+                      ? 1.28
+                      : 1.02
+                }
+                hideLabels={false}
+                soloLabelId={focusedUniversity?.id}
+                maxLabels={focusedUniversity ? 1 : mobile ? 4 : 7}
               />
+
+              <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-[#F4F0E8] via-[#F4F0E8]/80 to-transparent px-4 pb-4 pt-12 sm:px-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/55">
+                  {focusProject?.locationLabel ||
+                    (focusedUniversity
+                      ? `${focusedUniversity.city}, ${focusedUniversity.country}`
+                      : "No project selected")}
+                </p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/55">
+                  {editorUnlocked
+                    ? writesDisabled
+                      ? "Editor Preview"
+                      : "Inline Editor"
+                    : "Public Browse"}
+                </p>
+              </div>
             </div>
-          </div>
+          </motion.section>
+        ) : null}
+
+        <div className="min-w-0">
+          <AnimatePresence mode="wait">
+            {contentProject ? (
+              <motion.div
+                key={`focus-${contentProject.slug}`}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="space-y-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCloseProject}
+                    className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+                  >
+                    Back To All Projects
+                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusPill label={contentProject.university} />
+                    {showBadges ? <StatusPill label={contentProject.status} /> : null}
+                    {showBadges && contentProject.hasUnpublishedChanges ? (
+                      <StatusPill label="Draft Changes" filled />
+                    ) : null}
+                  </div>
+                </div>
+
+                <FocusedHeroCard
+                  project={contentProject}
+                  index={selectedIndex}
+                  showBadges={showBadges}
+                />
+
+                {editorUnlocked ? (
+                  <ProjectEditor
+                    key={contentProject.slug}
+                    variant="inline"
+                    mode={contentProject.slug === NEW_PROJECT_SLUG ? "create" : "edit"}
+                    currentSlug={
+                      contentProject.slug === NEW_PROJECT_SLUG
+                        ? undefined
+                        : contentProject.slug
+                    }
+                    publishedAt={
+                      contentProject.status === "published"
+                        ? new Date().toISOString()
+                        : null
+                    }
+                    initialProject={
+                      contentProject.document ?? createEmptyProjectDocument()
+                    }
+                    universities={baseUniversities}
+                    writesDisabled={writesDisabled}
+                  />
+                ) : (
+                  <ProjectContent project={contentProject} mobile={mobile} />
+                )}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="grid"
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.28, ease: "easeOut" }}
+              >
+                {projects.length ? (
+                  <div
+                    className={`grid gap-4 ${
+                      mobile ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3"
+                    }`}
+                  >
+                    {projects.map((project, index) => (
+                      <ProjectCard
+                        key={project.slug}
+                        project={project}
+                        index={index}
+                        onSelect={() => handleSelectProject(project.slug)}
+                        onPreview={() => handlePreviewChange(project.slug)}
+                        onPreviewEnd={() =>
+                          handlePreviewChange(
+                            previewSlug === project.slug ? null : previewSlug
+                          )
+                        }
+                        showBadges={showBadges}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-black/30 bg-white px-5 py-12 text-sm leading-7 text-black/65">
+                    No published projects are available yet.
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-      </section>
-
-      <div className="px-6 pb-24 pt-4 md:px-8 md:pb-28 md:pt-6">
-        <section className="mx-auto max-w-7xl">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-            {projects.map((project, index) => (
-              <ProjectCard
-                key={project.id}
-                project={project}
-                index={index}
-                active={project.id === activeProject.id}
-                onActivate={() => setActiveProjectId(project.id)}
-              />
-            ))}
-          </div>
-        </section>
-
       </div>
-    </div>
+
+      <AnimatePresence>
+        {editRequested && !editorSessionAvailable ? (
+          <AccessGate nextPath={currentPath} onExit={handleExitEditMode} />
+        ) : null}
+      </AnimatePresence>
+    </section>
   );
 }

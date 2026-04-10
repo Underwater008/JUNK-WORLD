@@ -1,12 +1,22 @@
+export interface ProjectMarkerOffset {
+  lat: number;
+  lng: number;
+}
+
 export interface Project {
   id: string;
+  slug?: string;
   title: string;
   description: string;
   year: number;
   thumbnail: string;
   participants: number;
   tags: string[];
-  markerOffset: { lat: number; lng: number };
+  markerOffset: ProjectMarkerOffset;
+  locationLabel?: string;
+  status?: "draft" | "published";
+  hasUnpublishedChanges?: boolean;
+  document?: ProjectDocument;
 }
 
 export interface University {
@@ -36,4 +46,89 @@ export interface Member {
   image?: string;
   profileUrl?: string;
   websiteUrl?: string;
+}
+
+export interface ProjectGalleryItem {
+  url: string;
+  alt: string;
+}
+
+export interface ProjectCollaborator {
+  name: string;
+  role: string;
+}
+
+export interface ProjectCredit {
+  label: string;
+  value: string;
+}
+
+export interface ProjectExternalLink {
+  label: string;
+  url: string;
+}
+
+export type ProjectBodyBlock = Record<string, unknown>;
+export type ProjectBody = ProjectBodyBlock[];
+
+export interface ProjectDocument {
+  slug: string;
+  universityId: string;
+  title: string;
+  summary: string;
+  year: number;
+  tags: string[];
+  coverImageUrl: string;
+  cardImageUrl: string;
+  gallery: ProjectGalleryItem[];
+  participantsCount: number;
+  markerOffset: ProjectMarkerOffset;
+  locationLabel: string;
+  collaborators: ProjectCollaborator[];
+  credits: ProjectCredit[];
+  externalLinks: ProjectExternalLink[];
+  body: ProjectBody;
+}
+
+export interface ProjectRecord {
+  id: string;
+  slug: string;
+  universityId: string;
+  draftContent: ProjectDocument | null;
+  publishedContent: ProjectDocument | null;
+  publishedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface PortalProjectSummary {
+  id: string;
+  slug: string;
+  status: "draft" | "published";
+  title: string;
+  universityId: string;
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+export interface PublishedProject {
+  id: string;
+  slug: string;
+  universityId: string;
+  document: ProjectDocument;
+  publishedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface ExperienceProject {
+  id: string;
+  slug: string;
+  universityId: string;
+  status: "draft" | "published";
+  hasUnpublishedChanges: boolean;
+  document: ProjectDocument;
+  publishedAt: string | null;
+  updatedAt: string;
+  createdAt: string;
 }

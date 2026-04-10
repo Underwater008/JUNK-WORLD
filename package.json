@@ -6,17 +6,25 @@
     "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "eslint .",
+    "seed:archive-projects": "tsx scripts/seed-archive-projects.ts"
   },
   "dependencies": {
+    "@blocknote/core": "^0.47.3",
+    "@blocknote/react": "^0.47.3",
+    "@blocknote/shadcn": "^0.47.3",
+    "@supabase/supabase-js": "^2.103.0",
+    "clsx": "^2.1.1",
     "cobe": "^0.6.5",
     "framer-motion": "^12.34.0",
     "next": "^16.1.6",
+    "postgres": "^3.4.7",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-globe.gl": "^2.37.0",
     "three": "^0.182.0",
-    "topojson-client": "^3.1.0"
+    "topojson-client": "^3.1.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18",
@@ -29,6 +37,7 @@
     "eslint-config-next": "^16.1.6",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
 }

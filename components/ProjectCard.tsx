@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Project } from "@/types";
 
@@ -8,7 +9,6 @@ interface ProjectCardProps {
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
-  onHover: (id: string | null) => void;
 }
 
 export default function ProjectCard({
@@ -16,7 +16,6 @@ export default function ProjectCard({
   index,
   isExpanded,
   onToggle,
-  onHover,
 }: ProjectCardProps) {
   return (
     <motion.div
@@ -113,24 +112,27 @@ export default function ProjectCard({
           </div>
 
           {/* View project */}
-          <button
-            className="mt-3 flex items-center gap-1.5 text-xs font-bold text-white hover:text-white/80 transition-colors"
-            onClick={(e) => {
-              e.stopPropagation();
-            }}
-          >
-            View Project
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
+          {project.slug ? (
+            <Link
+              href={`/projects/${project.slug}`}
+              className="mt-3 flex items-center gap-1.5 text-xs font-bold text-white transition-colors hover:text-white/80"
+              onClick={(event) => {
+                event.stopPropagation();
+              }}
             >
-              <path d="M6 4L10 8L6 12" />
-            </svg>
-          </button>
+              View Project
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+              >
+                <path d="M6 4L10 8L6 12" />
+              </svg>
+            </Link>
+          ) : null}
         </motion.div>
       )}
     </motion.div>

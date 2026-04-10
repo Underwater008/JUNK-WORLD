@@ -42,6 +42,8 @@ interface MobileLayoutProps {
   hoveredProject: string | null;
   onHoverProject: (id: string | null) => void;
   onSelectMember: (universityId: string | undefined) => void;
+  editorSessionAvailable: boolean;
+  writesDisabled: boolean;
 }
 
 export default function MobileLayout({
@@ -53,17 +55,19 @@ export default function MobileLayout({
   hoveredProject,
   onHoverProject,
   onSelectMember,
+  editorSessionAvailable,
+  writesDisabled,
 }: MobileLayoutProps) {
   if (view === "projects") {
     return (
-      <main className="w-screen h-screen overflow-hidden flex flex-col bg-white">
-        <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-white">
+      <main className="w-screen h-screen overflow-hidden flex flex-col bg-[#F4F0E8]">
+        <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-[#F4F0E8]">
           <img
             src="/images/JUNK logos/JUNK-logo.gif"
             alt="JUNK"
             className="h-5"
           />
-          <nav className="flex items-center gap-3">
+          <nav className="flex items-center gap-3 overflow-x-auto">
             {views.map(({ key, label }) => (
               <button
                 key={key}
@@ -79,22 +83,27 @@ export default function MobileLayout({
         </header>
 
         <div className="flex-1 min-h-0 overflow-y-auto safe-bottom">
-          <ProjectsView universities={universities} mobile />
+          <ProjectsView
+            universities={universities}
+            mobile
+            editorSessionAvailable={editorSessionAvailable}
+            writesDisabled={writesDisabled}
+          />
         </div>
       </main>
     );
   }
 
   return (
-    <main className="w-screen h-screen overflow-hidden flex flex-col">
+    <main className="w-screen h-screen overflow-hidden flex flex-col bg-[#F4F0E8]">
       {/* Header */}
-      <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-white">
+      <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-[#F4F0E8]">
         <img
           src="/images/JUNK logos/JUNK-logo.gif"
           alt="JUNK"
           className="h-5"
         />
-        <nav className="flex items-center gap-3">
+        <nav className="flex items-center gap-3 overflow-x-auto">
           {views.map(({ key, label }) => (
             <button
               key={key}
@@ -112,6 +121,7 @@ export default function MobileLayout({
       {/* Globe section — animated height per view */}
       <motion.div
         className="shrink-0 overflow-hidden bg-white border-b-2 border-black"
+        style={{ backgroundColor: "#F4F0E8" }}
         initial={false}
         animate={{ height: globeHeight[view] }}
         transition={{ duration: 0.5, ease }}

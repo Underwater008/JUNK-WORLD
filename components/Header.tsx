@@ -16,7 +16,7 @@ const views: { key: View; label: string }[] = [
 
 export default function Header({ view, onViewChange }: HeaderProps) {
   return (
-    <header className="h-14 border-b-2 border-black flex items-center justify-between px-8 shrink-0 bg-white">
+    <header className="flex h-14 shrink-0 items-center border-b-2 border-black bg-[#F4F0E8] px-8">
       <nav className="flex items-center gap-6">
         {views.map(({ key, label }) => (
           <button

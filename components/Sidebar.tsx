@@ -33,7 +33,7 @@ export default function Sidebar({
   };
 
   return (
-    <div className="w-full bg-white flex flex-col h-full">
+    <div className="flex h-full w-full flex-col bg-[#F4F0E8]">
       <div className="flex-1 overflow-y-auto sidebar-scroll">
         <AnimatePresence mode="wait">
           {selectedUniversity ? (
@@ -47,7 +47,7 @@ export default function Sidebar({
               {/* Back button */}
               <button
                 onClick={handleBack}
-                className="flex items-center gap-2 px-6 py-4 text-xs text-[#888] hover:text-black transition-colors cursor-pointer font-semibold uppercase tracking-wider w-full border-b border-[#E5E5E5]"
+                  className="flex w-full cursor-pointer items-center gap-2 border-b border-black/10 px-6 py-4 text-xs font-semibold uppercase tracking-wider text-[#888] transition-colors hover:bg-[#EFE8DA] hover:text-black"
               >
                 <svg
                   width="14"
@@ -63,7 +63,7 @@ export default function Sidebar({
               </button>
 
               {/* University heading */}
-              <div className="px-6 py-5 border-b-2 border-black">
+                <div className="border-b-2 border-black px-6 py-5">
                 <h2 className="text-base font-bold text-black leading-tight">
                   {selectedUniversity.name}
                 </h2>
@@ -74,7 +74,7 @@ export default function Sidebar({
 
               {/* Disciplines */}
               {selectedUniversity.disciplines.length > 0 && (
-                <div className="px-6 py-4 border-b border-[#E5E5E5]">
+                <div className="border-b border-black/10 px-6 py-4">
                   <p className="text-[10px] uppercase tracking-[0.12em] text-[#888] font-bold mb-2">
                     Disciplines
                   </p>
@@ -82,7 +82,7 @@ export default function Sidebar({
                     {selectedUniversity.disciplines.map((d) => (
                       <span
                         key={d}
-                        className="text-[11px] px-2.5 py-1 bg-[#F5F5F5] text-black font-medium border border-[#E0E0E0]"
+                        className="border border-black/15 bg-[#FBF6EC] px-2.5 py-1 text-[11px] font-medium text-black"
                       >
                         {d}
                       </span>
@@ -105,7 +105,6 @@ export default function Sidebar({
                         setExpandedProjectId(newId);
                         onHoverProject(newId);
                       }}
-                      onHover={onHoverProject}
                     />
                   ))}
                 </div>
@@ -132,7 +131,7 @@ export default function Sidebar({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3, delay: i * 0.04 }}
-                  className="w-full flex items-center gap-4 px-6 py-5 text-left border-b border-[#E5E5E5] hover:bg-[#FAFAFA] transition-colors cursor-pointer group"
+                  className="group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors hover:bg-[#EFE8DA]"
                 >
                   {/* University logo */}
                   {uni.logo ? (
@@ -142,7 +141,7 @@ export default function Sidebar({
                       className="w-8 h-8 object-contain shrink-0"
                     />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-[#E5E5E5] shrink-0 flex items-center justify-center text-[10px] font-bold text-[#888]">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E7DDCA] text-[10px] font-bold text-[#888]">
                       {uni.shortName}
                     </div>
                   )}

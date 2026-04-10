@@ -10,6 +10,20 @@ const LABEL_Z_THRESHOLD = 10;
 const COUNTRIES_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
+type GlobeCountryGeometry =
+  | { type: "MultiPolygon"; coordinates: number[][][][] }
+  | { type: "Polygon"; coordinates: number[][][] };
+
+type GlobeCountriesFeatureCollection = {
+  type: "FeatureCollection";
+  features: Array<{ geometry: GlobeCountryGeometry }>;
+};
+
+type GlobeCountriesFeature = {
+  type: "Feature";
+  geometry: GlobeCountryGeometry;
+};
+
 function toVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   const phi = (90 - lat) * (Math.PI / 180);
   const theta = (lng + 180) * (Math.PI / 180);
@@ -194,8 +208,14 @@ export default function Globe({
     fetch(COUNTRIES_URL)
       .then((r) => r.json())
       .then((topo) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const countries = feature(topo as any, (topo as any).objects.countries) as any;
+        const toFeature = feature as unknown as (
+          topology: unknown,
+          object: unknown
+        ) => unknown;
+        const countries = toFeature(
+          topo,
+          (topo as { objects: { countries: unknown } }).objects.countries
+        ) as GlobeCountriesFeatureCollection | GlobeCountriesFeature;
         const pts: number[] = [];
         const lR = R + 0.5;
 
@@ -209,7 +229,7 @@ export default function Globe({
           }
         };
 
-        const processGeom = (geom: any) => {
+        const processGeom = (geom: GlobeCountryGeometry) => {
           if (geom.type === "MultiPolygon") {
             for (const poly of geom.coordinates) for (const ring of poly) processRing(ring);
           } else if (geom.type === "Polygon") {

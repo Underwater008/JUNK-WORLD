@@ -1,245 +1,32 @@
-"use client";
+import HomeShell from "@/components/HomeShell";
+import { isPortalWriteDisabled } from "@/lib/portal/mode";
+import { hasPortalSession } from "@/lib/portal/session";
+import { getHomepageUniversities } from "@/lib/projects/server";
 
-import { Suspense, useState, useEffect, useCallback } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import Globe from "@/components/Globe";
-import Sidebar from "@/components/Sidebar";
-import Header from "@/components/Header";
-import AboutContent from "@/components/AboutContent";
-import MembersContent from "@/components/MembersContent";
-import MobileLayout from "@/components/MobileLayout";
-import ProjectsView from "@/components/ProjectsView";
-import { useIsMobile } from "@/hooks/useIsMobile";
-import { universities as rawUniversities } from "@/data/mock";
-import { University } from "@/types";
+export const dynamic = "force-dynamic";
 
-type View = "about" | "consortium" | "projects" | "members";
-
-const universities = [...rawUniversities].sort((a, b) => {
-  const aActive = a.status !== "inactive";
-  const bActive = b.status !== "inactive";
-  if (aActive !== bActive) return aActive ? -1 : 1;
-  return a.name.localeCompare(b.name);
-});
-
-function getViewFromParams(params: URLSearchParams): View {
-  const v = params.get("view");
-  if (v === "consortium" || v === "projects" || v === "members") return v;
-  return "about";
+function getFirstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
-const panelWidth: Record<View, string> = {
-  about: "58%",
-  consortium: "320px",
-  projects: "0px",
-  members: "70%",
-};
-
-const logoLeft: Record<View, string> = {
-  about: "calc(79% + 176px)",
-  consortium: "calc(50% + 161px)",
-  projects: "50%",
-  members: "calc(85% + 0px)",
-};
-
-const globeContainerWidth: Record<View, string> = {
-  about: "calc(100% + 350px)",
-  consortium: "100%",
-  projects: "100%",
-  members: "100%",
-};
-
-const ease = [0.4, 0, 0.2, 1] as const;
-
-export default function Home() {
-  return (
-    <Suspense>
-      <HomeContent />
-    </Suspense>
-  );
-}
-
-function HomeContent() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const [view, setView] = useState<View>(() => getViewFromParams(searchParams));
-  const [selectedUniversity, setSelectedUniversity] =
-    useState<University | null>(null);
-  const [hoveredProject, setHoveredProject] = useState<string | null>(null);
-  const isProjectsView = view === "projects";
-  const isMobile = useIsMobile();
-
-  // Sync view from URL changes (e.g. browser back/forward)
-  useEffect(() => {
-    setView(getViewFromParams(searchParams));
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (isMobile) {
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = "";
-      };
-    }
-
-    document.body.style.overflow = isProjectsView ? "auto" : "hidden";
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isMobile, isProjectsView]);
-
-  const handleViewChange = useCallback(
-    (newView: View) => {
-      if (newView === view) return;
-      setSelectedUniversity(null);
-      setHoveredProject(null);
-      if (view === "projects" || newView === "projects") {
-        window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-      }
-      setView(newView);
-      const url = newView === "about" ? "/" : `/?view=${newView}`;
-      router.replace(url, { scroll: false });
-    },
-    [view, router]
-  );
-
-  const handleSelectMember = useCallback(
-    (universityId: string | undefined) => {
-      if (!universityId) {
-        setSelectedUniversity(null);
-        return;
-      }
-      const uni = universities.find((u) => u.id === universityId) || null;
-      setSelectedUniversity(uni);
-    },
-    []
-  );
-
-  const isCompact = view !== "consortium";
-
-  if (isMobile) {
-    return (
-      <MobileLayout
-        view={view}
-        onViewChange={handleViewChange}
-        universities={universities}
-        selectedUniversity={selectedUniversity}
-        onSelectUniversity={setSelectedUniversity}
-        hoveredProject={hoveredProject}
-        onHoverProject={setHoveredProject}
-        onSelectMember={handleSelectMember}
-      />
-    );
-  }
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const view = getFirstValue(resolvedSearchParams.view);
+  const edit = getFirstValue(resolvedSearchParams.edit);
+  const editorSessionAvailable = await hasPortalSession();
+  const includeDrafts =
+    view === "projects" && edit === "1" && editorSessionAvailable;
+  const universities = await getHomepageUniversities({ includeDrafts });
 
   return (
-    <main
-      className={`w-screen flex flex-col relative bg-white ${
-        isProjectsView ? "min-h-screen" : "h-screen overflow-hidden"
-      }`}
-    >
-      <Header view={view} onViewChange={handleViewChange} />
-
-      {/* JUNK logo — sits in header row, horizontally tracks globe center */}
-      <motion.div
-        className="absolute top-0 h-14 flex items-center pointer-events-none z-20"
-        initial={false}
-        animate={{ left: logoLeft[view] }}
-        style={{ x: "-50%" }}
-        transition={{ duration: 0.5, ease }}
-      >
-        <img
-          src="/images/JUNK logos/JUNK-logo.gif"
-          alt="JUNK"
-          className="h-8"
-        />
-      </motion.div>
-
-      {isProjectsView ? (
-        <ProjectsView universities={universities} />
-      ) : (
-        <>
-          {/* Body */}
-          <div className="flex-1 flex overflow-hidden">
-            {/* Left panel: animated width between views */}
-            <motion.div
-              className="shrink-0 overflow-hidden bg-white"
-              initial={false}
-              animate={{ width: panelWidth[view] }}
-              transition={{ duration: 0.5, ease }}
-              style={{ borderRight: "2px solid black" }}
-            >
-              <AnimatePresence mode="wait">
-                {view === "about" && (
-                  <motion.div
-                    key="about"
-                    className="h-full"
-                    initial={{ opacity: 0, x: -40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -40 }}
-                    transition={{ duration: 0.35, ease: "easeOut", delay: 0.15 }}
-                  >
-                    <AboutContent />
-                  </motion.div>
-                )}
-                {view === "consortium" && (
-                  <motion.div
-                    key="sidebar"
-                    className="h-full"
-                    initial={{ opacity: 0, x: -40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -40 }}
-                    transition={{ duration: 0.25, ease: "easeOut" }}
-                  >
-                    <Sidebar
-                      universities={universities}
-                      selectedUniversity={selectedUniversity}
-                      onSelect={setSelectedUniversity}
-                      onHoverProject={setHoveredProject}
-                    />
-                  </motion.div>
-                )}
-                {view === "members" && (
-                  <motion.div
-                    key="members"
-                    className="h-full"
-                    initial={{ opacity: 0, x: -40 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -40 }}
-                    transition={{ duration: 0.35, ease: "easeOut", delay: 0.15 }}
-                  >
-                    <MembersContent onSelectMember={handleSelectMember} />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </motion.div>
-
-            {/* Globe container: fills remaining space, overflow hidden clips right edge */}
-            <div className="flex-1 relative bg-white overflow-hidden">
-              <div
-                className="absolute inset-y-0 left-0 transition-[width] duration-500 ease-[cubic-bezier(0.4,0,0.2,1)]"
-                style={{ width: globeContainerWidth[view] }}
-              >
-                <Globe
-                  universities={universities}
-                  selectedUniversity={selectedUniversity}
-                  onSelectUniversity={setSelectedUniversity}
-                  hoveredProject={hoveredProject}
-                  compact={isCompact}
-                  scale={view === "members" ? 0.8 : undefined}
-                  soloLabelId={
-                    view !== "about" && selectedUniversity
-                      ? selectedUniversity.id
-                      : undefined
-                  }
-                />
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-    </main>
+    <HomeShell
+      universities={universities}
+      editorSessionAvailable={editorSessionAvailable}
+      writesDisabled={isPortalWriteDisabled()}
+    />
   );
 }
