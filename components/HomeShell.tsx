@@ -3,8 +3,8 @@
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
+import ArchiveView from "@/components/ArchiveView";
 import Globe from "@/components/Globe";
-import Sidebar from "@/components/Sidebar";
 import Header from "@/components/Header";
 import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
@@ -13,37 +13,34 @@ import ProjectsView from "@/components/ProjectsView";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { University } from "@/types";
 
-type View = "about" | "consortium" | "projects" | "members";
+type View = "about" | "projects" | "members";
 
 function getViewFromParams(params: URLSearchParams): View {
   const v = params.get("view");
-  if (v === "consortium" || v === "projects" || v === "members") return v;
+  if (v === "consortium" || v === "projects") return "projects";
+  if (v === "members") return "members";
   return "about";
 }
 
 const panelWidth: Record<View, string> = {
   about: "58%",
-  consortium: "320px",
-  projects: "0px",
+  projects: "67%",
   members: "70%",
 };
 
-const logoLeft: Record<View, string> = {
-  about: "calc(79% + 176px)",
-  consortium: "calc(50% + 161px)",
-  projects: "50%",
-  members: "calc(85% + 0px)",
-};
-
-const globeContainerWidth: Record<View, string> = {
-  about: "calc(100% + 350px)",
-  consortium: "100%",
-  projects: "100%",
-  members: "100%",
+const globePose: Record<View, { x: string; y: string }> = {
+  about: { x: "18%", y: "0%" },
+  projects: { x: "26%", y: "0%" },
+  members: { x: "32%", y: "0%" },
 };
 
 const ease = [0.4, 0, 0.2, 1] as const;
 const projectsGlobeBandHeight = "38vh";
+const projectsEditorPose = { x: "14%", y: "-24%" };
+
+function getLogoLeft(poseX: string) {
+  return `calc(50% + ${poseX})`;
+}
 
 function HomeContent({
   universities,
@@ -61,8 +58,9 @@ function HomeContent({
     useState<University | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
   const [projectPreviewSlug, setProjectPreviewSlug] = useState<string | null>(null);
-  const [projectsEntering, setProjectsEntering] = useState(false);
   const isProjectsView = view === "projects";
+  const editRequested = searchParams.get("edit") === "1";
+  const isProjectsEditView = isProjectsView && editRequested;
   const isMobile = useIsMobile();
   const selectedProjectSlug = searchParams.get("project");
 
@@ -92,25 +90,16 @@ function HomeContent({
       ? universities.find((university) => university.id === focusedProject.universityId) ?? null
       : null;
 
+  const globeSelectedUniversity = isProjectsView
+    ? projectFocusedUniversity ?? selectedUniversity
+    : selectedUniversity;
+  const currentPanelWidth = isProjectsEditView ? "0px" : panelWidth[view];
+  const currentGlobePose = isProjectsEditView ? projectsEditorPose : globePose[view];
+  const currentLogoLeft = getLogoLeft(currentGlobePose.x);
+
   useEffect(() => {
     setView(getViewFromParams(searchParams));
   }, [searchParams]);
-
-  useEffect(() => {
-    if (!isProjectsView) {
-      setProjectsEntering(false);
-      return;
-    }
-
-    setProjectsEntering(true);
-    const timeoutId = window.setTimeout(() => {
-      setProjectsEntering(false);
-    }, 420);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [isProjectsView]);
 
   useEffect(() => {
     if (isMobile) {
@@ -169,7 +158,7 @@ function HomeContent({
     [universities]
   );
 
-  const isCompact = view !== "consortium";
+  const isCompact = view !== "projects";
 
   if (isMobile) {
     return (
@@ -180,7 +169,6 @@ function HomeContent({
         selectedUniversity={selectedUniversity}
         onSelectUniversity={setSelectedUniversity}
         hoveredProject={hoveredProject}
-        onHoverProject={setHoveredProject}
         onSelectMember={handleSelectMember}
         editorSessionAvailable={editorSessionAvailable}
         writesDisabled={writesDisabled}
@@ -197,7 +185,7 @@ function HomeContent({
       <motion.div
         className="pointer-events-none absolute top-0 z-20 flex h-14 items-center"
         initial={false}
-        animate={{ left: logoLeft[view] }}
+        animate={{ left: currentLogoLeft }}
         style={{ x: "-50%" }}
         transition={{ duration: 0.5, ease }}
       >
@@ -208,13 +196,51 @@ function HomeContent({
         />
       </motion.div>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="relative flex flex-1 overflow-hidden">
         <motion.div
-          className="shrink-0 overflow-hidden bg-[#F4F0E8]"
+          className="absolute inset-0"
           initial={false}
-          animate={{ width: panelWidth[view] }}
+          animate={currentGlobePose}
           transition={{ duration: 0.5, ease }}
-          style={{ borderRight: isProjectsView ? "0px solid transparent" : "2px solid black" }}
+        >
+          <Globe
+            universities={universities}
+            selectedUniversity={globeSelectedUniversity}
+            onSelectUniversity={setSelectedUniversity}
+            hoveredProject={
+              isProjectsView ? focusedProject?.id ?? null : hoveredProject
+            }
+            compact={isProjectsEditView ? true : isCompact}
+            allowDragInCompact={isProjectsEditView}
+            scale={
+              isProjectsEditView
+                ? focusedProject
+                  ? 1.08
+                  : 1.0
+                : undefined
+            }
+            hideLabels={false}
+            soloLabelId={
+              isProjectsView
+                ? (projectFocusedUniversity ?? selectedUniversity)?.id
+                : undefined
+            }
+            maxLabels={
+              isProjectsView
+                ? projectFocusedUniversity || selectedUniversity
+                  ? 1
+                  : 7
+                : undefined
+            }
+          />
+        </motion.div>
+
+        <motion.div
+          className="relative z-20 shrink-0 overflow-hidden bg-[#F4F0E8]"
+          initial={false}
+          animate={{ width: currentPanelWidth }}
+          transition={{ duration: 0.5, ease }}
+          style={{ borderRight: isProjectsEditView ? "0px solid transparent" : "2px solid black" }}
         >
           <AnimatePresence mode="wait">
             {view === "about" && (
@@ -229,20 +255,20 @@ function HomeContent({
                 <AboutContent />
               </motion.div>
             )}
-            {view === "consortium" && (
+            {view === "projects" && !isProjectsEditView && (
               <motion.div
-                key="sidebar"
+                key="archive"
                 className="h-full"
                 initial={{ opacity: 0, x: -40 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -40 }}
                 transition={{ duration: 0.25, ease: "easeOut" }}
               >
-                <Sidebar
+                <ArchiveView
                   universities={universities}
                   selectedUniversity={selectedUniversity}
-                  onSelect={setSelectedUniversity}
-                  onHoverProject={setHoveredProject}
+                  onSelectUniversity={setSelectedUniversity}
+                  onPreviewProjectChange={setProjectPreviewSlug}
                 />
               </motion.div>
             )}
@@ -261,59 +287,20 @@ function HomeContent({
           </AnimatePresence>
         </motion.div>
 
-        <div className="relative flex-1 overflow-hidden bg-[#F4F0E8]">
-          <motion.div
-            className={`absolute right-0 top-0 overflow-hidden ${
-              isProjectsView ? "border-b-2 border-black" : ""
-            }`}
-            initial={false}
-            animate={{
-              width: isProjectsView ? "100%" : globeContainerWidth[view],
-              height: isProjectsView ? projectsGlobeBandHeight : "100%",
-            }}
-            transition={{
-              width: { duration: 0.5, ease },
-              height: {
-                duration: 0.52,
-                ease,
-                delay: isProjectsView && projectsEntering ? 0.08 : 0,
-              },
-            }}
-            style={{ left: "auto" }}
-          >
-            <Globe
-              universities={universities}
-              selectedUniversity={
-                isProjectsView ? projectFocusedUniversity : selectedUniversity
-              }
-              onSelectUniversity={setSelectedUniversity}
-              hoveredProject={
-                isProjectsView ? focusedProject?.id ?? null : hoveredProject
-              }
-              compact={isProjectsView ? true : isCompact}
-              allowDragInCompact={isProjectsView}
-              scale={isProjectsView ? (focusedProject ? 1.22 : 1.02) : undefined}
-              hideLabels={false}
-              soloLabelId={isProjectsView ? projectFocusedUniversity?.id : undefined}
-              maxLabels={isProjectsView ? (projectFocusedUniversity ? 1 : 7) : undefined}
-            />
-          </motion.div>
-
-          {isProjectsView ? (
+        {isProjectsEditView ? (
+          <div className="relative z-10 flex-1 overflow-hidden">
             <motion.div
-              className="absolute inset-x-0 bottom-0 overflow-y-auto"
+              className="absolute inset-x-0 bottom-0 overflow-y-auto border-t-2 border-black bg-[#F4F0E8]"
               initial={false}
               animate={{
-                opacity: projectsEntering ? 0 : 1,
+                opacity: 1,
               }}
               transition={{
-                duration: 0.22,
+                duration: 0.24,
                 ease: "easeOut",
-                delay: projectsEntering ? 0 : 0.08,
               }}
               style={{
                 top: projectsGlobeBandHeight,
-                pointerEvents: projectsEntering ? "none" : "auto",
               }}
             >
               <ProjectsView
@@ -324,8 +311,8 @@ function HomeContent({
                 onPreviewProjectChange={setProjectPreviewSlug}
               />
             </motion.div>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </div>
     </main>
   );

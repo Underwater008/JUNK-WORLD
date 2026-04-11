@@ -1,6 +1,6 @@
 "use client";
 
-type View = "about" | "consortium" | "projects" | "members";
+type View = "about" | "projects" | "members";
 
 interface HeaderProps {
   view: View;
@@ -9,8 +9,7 @@ interface HeaderProps {
 
 const views: { key: View; label: string }[] = [
   { key: "about", label: "About" },
-  { key: "consortium", label: "Consortium" },
-  { key: "projects", label: "Projects" },
+  { key: "projects", label: "Consortium" },
   { key: "members", label: "Members" },
 ];
 

@@ -5,28 +5,24 @@ import Globe from "@/components/Globe";
 import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
 import ProjectsView from "@/components/ProjectsView";
-import Sidebar from "@/components/Sidebar";
 import { University } from "@/types";
 
-type View = "about" | "consortium" | "projects" | "members";
+type View = "about" | "projects" | "members";
 
 const views: { key: View; label: string }[] = [
   { key: "about", label: "About" },
-  { key: "consortium", label: "Consortium" },
-  { key: "projects", label: "Projects" },
+  { key: "projects", label: "Consortium" },
   { key: "members", label: "Members" },
 ];
 
 const globeHeight: Record<View, string> = {
   about: "25vh",
-  consortium: "40vh",
   projects: "0px",
   members: "20vh",
 };
 
 const globeScale: Record<View, number> = {
   about: 0.7,
-  consortium: 0.85,
   projects: 0.8,
   members: 0.6,
 };
@@ -40,7 +36,6 @@ interface MobileLayoutProps {
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   hoveredProject: string | null;
-  onHoverProject: (id: string | null) => void;
   onSelectMember: (universityId: string | undefined) => void;
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
@@ -53,7 +48,6 @@ export default function MobileLayout({
   selectedUniversity,
   onSelectUniversity,
   hoveredProject,
-  onHoverProject,
   onSelectMember,
   editorSessionAvailable,
   writesDisabled,
@@ -132,16 +126,14 @@ export default function MobileLayout({
           onSelectUniversity={onSelectUniversity}
           hoveredProject={hoveredProject}
           compact={true}
-          allowDragInCompact={view === "consortium"}
+          allowDragInCompact={false}
           scale={globeScale[view]}
           hideLabels={false}
-          maxLabels={view === "about" ? 4 : view === "consortium" ? 5 : undefined}
+          maxLabels={view === "about" ? 4 : undefined}
           soloLabelId={
             view === "members"
               ? (selectedUniversity?.id ?? "__none__")
-              : view === "consortium" && selectedUniversity
-                ? selectedUniversity.id
-                : undefined
+              : undefined
           }
         />
       </motion.div>
@@ -159,23 +151,6 @@ export default function MobileLayout({
               transition={{ duration: 0.2 }}
             >
               <AboutContent />
-            </motion.div>
-          )}
-          {view === "consortium" && (
-            <motion.div
-              key="sidebar"
-              className="h-full"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <Sidebar
-                universities={universities}
-                selectedUniversity={selectedUniversity}
-                onSelect={onSelectUniversity}
-                onHoverProject={onHoverProject}
-              />
             </motion.div>
           )}
           {view === "members" && (
