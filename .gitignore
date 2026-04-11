@@ -27,7 +27,10 @@ next-env.d.ts
 
 # agent/editor skills
 .agents/
-.claude/skills/
+.claude/
 .cursor/
 skills/
 docs/plans/
+
+# supabase local temp
+supabase/.temp/
