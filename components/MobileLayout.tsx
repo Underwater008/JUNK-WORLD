@@ -54,8 +54,8 @@ export default function MobileLayout({
 }: MobileLayoutProps) {
   if (view === "projects") {
     return (
-      <main className="w-screen h-screen overflow-hidden flex flex-col bg-[#F4F0E8]">
-        <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-[#F4F0E8]">
+      <main className="w-screen h-screen overflow-hidden flex flex-col bg-[var(--ink-wash-200)]">
+        <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-white">
           <img
             src="/images/JUNK logos/JUNK-logo.gif"
             alt="JUNK"
@@ -67,7 +67,7 @@ export default function MobileLayout({
                 key={key}
                 onClick={() => onViewChange(key)}
                 className={`text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors cursor-pointer ${
-                  view === key ? "text-black" : "text-[#888]"
+                  view === key ? "text-black" : "text-[var(--ink-wash-700)]"
                 }`}
               >
                 {label}
@@ -89,9 +89,9 @@ export default function MobileLayout({
   }
 
   return (
-    <main className="w-screen h-screen overflow-hidden flex flex-col bg-[#F4F0E8]">
+    <main className="w-screen h-screen overflow-hidden flex flex-col bg-[var(--ink-wash-200)]">
       {/* Header */}
-      <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-[#F4F0E8]">
+      <header className="h-12 border-b-2 border-black flex items-center justify-between px-4 shrink-0 bg-white">
         <img
           src="/images/JUNK logos/JUNK-logo.gif"
           alt="JUNK"
@@ -103,7 +103,7 @@ export default function MobileLayout({
               key={key}
               onClick={() => onViewChange(key)}
               className={`text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors cursor-pointer ${
-                view === key ? "text-black" : "text-[#888]"
+                view === key ? "text-black" : "text-[var(--ink-wash-700)]"
               }`}
             >
               {label}
@@ -114,8 +114,7 @@ export default function MobileLayout({
 
       {/* Globe section — animated height per view */}
       <motion.div
-        className="shrink-0 overflow-hidden bg-white border-b-2 border-black"
-        style={{ backgroundColor: "#F4F0E8" }}
+        className="shrink-0 overflow-hidden border-b-2 border-black bg-black"
         initial={false}
         animate={{ height: globeHeight[view] }}
         transition={{ duration: 0.5, ease }}

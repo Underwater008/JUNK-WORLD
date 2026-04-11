@@ -178,7 +178,7 @@ function HomeContent({
 
   return (
     <main
-      className="relative flex h-screen w-screen flex-col overflow-hidden bg-[#F4F0E8]"
+      className="relative flex h-screen w-screen flex-col overflow-hidden bg-[var(--ink-wash-200)]"
     >
       <Header view={view} onViewChange={handleViewChange} />
 
@@ -188,17 +188,28 @@ function HomeContent({
         animate={{ left: currentLogoLeft }}
         style={{ x: "-50%" }}
         transition={{ duration: 0.5, ease }}
+        aria-hidden={view === "about"}
       >
-        <img
-          src="/images/JUNK logos/JUNK-logo.gif"
-          alt="JUNK"
-          className="h-8"
-        />
+        <button
+          type="button"
+          onClick={() => handleViewChange("about")}
+          disabled={view === "about"}
+          className={`pointer-events-auto cursor-pointer transition-opacity duration-300 ${
+            view === "about" ? "pointer-events-none opacity-0" : "opacity-100"
+          }`}
+          aria-label="Go to About"
+        >
+          <img
+            src="/images/JUNK logos/JUNK-logo.gif"
+            alt="JUNK"
+            className="h-8"
+          />
+        </button>
       </motion.div>
 
       <div className="relative flex flex-1 overflow-hidden">
         <motion.div
-          className="absolute inset-0"
+          className="absolute inset-0 bg-black"
           initial={false}
           animate={currentGlobePose}
           transition={{ duration: 0.5, ease }}
@@ -236,7 +247,7 @@ function HomeContent({
         </motion.div>
 
         <motion.div
-          className="relative z-20 shrink-0 overflow-hidden bg-[#F4F0E8]"
+          className="relative z-20 shrink-0 overflow-hidden bg-[var(--ink-wash-200)]"
           initial={false}
           animate={{ width: currentPanelWidth }}
           transition={{ duration: 0.5, ease }}
@@ -290,7 +301,7 @@ function HomeContent({
         {isProjectsEditView ? (
           <div className="relative z-10 flex-1 overflow-hidden">
             <motion.div
-              className="absolute inset-x-0 bottom-0 overflow-y-auto border-t-2 border-black bg-[#F4F0E8]"
+              className="absolute inset-x-0 bottom-0 overflow-y-auto border-t-2 border-black bg-[var(--ink-wash-200)]"
               initial={false}
               animate={{
                 opacity: 1,

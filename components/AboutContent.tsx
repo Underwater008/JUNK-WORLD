@@ -63,7 +63,7 @@ export default function AboutContent() {
         {/* Subtitle */}
         <motion.p
           variants={fadeUp}
-          className="font-serif text-xl italic text-[#888] mb-10"
+          className="font-serif text-xl italic text-[var(--ink-wash-700)] mb-10"
         >
           A definition for the JUNK Consortium
         </motion.p>
@@ -111,7 +111,7 @@ export default function AboutContent() {
               <span className="font-serif text-2xl md:text-4xl text-black block">
                 {stat.value}
               </span>
-              <span className="text-[10px] uppercase tracking-[0.12em] text-[#888] font-bold mt-1 block">
+              <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--ink-wash-700)] font-bold mt-1 block">
                 {stat.label}
               </span>
             </div>
@@ -144,7 +144,7 @@ export default function AboutContent() {
         {/* Attribution */}
         <motion.p
           variants={fadeUp}
-          className="text-[10px] text-[#AAA] font-mono tracking-wider"
+          className="text-[10px] text-[var(--ink-wash-500)] font-mono tracking-wider"
         >
           draft.ff &mdash; AM 06252024
         </motion.p>

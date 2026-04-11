@@ -4,7 +4,7 @@ export default function PortalLayout({
   children: React.ReactNode;
 }) {
   return (
-    <main className="min-h-screen bg-[#F4F0E8] text-black">
+    <main className="min-h-screen bg-[var(--ink-wash-200)] text-black">
       <div
         className="pointer-events-none fixed inset-0 opacity-60"
         style={{

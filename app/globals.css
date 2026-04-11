@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+:root {
+  --ink-wash-900: #252525;
+  --ink-wash-700: #545454;
+  --ink-wash-500: #7d7d7d;
+  --ink-wash-200: #ffffff;
+  --ink-wash-050: #ffffff;
+}
+
 .font-serif {
   font-family: var(--font-serif), Georgia, serif;
 }
@@ -10,8 +18,8 @@
 
 body {
   margin: 0;
-  background: #f4f0e8;
-  color: #000000;
+  background: var(--ink-wash-200);
+  color: var(--ink-wash-900);
   overflow-x: hidden;
   overflow-y: auto;
   -webkit-font-smoothing: antialiased;
@@ -19,7 +27,7 @@ body {
 }
 
 ::selection {
-  background: #000;
+  background: var(--ink-wash-900);
   color: #fff;
 }
 
@@ -33,7 +41,7 @@ body {
 }
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
-  background: #ccc;
+  background: var(--ink-wash-500);
   border-radius: 3px;
 }
 

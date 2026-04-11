@@ -47,7 +47,7 @@ export default function MembersContent({ onSelectMember }: MembersContentProps) 
 
         <motion.p
           variants={fadeUp}
-          className="font-serif text-xl italic text-[#888] mb-10"
+          className="font-serif text-xl italic text-[var(--ink-wash-700)] mb-10"
         >
           Faculty and researchers of the JUNK Consortium
         </motion.p>
@@ -67,7 +67,7 @@ export default function MembersContent({ onSelectMember }: MembersContentProps) 
         {/* Footer attribution */}
         <motion.p
           variants={fadeUp}
-          className="text-[10px] text-[#AAA] font-mono tracking-wider mt-16 pb-8"
+          className="text-[10px] text-[var(--ink-wash-500)] font-mono tracking-wider mt-16 pb-8"
         >
           JUNK CONSORTIUM &mdash; MEMBERS DIRECTORY
         </motion.p>

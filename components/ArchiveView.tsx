@@ -57,7 +57,7 @@ function ArchiveProjectImage({
 
   return (
     <div
-      className={`relative overflow-hidden border-b-2 border-black bg-[#F3F0E8] ${
+      className={`relative overflow-hidden border-b-2 border-black bg-[var(--ink-wash-050)] ${
         large ? "h-[280px] xl:h-[340px]" : "h-48"
       }`}
     >
@@ -92,7 +92,8 @@ function ArchiveProjectImage({
           <div
             className="absolute inset-0"
             style={{
-              background: `linear-gradient(150deg, ${project.color}30 0%, rgba(255,255,255,0.96) 44%, rgba(244,240,232,1) 100%)`,
+              background:
+                "linear-gradient(150deg, rgba(255,255,255,0.96) 0%, rgba(207,207,207,0.88) 44%, rgba(244,244,244,1) 100%)",
             }}
           />
           <div
@@ -103,7 +104,7 @@ function ArchiveProjectImage({
               backgroundSize: large ? "34px 34px" : "24px 24px",
             }}
           />
-          <span className="absolute left-4 top-4 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6A6A6A]">
+          <span className="absolute left-4 top-4 text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
             Archive Still / {formatIndex(index)}
           </span>
           <span
@@ -120,7 +121,7 @@ function ArchiveProjectImage({
           <div className="absolute inset-x-5 bottom-5">
             <div className="flex items-end justify-between gap-4">
               <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6A6A6A]">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
                   {project.shortName} / {project.year}
                 </p>
                 <p
@@ -162,7 +163,7 @@ function MetaBlock({
 }) {
   return (
     <div className="border border-black bg-white px-4 py-4">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
         {label}
       </p>
       <p className="mt-2 text-sm leading-6 text-black">{value}</p>
@@ -211,7 +212,7 @@ function ArchiveProjectDetail({
           <ArchiveProjectImage project={project} index={index} large />
           <div className="flex flex-col justify-between gap-5 border-t-2 border-black px-5 py-5 xl:border-l-2 xl:border-t-0 xl:px-6 xl:py-6">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
                 {project.shortName} / {project.year}
               </p>
               <h2 className="mt-3 font-serif text-[clamp(2rem,3vw,3.4rem)] leading-[0.92] text-black">
@@ -318,7 +319,7 @@ function ArchiveProjectCard({
       <div className="flex flex-1 flex-col px-4 py-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
               {project.shortName} / {project.year}
             </p>
             <h3
@@ -361,7 +362,7 @@ function ArchiveProjectCard({
 
         <div className="mt-auto flex items-end justify-between gap-4 border-t border-black pt-3">
           <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
               Origin
             </p>
             <p className="mt-1 text-[13px] leading-5 text-black">{project.university}</p>
@@ -478,18 +479,18 @@ export default function ArchiveView({
   }
 
   return (
-    <section className="h-full bg-[#F4F0E8]">
+    <section className="h-full bg-[var(--ink-wash-200)]">
       <div className="grid h-full min-h-0 grid-cols-[320px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col border-r-2 border-black bg-[#EFE7D8]">
+        <aside className="flex min-h-0 flex-col border-r-2 border-black bg-[var(--ink-wash-200)]">
           <div className="min-h-0 flex-1 overflow-y-auto">
             <button
               type="button"
               onClick={() => handleFilterChange(null)}
               className={`group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors ${
-                !selectedUniversity ? "bg-[#E9DFCC]" : "hover:bg-[#EFE8DA]"
+                !selectedUniversity ? "bg-white" : "hover:bg-black/5"
               }`}
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E7DDCA] text-[10px] font-bold uppercase text-[#888]">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-[var(--ink-wash-700)]">
                 All
               </div>
 
@@ -497,7 +498,7 @@ export default function ArchiveView({
                 <span className="block text-sm font-semibold leading-tight text-black">
                   All Projects
                 </span>
-                <span className="mt-0.5 block text-xs font-medium text-[#888]">
+                <span className="mt-0.5 block text-xs font-medium text-[var(--ink-wash-700)]">
                   {allProjects.length} project{allProjects.length === 1 ? "" : "s"}
                 </span>
               </div>
@@ -524,7 +525,7 @@ export default function ArchiveView({
                   type="button"
                   onClick={() => handleFilterChange(university)}
                   className={`group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors ${
-                    active ? "bg-[#E9DFCC]" : "hover:bg-[#EFE8DA]"
+                    active ? "bg-white" : "hover:bg-black/5"
                   }`}
                 >
                   <div className="flex min-w-0 flex-1 items-center gap-4">
@@ -535,19 +536,19 @@ export default function ArchiveView({
                         className="h-8 w-8 shrink-0 object-contain"
                       />
                     ) : (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E7DDCA] text-[10px] font-bold uppercase text-[#888]">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-[var(--ink-wash-700)]">
                         {university.shortName}
                       </div>
                     )}
 
                     <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--ink-wash-700)]">
                         {university.shortName}
                       </p>
                       <p className="mt-1 text-sm font-semibold leading-5 text-black">
                         {university.name}
                       </p>
-                      <p className="mt-1 text-xs leading-5 text-black/55">
+                      <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
                         {university.city}, {university.country}
                       </p>
                     </div>
@@ -569,7 +570,7 @@ export default function ArchiveView({
           </div>
         </aside>
 
-        <div className="flex min-h-0 flex-col bg-[#F6F0E4]">
+        <div className="flex min-h-0 flex-col bg-[var(--ink-wash-200)]">
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="space-y-5 px-5 py-5">
               <AnimatePresence initial={false}>
