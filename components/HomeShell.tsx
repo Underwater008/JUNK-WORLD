@@ -11,7 +11,7 @@ import {
   type MutableRefObject,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import ArchiveView, {
   type SelectedProjectStageController,
   type SelectedProjectStageSnapshot,
@@ -46,6 +46,10 @@ const globePose: Record<View, { x: string; y: string }> = {
 };
 
 const ease = [0.4, 0, 0.2, 1] as const;
+const galleryHeroTransition = {
+  duration: 0.62,
+  ease: [0.22, 1, 0.36, 1] as const,
+};
 
 function getLogoLeft(panel: string) {
   const p = Number.parseFloat(panel);
@@ -62,10 +66,14 @@ function ProjectStageGallery({
   project,
   editable = false,
   selectedProjectStageControllerRef,
+  expanded = false,
+  onExpandedChange,
 }: {
   project: SelectedProjectStageSnapshot;
   editable?: boolean;
   selectedProjectStageControllerRef?: MutableRefObject<SelectedProjectStageController | null>;
+  expanded?: boolean;
+  onExpandedChange?: (expanded: boolean) => void;
 }) {
   const [activeIndex, setActiveIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
@@ -74,14 +82,14 @@ function ProjectStageGallery({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (galleryLength < 2) return;
+    if (galleryLength < 2 || expanded) return;
 
     const intervalId = window.setInterval(() => {
       setActiveIndex((current) => (current + 1) % galleryLength);
     }, 4200);
 
     return () => window.clearInterval(intervalId);
-  }, [galleryLength]);
+  }, [expanded, galleryLength]);
 
   useEffect(() => {
     if (!galleryLength) {
@@ -121,7 +129,7 @@ function ProjectStageGallery({
 
   if (!galleryLength) {
     return (
-      <div className="relative z-20 h-full min-h-0 overflow-visible bg-[#050505]">
+      <div className="relative z-20 h-full min-h-0 overflow-visible">
         {editable ? (
           <div className="absolute inset-x-0 bottom-8 z-30 flex justify-center px-6">
             <div className="flex flex-col items-center gap-3">
@@ -156,9 +164,124 @@ function ProjectStageGallery({
   const currentItem = project.gallery[activeIndex] ?? project.gallery[0];
   const controlsTopClass = editable ? "top-14" : "top-10";
   const frameTopClass = editable ? "top-36" : "top-28";
+  const galleryCtaLabel = galleryLength > 1 ? "See all" : "Open image";
+  const heroLayoutId = `${project.slug}-gallery-hero`;
+  const orderedGallery = [
+    { item: currentItem, originalIndex: activeIndex, hero: true },
+    ...project.gallery
+      .map((item, index) => ({ item, originalIndex: index, hero: false }))
+      .filter(({ originalIndex }) => originalIndex !== activeIndex),
+  ];
+
+  if (expanded) {
+    return (
+      <motion.div
+        className="relative z-20 h-full min-h-0 overflow-hidden"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.35, ease }}
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-0 bottom-[12%] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_20%),radial-gradient(circle_at_72%_18%,rgba(232,181,74,0.2),transparent_18%),linear-gradient(180deg,rgba(5,5,5,0.96),rgba(5,5,5,0.9)_52%,rgba(5,5,5,0.28)_82%,transparent)]" />
+
+        <div className="absolute inset-x-8 top-8 z-30 flex items-start justify-between gap-6">
+          <div className="max-w-[620px]">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/55">
+              {galleryLength} media
+            </p>
+            <h2 className="mt-3 font-serif text-[clamp(2.2rem,4vw,4.8rem)] leading-[0.94] text-white">
+              {project.title}
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-2 bg-black/45 px-2 py-2 backdrop-blur-sm">
+            {editable ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading}
+                  className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {uploading ? "Uploading..." : "Add images"}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => void handleFileChange(event)}
+                />
+              </>
+            ) : null}
+
+            <button
+              type="button"
+              onClick={() => onExpandedChange?.(false)}
+              className="border border-white/18 bg-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
+            >
+              Close gallery
+            </button>
+          </div>
+        </div>
+
+        <div className="absolute left-1/2 top-24 z-20 h-[42%] w-[min(86vw,1280px)] -translate-x-1/2 overflow-y-auto pr-3">
+          <div className="grid grid-cols-2 items-start gap-4 lg:grid-cols-3 xl:grid-cols-4">
+            {orderedGallery.map(({ item, originalIndex, hero }, index) => (
+              <motion.button
+                key={`${project.slug}-${item.url}-${originalIndex}-${hero ? "hero" : "tile"}`}
+                type="button"
+                onClick={() => setActiveIndex(originalIndex)}
+                layout
+                layoutId={hero ? heroLayoutId : undefined}
+                initial={hero ? false : { opacity: 0, y: 24 }}
+                animate={hero ? undefined : { opacity: 1, y: 0 }}
+                exit={hero ? undefined : { opacity: 0, y: 18 }}
+                transition={hero ? galleryHeroTransition : { duration: 0.38, ease, delay: index * 0.03 }}
+                className={`group relative overflow-hidden border bg-[#080808] text-left ${
+                  hero
+                    ? "col-span-2 self-start lg:col-span-2 xl:col-span-2"
+                    : ""
+                } ${
+                  hero || originalIndex === activeIndex ? "border-white/40" : "border-white/10"
+                }`}
+              >
+                <motion.img
+                  src={item.url}
+                  alt={item.alt || `${project.title} image ${originalIndex + 1}`}
+                  className="block h-auto w-full transition duration-300 ease-out group-hover:opacity-95"
+                  transition={hero ? galleryHeroTransition : undefined}
+                />
+                <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.18)_52%,rgba(0,0,0,0.78))] opacity-90" />
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 px-4 py-4">
+                  <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/48">
+                    {String(originalIndex + 1).padStart(2, "0")}
+                  </span>
+                  {item.alt ? (
+                    <span className="max-w-[68%] text-right text-[11px] leading-5 text-white/86">
+                      {item.alt}
+                    </span>
+                  ) : null}
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </div>
+
+        {uploadError ? (
+          <div className="absolute left-8 top-8 z-40">
+            <p className="bg-[#050505]/94 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white/62 backdrop-blur-sm">
+              {uploadError}
+            </p>
+          </div>
+        ) : null}
+      </motion.div>
+    );
+  }
 
   return (
-    <div className="relative z-20 h-full min-h-0 overflow-visible bg-[#050505]">
+    <div className="relative z-20 h-full min-h-0 overflow-visible">
       {editable ? (
         <div className={`absolute right-8 z-30 ${controlsTopClass}`}>
           <div className="flex items-center gap-2 bg-[#050505]/94 px-1.5 py-1 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-sm">
@@ -182,26 +305,37 @@ function ProjectStageGallery({
         </div>
       ) : null}
 
-      <div
-        className={`absolute inset-x-8 bottom-[-12%] z-20 border border-white/10 bg-black shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
+      <motion.button
+        type="button"
+        onClick={() => onExpandedChange?.(true)}
+        layoutId={heroLayoutId}
+        transition={galleryHeroTransition}
+        className={`group absolute inset-x-8 z-20 h-[min(32vh,360px)] overflow-hidden border border-white/10 bg-black text-left shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
+        aria-label={`${galleryCtaLabel} for ${project.title}`}
       >
         <AnimatePresence mode="wait" initial={false}>
-          <motion.figure
+          <motion.img
             key={`${project.slug}-${activeIndex}`}
-            initial={{ opacity: 0, scale: 1.03, y: 24 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 1.02, y: -18 }}
-            transition={{ duration: 0.5, ease }}
-            className="absolute inset-0"
-          >
-            <img
-              src={currentItem.url}
-              alt={currentItem.alt || project.title}
-              className="h-full w-full object-cover"
-            />
-          </motion.figure>
+            src={currentItem.url}
+            alt={currentItem.alt || project.title}
+            initial={{ opacity: 0, y: 24 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -18 }}
+            transition={{ duration: 0.42, ease }}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         </AnimatePresence>
-      </div>
+
+        <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.04),rgba(0,0,0,0.26)_44%,rgba(0,0,0,0.72))] opacity-0 transition duration-300 group-hover:opacity-100 group-focus-visible:opacity-100" />
+        <span className="absolute left-8 bottom-8 flex translate-y-2 items-center gap-3 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100">
+          <span className="border border-white/18 bg-black/72 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-white backdrop-blur-sm">
+            {galleryCtaLabel}
+          </span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/64">
+            {galleryLength} image{galleryLength === 1 ? "" : "s"}
+          </span>
+        </span>
+      </motion.button>
 
       {uploadError ? (
         <div className="absolute left-8 top-8 z-30">
@@ -218,35 +352,38 @@ function SelectedProjectStage({
   project,
   editable = false,
   selectedProjectStageControllerRef,
+  galleryExpanded = false,
+  onGalleryExpandedChange,
 }: {
   project: SelectedProjectStageSnapshot;
   editable?: boolean;
   selectedProjectStageControllerRef?: MutableRefObject<SelectedProjectStageController | null>;
+  galleryExpanded?: boolean;
+  onGalleryExpandedChange?: (expanded: boolean) => void;
 }) {
   return (
-    <div className="relative h-full min-h-0 overflow-hidden border-l-2 border-black">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,181,74,0.12),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_18%)]" />
+    <LayoutGroup id={`project-gallery-${project.slug}`}>
       <motion.div
-        className="absolute inset-x-0 top-0 h-[43%] min-h-0"
+        className="relative h-full min-h-0 overflow-hidden"
         initial={false}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease }}
+        animate={{
+          borderLeftWidth: galleryExpanded ? 0 : 2,
+        }}
+        transition={{ duration: 0.45, ease }}
+        style={{ borderLeftStyle: "solid", borderLeftColor: "#000" }}
       >
-        <motion.div
-          initial={false}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -20 }}
-          transition={{ duration: 0.45, ease }}
-          className="relative z-20 h-full min-h-0"
-        >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,181,74,0.12),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_18%)]" />
+        <div className="absolute inset-0">
           <ProjectStageGallery
             project={project}
             editable={editable}
             selectedProjectStageControllerRef={selectedProjectStageControllerRef}
+            expanded={galleryExpanded}
+            onExpandedChange={onGalleryExpandedChange}
           />
-        </motion.div>
+        </div>
       </motion.div>
-    </div>
+    </LayoutGroup>
   );
 }
 
@@ -270,6 +407,7 @@ function HomeContent({
   const [projectPreviewSlug, setProjectPreviewSlug] = useState<string | null>(null);
   const [selectedProjectStageSnapshot, setSelectedProjectStageSnapshot] =
     useState<SelectedProjectStageSnapshot | null>(null);
+  const [galleryExpanded, setGalleryExpanded] = useState(false);
   const selectedProjectStageControllerRef =
     useRef<SelectedProjectStageController | null>(null);
   const isProjectsView = view === "projects";
@@ -323,11 +461,13 @@ function HomeContent({
   const globeSelectedUniversity = isProjectsView
     ? projectFocusedUniversity ?? selectedUniversity
     : selectedUniversity;
-  const currentPanelWidth = panelWidth[view];
-  const currentGlobePose =
-    view === "about" ? getAboutGlobePose(currentPanelWidth) : globePose[view];
-  const currentLogoLeft = getLogoLeft(currentPanelWidth);
   const showSelectedProjectStage = isProjectsView && Boolean(selectedProject);
+  const galleryExpandedActive = showSelectedProjectStage && galleryExpanded;
+  const currentPanelWidth = panelWidth[view];
+  const activePanelWidth = galleryExpandedActive ? "0%" : currentPanelWidth;
+  const currentGlobePose =
+    view === "about" ? getAboutGlobePose(activePanelWidth) : globePose[view];
+  const currentLogoLeft = getLogoLeft(activePanelWidth);
   const detailStageUniversity = useMemo(
     () =>
       selectedProject && projectFocusedUniversity
@@ -357,7 +497,14 @@ function HomeContent({
     duration: 0.68,
     ease: [0.22, 1, 0.36, 1] as const,
   };
-  const globeViewport = showSelectedProjectStage
+  const globeViewport = galleryExpandedActive
+    ? {
+        left: `calc(${currentPanelWidth} / 2)`,
+        top: "43%",
+        width: `calc(100% - ${currentPanelWidth})`,
+        height: "57%",
+      }
+    : showSelectedProjectStage
     ? {
         left: currentPanelWidth,
         top: "43%",
@@ -370,7 +517,16 @@ function HomeContent({
         width: "100%",
         height: "100%",
       };
-  const globeSceneTarget = showSelectedProjectStage
+  const globeSceneTarget = galleryExpandedActive
+    ? {
+        left: "-12%",
+        top: "0%",
+        width: "124%",
+        height: "156%",
+        x: "0%",
+        y: "0%",
+      }
+    : showSelectedProjectStage
     ? {
         left: "-12%",
         top: "0%",
@@ -399,6 +555,9 @@ function HomeContent({
     : isProjectsView
       ? focusedProject?.id ?? null
       : hoveredProject;
+  const handleGalleryExpandedChange = useCallback((expanded: boolean) => {
+    setGalleryExpanded(expanded);
+  }, []);
 
   useEffect(() => {
     setView(getViewFromParams(searchParams));
@@ -409,6 +568,29 @@ function HomeContent({
 
     setSelectedProjectStageSnapshot(null);
   }, [isProjectsView, selectedProjectSlug]);
+
+  useEffect(() => {
+    setGalleryExpanded(false);
+  }, [selectedProjectSlug, view]);
+
+  useEffect(() => {
+    if (showSelectedProjectStage) return;
+
+    setGalleryExpanded(false);
+  }, [showSelectedProjectStage]);
+
+  useEffect(() => {
+    if (!galleryExpandedActive) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        handleGalleryExpandedChange(false);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [galleryExpandedActive, handleGalleryExpandedChange]);
 
   useEffect(() => {
     if (isMobile) {
@@ -558,10 +740,16 @@ function HomeContent({
               disableAutoRotate={showSelectedProjectStage}
               disableDrag={showSelectedProjectStage}
               hideSelectedUniversityMarker={showSelectedProjectStage}
-              scale={showSelectedProjectStage ? 1.24 : undefined}
-              verticalOffset={showSelectedProjectStage ? 72 : 0}
-              cameraY={showSelectedProjectStage ? 18 : 40}
-              focusTargetYOffset={showSelectedProjectStage ? 0.48 : 0}
+              scale={
+                galleryExpandedActive
+                  ? 1.24
+                  : showSelectedProjectStage
+                    ? 1.24
+                    : undefined
+              }
+              verticalOffset={galleryExpandedActive ? 72 : showSelectedProjectStage ? 72 : 0}
+              cameraY={galleryExpandedActive ? 18 : showSelectedProjectStage ? 18 : 40}
+              focusTargetYOffset={galleryExpandedActive ? 0.48 : showSelectedProjectStage ? 0.48 : 0}
               focusMarker={showSelectedProjectStage ? detailStageFocusMarker : null}
             />
           </motion.div>
@@ -571,21 +759,28 @@ function HomeContent({
           {showSelectedProjectStage && selectedProject ? (
             <motion.div
               key={`selected-stage-${selectedProject.slug}`}
-              className="absolute inset-y-0 right-0"
-              style={{ width: `calc(100% - ${currentPanelWidth})` }}
+              className="absolute inset-y-0"
               initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
+              animate={{
+                opacity: 1,
+                left: galleryExpandedActive ? "0%" : currentPanelWidth,
+                width: galleryExpandedActive
+                  ? "100%"
+                  : `calc(100% - ${currentPanelWidth})`,
+              }}
               exit={{ opacity: 0 }}
               transition={{
-                duration: 0.18,
-                ease,
-                delay: 0.42,
+                opacity: { duration: 0.18, ease, delay: 0.42 },
+                left: globeTransition,
+                width: globeTransition,
               }}
             >
               <SelectedProjectStage
                 project={selectedProject}
                 editable={editorUnlocked && !writesDisabled}
                 selectedProjectStageControllerRef={selectedProjectStageControllerRef}
+                galleryExpanded={galleryExpandedActive}
+                onGalleryExpandedChange={handleGalleryExpandedChange}
               />
             </motion.div>
           ) : null}
@@ -594,9 +789,18 @@ function HomeContent({
         <motion.div
           className="relative z-20 shrink-0 overflow-hidden bg-[var(--ink-wash-200)]"
           initial={false}
-          animate={{ width: currentPanelWidth }}
+          animate={{
+            width: activePanelWidth,
+            x: galleryExpandedActive ? "-6%" : "0%",
+            opacity: galleryExpandedActive ? 0 : 1,
+            borderRightWidth: galleryExpandedActive ? 0 : 2,
+          }}
           transition={{ duration: 0.5, ease }}
-          style={{ borderRight: "2px solid black" }}
+          style={{
+            borderRightStyle: "solid",
+            borderRightColor: "#000",
+            pointerEvents: galleryExpandedActive ? "none" : "auto",
+          }}
         >
           <AnimatePresence mode="wait">
             {view === "about" && (
