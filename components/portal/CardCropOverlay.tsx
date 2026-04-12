@@ -33,6 +33,7 @@ export default function CardCropOverlay({
 }: CardCropOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
+  const [imgLoaded, setImgLoaded] = useState(false);
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
   const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, w: 0, h: 0 });
   const [dragging, setDragging] = useState<DragMode>(null);
@@ -62,6 +63,7 @@ export default function CardCropOverlay({
     const el = imgRef.current;
     if (!el) return;
     setImgSize({ w: el.clientWidth, h: el.clientHeight });
+    setImgLoaded(true);
   }
 
   function getRelPos(e: React.MouseEvent | MouseEvent) {
@@ -221,7 +223,12 @@ export default function CardCropOverlay({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-8">
-      <div className="flex max-h-[80vh] max-w-xl flex-col overflow-hidden rounded-lg bg-black shadow-2xl">
+      {!imgLoaded && (
+        <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/60">
+          Loading image...
+        </div>
+      )}
+      <div className={`flex max-h-[80vh] max-w-xl flex-col overflow-hidden rounded-lg bg-black shadow-2xl ${imgLoaded ? "" : "invisible absolute"}`}>
       <div ref={containerRef} className="relative select-none">
         <img
           ref={imgRef}

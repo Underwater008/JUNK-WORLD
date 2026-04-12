@@ -232,8 +232,10 @@ export async function getPortalProjectBySlug(slug: string) {
 export async function createProjectDraft(input: unknown) {
   await ensureProjectTable();
 
-  const document = await normalizeProjectDocument(input);
-  await assertUniversity(document.universityId);
+  const document = await normalizeProjectDocument(input, { mode: "draft" });
+  if (document.universityId) {
+    await assertUniversity(document.universityId);
+  }
 
   const sql = getSql();
   const inserted = await sql<ProjectRow[]>`
@@ -260,8 +262,13 @@ export async function updateProjectDraft(currentSlug: string, input: unknown) {
     throw new Error("Project not found.");
   }
 
-  const document = await normalizeProjectDocument(input, existing.slug);
-  await assertUniversity(document.universityId);
+  const document = await normalizeProjectDocument(input, {
+    fallbackSlug: existing.slug,
+    mode: "draft",
+  });
+  if (document.universityId) {
+    await assertUniversity(document.universityId);
+  }
 
   const sql = getSql();
   const updated = await sql<ProjectRow[]>`
@@ -288,7 +295,10 @@ export async function publishProject(currentSlug: string, input: unknown) {
     throw new Error("Project not found.");
   }
 
-  const document = await normalizeProjectDocument(input, existing.slug);
+  const document = await normalizeProjectDocument(input, {
+    fallbackSlug: existing.slug,
+    mode: "publish",
+  });
   await assertUniversity(document.universityId);
 
   const sql = getSql();

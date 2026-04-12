@@ -88,10 +88,9 @@ export default function ProjectCardDisplay({
           <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-[var(--ink-wash-700)]">
             {project.locationLabel}
           </p>
-          <div
-            className="h-[2px] w-8 shrink-0"
-            style={{ backgroundColor: project.color }}
-          />
+          {project.logo ? (
+            <img src={project.logo} alt="" className="h-6 w-auto shrink-0 object-contain" />
+          ) : null}
         </div>
 
         {/* Status badges */}

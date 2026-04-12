@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
 import { backfillProjectDocument } from "@/lib/projects/defaults.server";
 import { slugify } from "@/lib/utils";
 import type { ProjectDocument } from "@/types";
 
+const trimmedString = z.string().trim().catch("").default("");
 const nonEmptyTrimmedString = z.string().trim().min(1);
 const optionalAssetString = z.string().trim().catch("").transform((value) => value || "");
 
@@ -32,11 +34,11 @@ const markerOffsetSchema = z.object({
   lng: z.coerce.number().min(-180).max(180),
 });
 
-export const projectDocumentSchema = z.object({
-  slug: z.string().trim().default(""),
-  universityId: nonEmptyTrimmedString,
-  title: nonEmptyTrimmedString,
-  summary: nonEmptyTrimmedString,
+const baseProjectDocumentSchema = z.object({
+  slug: z.string().trim().catch("").default(""),
+  universityId: trimmedString,
+  title: trimmedString,
+  summary: trimmedString,
   year: z.coerce.number().int().min(1900).max(3000),
   tags: z.array(z.string().trim()).default([]),
   coverImageUrl: optionalAssetString.default(""),
@@ -54,16 +56,34 @@ export const projectDocumentSchema = z.object({
     .transform((body) => (body.length ? body : DEFAULT_PROJECT_BODY)),
 });
 
+export const projectDocumentSchema = baseProjectDocumentSchema.extend({
+  universityId: nonEmptyTrimmedString,
+  title: nonEmptyTrimmedString,
+  summary: nonEmptyTrimmedString,
+});
+
 function dedupeStrings(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
+type NormalizeProjectDocumentOptions = {
+  fallbackSlug?: string;
+  mode?: "draft" | "publish";
+};
+
 export async function normalizeProjectDocument(
   input: unknown,
-  fallbackSlug = ""
+  {
+    fallbackSlug = "",
+    mode = "draft",
+  }: NormalizeProjectDocumentOptions = {}
 ): Promise<ProjectDocument> {
-  const parsed = projectDocumentSchema.parse(input);
-  const slug = slugify(parsed.slug || fallbackSlug || parsed.title);
+  const parser =
+    mode === "publish" ? projectDocumentSchema : baseProjectDocumentSchema;
+  const parsed = parser.parse(input);
+  const slug =
+    slugify(parsed.slug || fallbackSlug || parsed.title) ||
+    `draft-${randomUUID().slice(0, 8)}`;
 
   if (!slug) {
     throw new Error("Project slug could not be generated.");

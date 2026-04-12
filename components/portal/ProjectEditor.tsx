@@ -1,6 +1,15 @@
 "use client";
 
-import { ChangeEvent, forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  forwardRef,
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
@@ -28,8 +37,26 @@ const BlockNoteDocument = dynamic(
 export interface ProjectEditorHandle {
   saveDraft: () => void;
   publish: () => void;
+  appendGalleryItems: (items: ProjectDocument["gallery"]) => void;
   savingMode: "draft" | "publish" | null;
 }
+
+type ProjectSaveSuccess = {
+  slug: string;
+  mode: SaveMode;
+  document: ProjectDocument;
+};
+
+type SaveToastTone = "pending" | "success" | "error";
+
+type SaveToast = {
+  id: number;
+  tone: SaveToastTone;
+  message: string;
+};
+
+const SAVE_FEEDBACK_FLASH_KEY = "project-editor-save-feedback";
+const SAVE_FEEDBACK_FLASH_TTL_MS = 5000;
 
 interface ProjectEditorProps {
   mode: "create" | "edit";
@@ -41,6 +68,13 @@ interface ProjectEditorProps {
   hideTopBar?: boolean;
   onBack?: () => void;
   onSavingStateChange?: (mode: "draft" | "publish" | null) => void;
+  onDocumentChange?: (document: ProjectDocument) => void;
+  onDirtyStateChange?: (dirty: boolean) => void;
+  onSaveSuccess?: (result: ProjectSaveSuccess) => void;
+}
+
+function serializeProjectDocument(document: ProjectDocument) {
+  return JSON.stringify(document);
 }
 
 const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(function ProjectEditor({
@@ -52,6 +86,9 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   hideTopBar = false,
   onBack,
   onSavingStateChange,
+  onDocumentChange,
+  onDirtyStateChange,
+  onSaveSuccess,
 }, ref) {
   const router = useRouter();
   const [project, setProject] = useState<ProjectDocument>(initialProject);
@@ -61,33 +98,219 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   const [errorMessage, setErrorMessage] = useState("");
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
   const [showCropOverlay, setShowCropOverlay] = useState(false);
+  const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
+  const [baselineSnapshot, setBaselineSnapshot] = useState(() =>
+    serializeProjectDocument(initialProject)
+  );
+  const saveToastIdRef = useRef(0);
 
   const isEditMode = mode === "edit";
+  const currentDocument = useMemo<ProjectDocument>(
+    () => ({ ...project, body, tags: project.tags }),
+    [project, body]
+  );
+  const currentDocumentSnapshot = useMemo(
+    () => serializeProjectDocument(currentDocument),
+    [currentDocument]
+  );
+  const lastEmittedDocumentSnapshotRef = useRef(currentDocumentSnapshot);
+  const isDirty = useMemo(
+    () => currentDocumentSnapshot !== baselineSnapshot,
+    [baselineSnapshot, currentDocumentSnapshot]
+  );
+  const showSaveToast = useCallback((tone: SaveToastTone, message: string) => {
+    saveToastIdRef.current += 1;
+    setSaveToast({
+      id: saveToastIdRef.current,
+      tone,
+      message,
+    });
+  }, []);
+  const appendGalleryItems = useCallback((items: ProjectDocument["gallery"]) => {
+    if (!items.length) return;
+
+    setProject((current) => ({
+      ...current,
+      gallery: [...current.gallery, ...items],
+    }));
+  }, []);
+
+  const persistProject = useCallback(
+    async (nextMode: SaveMode) => {
+      if (writesDisabled) {
+        setErrorMessage(PORTAL_READ_ONLY_MESSAGE);
+        setStatusMessage("");
+        return;
+      }
+
+      setSavingMode(nextMode);
+      setStatusMessage("");
+      setErrorMessage("");
+
+      const requestBody = currentDocument;
+
+      try {
+        const initialResponse =
+          mode === "create"
+            ? await fetch("/api/portal/projects", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(requestBody),
+              })
+            : await fetch(
+                nextMode === "publish"
+                  ? `/api/portal/projects/${currentSlug}/publish`
+                  : `/api/portal/projects/${currentSlug}`,
+                {
+                  method: nextMode === "publish" ? "POST" : "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(requestBody),
+                }
+              );
+
+        const initialPayload = (await initialResponse.json()) as {
+          slug?: string;
+          error?: string;
+          status?: string;
+        };
+
+        if (!initialResponse.ok || !initialPayload.slug) {
+          setErrorMessage(initialPayload.error ?? "Project save failed.");
+          return;
+        }
+
+        const response =
+          mode === "create" && nextMode === "publish"
+            ? await fetch(
+                `/api/portal/projects/${initialPayload.slug}/publish`,
+                {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    ...requestBody,
+                    slug: initialPayload.slug,
+                  }),
+                }
+              )
+            : initialResponse;
+
+        const payload =
+          response === initialResponse
+            ? initialPayload
+            : ((await response.json()) as {
+                slug?: string;
+                error?: string;
+                status?: string;
+              });
+
+        if (!response.ok || !payload.slug) {
+          setErrorMessage(payload.error ?? "Project save failed.");
+          return;
+        }
+
+        const savedDocument = {
+          ...requestBody,
+          slug: payload.slug,
+        };
+
+        setProject((current) => ({
+          ...current,
+          slug: payload.slug ?? current.slug,
+        }));
+        setSlugTouched(Boolean(payload.slug));
+        setBaselineSnapshot(serializeProjectDocument(savedDocument));
+        const successMessage =
+          nextMode === "publish" ? "Published" : "Draft saved";
+        setStatusMessage(successMessage);
+        window.sessionStorage.setItem(
+          SAVE_FEEDBACK_FLASH_KEY,
+          JSON.stringify({
+            createdAt: Date.now(),
+            message: successMessage,
+            tone: "success",
+          })
+        );
+        window.setTimeout(() => {
+          window.sessionStorage.removeItem(SAVE_FEEDBACK_FLASH_KEY);
+        }, SAVE_FEEDBACK_FLASH_TTL_MS);
+        onSaveSuccess?.({
+          slug: payload.slug,
+          mode: nextMode,
+          document: savedDocument,
+        });
+
+        const destination = `/?view=projects&edit=1&project=${payload.slug}`;
+        router.replace(destination);
+        router.refresh();
+      } catch {
+        setErrorMessage("Project save failed. Please try again.");
+      } finally {
+        setSavingMode(null);
+      }
+    },
+    [currentDocument, currentSlug, mode, onSaveSuccess, router, writesDisabled]
+  );
 
   useImperativeHandle(ref, () => ({
     saveDraft: () => void persistProject("draft"),
     publish: () => void persistProject("publish"),
+    appendGalleryItems,
     savingMode,
-  }), [savingMode]);
+  }), [appendGalleryItems, persistProject, savingMode]);
 
   useEffect(() => {
     onSavingStateChange?.(savingMode);
   }, [savingMode, onSavingStateChange]);
 
-  useMemo(
-    () => universities.find((u) => u.id === project.universityId) ?? null,
-    [project.universityId, universities]
-  );
-
-  // Reset state when project changes
   useEffect(() => {
-    setProject(initialProject);
-    setBody(initialProject.body);
-    setSlugTouched(Boolean(initialProject.slug));
-    setStatusMessage("");
-    setErrorMessage("");
-    setSavingMode(null);
-  }, [currentSlug, initialProject]);
+    const flashMessage = window.sessionStorage.getItem(SAVE_FEEDBACK_FLASH_KEY);
+    if (!flashMessage) return;
+
+    window.sessionStorage.removeItem(SAVE_FEEDBACK_FLASH_KEY);
+
+    try {
+      const parsed = JSON.parse(flashMessage) as {
+        createdAt?: number;
+        message?: string;
+        tone?: SaveToastTone;
+      };
+
+      if (
+        typeof parsed.message === "string" &&
+        (parsed.tone === "success" || parsed.tone === "error") &&
+        typeof parsed.createdAt === "number" &&
+        Date.now() - parsed.createdAt <= SAVE_FEEDBACK_FLASH_TTL_MS
+      ) {
+        showSaveToast(parsed.tone, parsed.message);
+      }
+    } catch {
+      window.sessionStorage.removeItem(SAVE_FEEDBACK_FLASH_KEY);
+    }
+  }, [showSaveToast]);
+
+  useEffect(() => {
+    if (!onDocumentChange) return;
+    if (lastEmittedDocumentSnapshotRef.current === currentDocumentSnapshot) return;
+
+    lastEmittedDocumentSnapshotRef.current = currentDocumentSnapshot;
+    onDocumentChange(currentDocument);
+  }, [currentDocument, currentDocumentSnapshot, onDocumentChange]);
+
+  useEffect(() => {
+    onDirtyStateChange?.(isDirty);
+  }, [isDirty, onDirtyStateChange]);
+
+  useEffect(() => {
+    if (!isDirty || writesDisabled) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [isDirty, writesDisabled]);
 
   // Auto-fade status message
   useEffect(() => {
@@ -95,6 +318,35 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     const t = setTimeout(() => setStatusMessage(""), 3000);
     return () => clearTimeout(t);
   }, [statusMessage]);
+
+  useEffect(() => {
+    if (!savingMode) return;
+
+    showSaveToast(
+      "pending",
+      savingMode === "publish" ? "Publishing..." : "Saving draft..."
+    );
+  }, [savingMode, showSaveToast]);
+
+  useEffect(() => {
+    if (!statusMessage) return;
+    showSaveToast("success", statusMessage);
+  }, [statusMessage, showSaveToast]);
+
+  useEffect(() => {
+    if (!errorMessage) return;
+    showSaveToast("error", errorMessage);
+  }, [errorMessage, showSaveToast]);
+
+  useEffect(() => {
+    if (!saveToast || saveToast.tone !== "success") return;
+
+    const t = window.setTimeout(() => {
+      setSaveToast((current) => (current?.id === saveToast.id ? null : current));
+    }, 2800);
+
+    return () => window.clearTimeout(t);
+  }, [saveToast]);
 
   function patchProject<K extends keyof ProjectDocument>(
     key: K,
@@ -154,95 +406,39 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     setShowCropOverlay(false);
   }
 
-  async function persistProject(nextMode: SaveMode) {
-    if (writesDisabled) {
-      setErrorMessage(PORTAL_READ_ONLY_MESSAGE);
-      setStatusMessage("");
-      return;
-    }
-
-    setSavingMode(nextMode);
-    setStatusMessage("");
-    setErrorMessage("");
-
-    const requestBody = { ...project, body, tags: project.tags };
-
-    try {
-      const initialResponse =
-        mode === "create"
-          ? await fetch("/api/portal/projects", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(requestBody),
-            })
-          : await fetch(
-              nextMode === "publish"
-                ? `/api/portal/projects/${currentSlug}/publish`
-                : `/api/portal/projects/${currentSlug}`,
-              {
-                method: nextMode === "publish" ? "POST" : "PUT",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(requestBody),
-              }
-            );
-
-      const initialPayload = (await initialResponse.json()) as {
-        slug?: string;
-        error?: string;
-        status?: string;
-      };
-
-      if (!initialResponse.ok || !initialPayload.slug) {
-        setErrorMessage(initialPayload.error ?? "Project save failed.");
-        return;
-      }
-
-      const response =
-        mode === "create" && nextMode === "publish"
-          ? await fetch(
-              `/api/portal/projects/${initialPayload.slug}/publish`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ ...requestBody, slug: initialPayload.slug }),
-              }
-            )
-          : initialResponse;
-
-      const payload =
-        response === initialResponse
-          ? initialPayload
-          : ((await response.json()) as {
-              slug?: string;
-              error?: string;
-              status?: string;
-            });
-
-      if (!response.ok || !payload.slug) {
-        setErrorMessage(payload.error ?? "Project save failed.");
-        return;
-      }
-
-      const destination = `/?view=projects&edit=1&project=${payload.slug}`;
-      setStatusMessage(
-        nextMode === "publish"
-          ? "Published"
-          : "Draft saved"
-      );
-      router.replace(destination);
-      router.refresh();
-    } catch {
-      setErrorMessage("Project save failed. Please try again.");
-    } finally {
-      setSavingMode(null);
-    }
-  }
-
   return (
-    <div className="bg-white">
-      {/* Sticky top bar — within pane scroller */}
+    <div className="project-editor-shell bg-white">
+      {saveToast ? (
+        <div className="pointer-events-none fixed bottom-5 right-5 z-[90]">
+          <div
+            role={saveToast.tone === "error" ? "alert" : "status"}
+            aria-live="polite"
+            className={`flex max-w-[min(92vw,24rem)] items-center gap-2 border px-3 py-2 text-[11px] font-semibold shadow-[0_14px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm ${
+              saveToast.tone === "error"
+                ? "border-red-200 bg-red-50/95 text-red-700"
+                : saveToast.tone === "success"
+                  ? "border-emerald-200 bg-emerald-50/95 text-emerald-700"
+                  : "border-black/10 bg-white/96 text-black/72"
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={`h-2 w-2 rounded-full ${
+                saveToast.tone === "error"
+                  ? "bg-red-500"
+                  : saveToast.tone === "success"
+                    ? "bg-emerald-500"
+                    : "bg-black/40"
+              }`}
+            />
+            <span>{saveToast.message}</span>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Sticky top bar - within pane scroller */}
       {!hideTopBar && (
-        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-black/8 bg-white/95 px-5 py-3 backdrop-blur-sm">
+        <div className="sticky top-0 z-30 flex items-center justify-between border-b border-black/8 bg-white/92 px-5 py-3 backdrop-blur-md">
           <div className="flex items-center gap-3">
             {onBack && (
               <button
@@ -278,18 +474,6 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
         </div>
       )}
 
-      {/* Status messages (shown even when top bar is hidden) */}
-      {hideTopBar && (statusMessage || errorMessage) && (
-        <div className="px-5 py-2">
-          {statusMessage && (
-            <span className="text-[11px] font-medium text-emerald-600">{statusMessage}</span>
-          )}
-          {errorMessage && (
-            <span className="text-[11px] font-medium text-red-600">{errorMessage}</span>
-          )}
-        </div>
-      )}
-
       {writesDisabled && (
         <div className="border-b border-amber-300 bg-amber-50 px-5 py-3 text-xs text-amber-800">
           {PORTAL_READ_ONLY_MESSAGE}
@@ -315,77 +499,79 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
 
       {/* Document body */}
       <div className="mx-auto max-w-3xl px-6 py-8">
-        {/* Meta row */}
-        <MetaRow
-          slug={project.slug}
-          universityId={project.universityId}
-          year={project.year}
-          participantsCount={project.participantsCount}
-          markerOffset={project.markerOffset}
-          locationLabel={project.locationLabel}
-          universities={universities}
-          onUniversityChange={handleUniversityChange}
-          onYearChange={(year) => patchProject("year", year)}
-          onParticipantsChange={(count) => patchProject("participantsCount", count)}
-          onMarkerOffsetChange={(markerOffset) =>
-            patchProject("markerOffset", markerOffset)
-          }
-          onLocationLabelChange={(label) => patchProject("locationLabel", label)}
-          onSlugChange={(slug) => patchProject("slug", slugify(slug))}
-          disabled={writesDisabled}
-        />
+          {/* Meta row */}
+          <MetaRow
+            slug={project.slug}
+            universityId={project.universityId}
+            year={project.year}
+            participantsCount={project.participantsCount}
+            markerOffset={project.markerOffset}
+            locationLabel={project.locationLabel}
+            universities={universities}
+            onUniversityChange={handleUniversityChange}
+            onYearChange={(year) => patchProject("year", year)}
+            onMarkerOffsetChange={(markerOffset) =>
+              patchProject("markerOffset", markerOffset)
+            }
+            onLocationLabelChange={(label) => patchProject("locationLabel", label)}
+            onSlugChange={(slug) => {
+              setSlugTouched(true);
+              patchProject("slug", slugify(slug));
+            }}
+            disabled={writesDisabled}
+          />
 
-        {/* Title — styled input that looks like a heading */}
-        <input
-          value={project.title}
-          onChange={handleTitleChange}
-          placeholder="Untitled"
-          disabled={writesDisabled}
-          className="mt-4 w-full border-0 bg-transparent font-serif text-[2.8rem] leading-[1.05] text-black outline-none placeholder:text-black/15"
-        />
+          {/* Title - styled input that looks like a heading */}
+          <input
+            value={project.title}
+            onChange={handleTitleChange}
+            placeholder="Untitled"
+            disabled={writesDisabled}
+            className="mt-5 w-full border-0 bg-transparent font-serif text-[clamp(2.75rem,5vw,4.4rem)] leading-[0.98] text-black outline-none placeholder:text-black/20"
+          />
 
-        {/* Summary — styled textarea that looks like a paragraph */}
-        <textarea
-          value={project.summary}
-          onChange={(e) => patchProject("summary", e.target.value)}
-          placeholder="Write a short summary..."
-          disabled={writesDisabled}
-          rows={2}
-          className="mt-3 w-full resize-none border-0 bg-transparent text-base leading-7 text-black/65 outline-none placeholder:text-black/20"
-        />
+          {/* Summary - styled textarea that looks like a paragraph */}
+          <textarea
+            value={project.summary}
+            onChange={(e) => patchProject("summary", e.target.value)}
+            placeholder="Write a short summary..."
+            disabled={writesDisabled}
+            rows={2}
+            className="mt-4 w-full resize-none border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
+          />
 
-        {/* Divider */}
-        <div className="my-6 h-px bg-black/8" />
+          {/* Divider */}
+          <div className="my-8 h-px bg-black/8" />
 
-        {/* BlockNote body — flows naturally, no box */}
-        <BlockNoteDocument
-          body={body}
-          editable={!writesDisabled}
-          uploadFile={uploadAsset}
-          onChange={setBody}
-          className="min-h-[300px] project-body"
-          resetKey={currentSlug ?? "new-project"}
-        />
+          {/* BlockNote body - flows naturally, no box */}
+          <BlockNoteDocument
+            body={body}
+            editable={!writesDisabled}
+            uploadFile={uploadAsset}
+            onChange={setBody}
+            className="project-body project-editor-body min-h-[420px]"
+            resetKey={currentSlug ?? "new-project"}
+          />
 
-        {/* Divider */}
-        <div className="my-6 h-px bg-black/8" />
+          {/* Divider */}
+          <div className="my-8 h-px bg-black/8" />
 
-        {/* Tags */}
-        <TagEditor
-          tags={project.tags}
-          onChange={(tags) => patchProject("tags", tags)}
-          disabled={writesDisabled}
-        />
+          {/* Tags */}
+          <TagEditor
+            tags={project.tags}
+            onChange={(tags) => patchProject("tags", tags)}
+            disabled={writesDisabled}
+          />
 
-        {/* Divider */}
-        <div className="my-6 h-px bg-black/8" />
+          {/* Divider */}
+          <div className="my-8 h-px bg-black/8" />
 
-        {/* Settings panel (collapsible) */}
-        <SettingsPanel
-          project={project}
-          onPatch={patchProject}
-          disabled={writesDisabled}
-        />
+          {/* Settings panel (collapsible) */}
+          <SettingsPanel
+            project={project}
+            onPatch={patchProject}
+            disabled={writesDisabled}
+          />
       </div>
     </div>
   );

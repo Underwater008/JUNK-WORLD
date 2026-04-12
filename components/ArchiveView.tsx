@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useState } from "react";
+import { useEffect, useRef, useMemo, useState, type MutableRefObject } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -11,7 +11,13 @@ import ProjectEditor, { type ProjectEditorHandle } from "@/components/portal/Pro
 import UniversityEditor from "@/components/portal/UniversityEditor";
 import { createEmptyProjectDocument } from "@/lib/projects/defaults";
 import { getPortalWriteDisabledMessage } from "@/lib/portal/mode";
-import type { ProjectDocument, University } from "@/types";
+import { uploadAsset } from "@/lib/uploads";
+import type {
+  ProjectDocument,
+  ProjectGalleryItem,
+  ProjectMarkerOffset,
+  University,
+} from "@/types";
 
 const NEW_UNIVERSITY_ID = "__new_university__";
 
@@ -46,14 +52,46 @@ type ArchiveProjectEntry = {
   document: ProjectDocument | null;
 };
 
+type EditorProjectState = {
+  routeSlug: string;
+  savedSlug?: string;
+  document: ProjectDocument;
+};
+
+export type SelectedProjectStageSnapshot = {
+  id: string;
+  slug: string;
+  universityId: string;
+  title: string;
+  universityName: string;
+  shortName: string;
+  color: string;
+  locationLabel: string;
+  gallery: ProjectGalleryItem[];
+  markerOffset: ProjectMarkerOffset;
+};
+
+export type SelectedProjectStageController = {
+  uploadGalleryFiles: (files: File[]) => Promise<void>;
+};
+
 interface ArchiveViewProps {
   universities: University[];
   baseUniversities: University[];
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   onPreviewProjectChange: (slug: string | null) => void;
+  onSelectedProjectStageChange?: (project: SelectedProjectStageSnapshot | null) => void;
+  selectedProjectStageControllerRef?: MutableRefObject<SelectedProjectStageController | null>;
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
+}
+
+function createGalleryAlt(fileName: string) {
+  return fileName
+    .replace(/\.[^/.]+$/, "")
+    .replace(/[-_]+/g, " ")
+    .trim();
 }
 
 function StatusPill({
@@ -143,25 +181,16 @@ function ArchiveProjectDetail({
       transition={{ duration: 0.25, ease: "easeOut" }}
       className="bg-white"
     >
-      {/* Top bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between border-b border-black/8 bg-white/95 px-5 py-3 backdrop-blur-sm">
-        <button
-          type="button"
-          onClick={onClose}
-          className="text-[11px] font-medium text-black/40 transition hover:text-black/70"
-        >
-          ← Back
-        </button>
-      </div>
-
       {/* Cover image */}
       {project.thumbnail ? (
-        <div className="h-52 overflow-hidden sm:h-64">
-          <img
-            src={project.thumbnail}
-            alt={project.title}
-            className="h-full w-full object-cover"
-          />
+        <div className="mx-auto w-full max-w-3xl px-6 pt-6">
+          <div className="aspect-[16/9] overflow-hidden">
+            <img
+              src={project.thumbnail}
+              alt={project.title}
+              className="h-full w-full object-cover"
+            />
+          </div>
         </div>
       ) : null}
 
@@ -186,7 +215,7 @@ function ArchiveProjectDetail({
         </div>
 
         {/* Title */}
-        <h1 className="mt-4 font-serif text-[2.8rem] leading-[1.05] text-black">
+        <h1 className="mt-5 font-serif text-[clamp(2.75rem,5vw,4.4rem)] leading-[0.98] text-black">
           {project.title}
         </h1>
 
@@ -283,6 +312,8 @@ export default function ArchiveView({
   selectedUniversity,
   onSelectUniversity,
   onPreviewProjectChange,
+  onSelectedProjectStageChange,
+  selectedProjectStageControllerRef,
   editorSessionAvailable,
   writesDisabled,
 }: ArchiveViewProps) {
@@ -292,9 +323,10 @@ export default function ArchiveView({
   const selectedSlug = searchParams.get("project");
   const editRequested = searchParams.get("edit") === "1";
   const editorUnlocked = editRequested && editorSessionAvailable;
-  const [localDraft, setLocalDraft] = useState<ProjectDocument | null>(null);
+  const [editorProjectState, setEditorProjectState] = useState<EditorProjectState | null>(null);
   const [editingUniversityId, setEditingUniversityId] = useState<string | null>(null);
   const [projectSavingMode, setProjectSavingMode] = useState<"draft" | "publish" | null>(null);
+  const [projectIsDirty, setProjectIsDirty] = useState(false);
   const projectEditorRef = useRef<ProjectEditorHandle>(null);
   const baseUniversitiesById = useMemo(
     () => new Map(baseUniversities.map((university) => [university.id, university])),
@@ -307,11 +339,25 @@ export default function ArchiveView({
         : null,
     [editorUnlocked, selectedSlug]
   );
-  const pendingDraft = localDraft ?? routeDraft;
+  const activeEditorProjectState = useMemo(() => {
+    if (!editorProjectState) return null;
+
+    if (!selectedSlug) {
+      return editorProjectState.routeSlug === NEW_PROJECT_SLUG &&
+        !editorProjectState.savedSlug
+        ? null
+        : editorProjectState;
+    }
+
+    return selectedSlug === editorProjectState.routeSlug ||
+      selectedSlug === editorProjectState.savedSlug
+      ? editorProjectState
+      : null;
+  }, [editorProjectState, selectedSlug]);
 
   const allProjects = useMemo<ArchiveProjectEntry[]>(
     () => {
-      const entries = universities
+      const entries: ArchiveProjectEntry[] = universities
         .flatMap((university) =>
           university.projects.map((project) => ({
             id: project.id,
@@ -338,41 +384,64 @@ export default function ArchiveView({
         )
         .sort((a, b) => b.year - a.year || a.title.localeCompare(b.title));
 
-      if (editorUnlocked && pendingDraft) {
-        const draftUniversity = baseUniversitiesById.get(pendingDraft.universityId);
+      const draftDocument =
+        activeEditorProjectState?.document ??
+        (editorUnlocked && routeDraft ? routeDraft : null);
 
-        entries.unshift({
-          id: "local-draft",
-          slug: NEW_PROJECT_SLUG,
-          title: pendingDraft.title || "Untitled Draft",
+      if (draftDocument) {
+        const optimisticSlug =
+          activeEditorProjectState?.savedSlug ??
+          activeEditorProjectState?.routeSlug ??
+          NEW_PROJECT_SLUG;
+        const matchedIndex = entries.findIndex((entry) =>
+          entry.slug === activeEditorProjectState?.routeSlug ||
+          entry.slug === activeEditorProjectState?.savedSlug
+        );
+        const matchedEntry = matchedIndex >= 0 ? entries[matchedIndex] : null;
+        const draftUniversity = baseUniversitiesById.get(draftDocument.universityId);
+        const optimisticEntry: ArchiveProjectEntry = {
+          id: matchedEntry?.id ?? "local-draft",
+          slug: optimisticSlug,
+          title: draftDocument.title || matchedEntry?.title || "Untitled Draft",
           description:
-            pendingDraft.summary ||
+            draftDocument.summary ||
+            matchedEntry?.description ||
             "New draft project. Add a title, set the globe location, and build the page body.",
-          year: pendingDraft.year,
-          thumbnail: pendingDraft.cardImageUrl || pendingDraft.coverImageUrl,
-          participants: pendingDraft.participantsCount,
-          tags: pendingDraft.tags,
+          year: draftDocument.year,
+          thumbnail:
+            draftDocument.cardImageUrl ||
+            draftDocument.coverImageUrl ||
+            matchedEntry?.thumbnail ||
+            "",
+          participants: draftDocument.participantsCount,
+          tags: draftDocument.tags,
           locationLabel:
-            pendingDraft.locationLabel ||
+            draftDocument.locationLabel ||
             (draftUniversity
               ? `${draftUniversity.city}, ${draftUniversity.country}`
-              : "Location pending"),
-          universityId: pendingDraft.universityId,
-          university: draftUniversity?.name ?? "Unassigned",
-          shortName: draftUniversity?.shortName ?? "NEW",
-          city: draftUniversity?.city ?? "Unknown",
-          country: draftUniversity?.country ?? "",
-          color: draftUniversity?.color ?? "#000000",
-          logo: draftUniversity?.logo,
-          status: "draft",
+              : matchedEntry?.locationLabel || "Location pending"),
+          universityId: draftDocument.universityId || matchedEntry?.universityId || "",
+          university: draftUniversity?.name ?? matchedEntry?.university ?? "Unassigned",
+          shortName: draftUniversity?.shortName ?? matchedEntry?.shortName ?? "NEW",
+          city: draftUniversity?.city ?? matchedEntry?.city ?? "Unknown",
+          country: draftUniversity?.country ?? matchedEntry?.country ?? "",
+          color: draftUniversity?.color ?? matchedEntry?.color ?? "#000000",
+          logo: draftUniversity?.logo ?? matchedEntry?.logo,
+          status: matchedEntry?.status ?? "draft",
           hasUnpublishedChanges: true,
-          document: pendingDraft,
-        });
+          document: draftDocument,
+        };
+
+        if (matchedIndex >= 0) {
+          entries[matchedIndex] = optimisticEntry;
+        } else if (editorUnlocked) {
+          entries.unshift(optimisticEntry);
+        }
       }
 
       return entries;
     },
-    [baseUniversitiesById, editorUnlocked, pendingDraft, universities]
+    [activeEditorProjectState, baseUniversitiesById, editorUnlocked, routeDraft, universities]
   );
 
   const filteredProjects = selectedUniversity
@@ -380,7 +449,34 @@ export default function ArchiveView({
     : allProjects;
 
   const selectedProject =
-    filteredProjects.find((project) => project.slug === selectedSlug) ?? null;
+    filteredProjects.find((project) => project.slug === selectedSlug) ??
+    (activeEditorProjectState &&
+    selectedSlug &&
+    (selectedSlug === activeEditorProjectState.routeSlug ||
+      selectedSlug === activeEditorProjectState.savedSlug)
+      ? allProjects.find(
+          (project) =>
+            project.slug === activeEditorProjectState.savedSlug ||
+            project.slug === activeEditorProjectState.routeSlug
+        ) ?? null
+      : null);
+  const selectedProjectStageSnapshot = useMemo<SelectedProjectStageSnapshot | null>(() => {
+    if (!selectedProject) return null;
+
+    return {
+      id: selectedProject.id,
+      slug: selectedProject.slug,
+      universityId: selectedProject.universityId,
+      title: selectedProject.title,
+      universityName: selectedProject.university,
+      shortName: selectedProject.shortName,
+      color: selectedProject.color,
+      locationLabel: selectedProject.locationLabel,
+      gallery: selectedProject.document?.gallery ?? [],
+      markerOffset:
+        selectedProject.document?.markerOffset ?? { lat: 0, lng: 0 },
+    };
+  }, [selectedProject]);
   const selectedProjectIndex = selectedProject
     ? filteredProjects.findIndex((project) => project.slug === selectedProject.slug)
     : -1;
@@ -403,6 +499,43 @@ export default function ArchiveView({
       ? "/?view=projects"
       : `/?view=projects&project=${selectedProject.slug}`
     : "/?view=projects";
+
+  useEffect(() => {
+    onSelectedProjectStageChange?.(selectedProjectStageSnapshot);
+  }, [onSelectedProjectStageChange, selectedProjectStageSnapshot]);
+
+  useEffect(() => {
+    if (!selectedProjectStageControllerRef) return;
+
+    if (!editorUnlocked || writesDisabled || !selectedProject) {
+      selectedProjectStageControllerRef.current = null;
+      return;
+    }
+
+    selectedProjectStageControllerRef.current = {
+      uploadGalleryFiles: async (files: File[]) => {
+        if (!files.length) return;
+
+        const uploadedItems = await Promise.all(
+          files.map(async (file) => ({
+            url: await uploadAsset(file, "projects/gallery"),
+            alt: createGalleryAlt(file.name),
+          }))
+        );
+
+        projectEditorRef.current?.appendGalleryItems(uploadedItems);
+      },
+    };
+
+    return () => {
+      selectedProjectStageControllerRef.current = null;
+    };
+  }, [
+    editorUnlocked,
+    selectedProject,
+    selectedProjectStageControllerRef,
+    writesDisabled,
+  ]);
 
   function replaceQuery(mutator: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams.toString());
@@ -436,7 +569,11 @@ export default function ArchiveView({
   }
 
   function handleCreateProject() {
-    setLocalDraft(createEmptyProjectDocument());
+    setEditorProjectState({
+      routeSlug: NEW_PROJECT_SLUG,
+      document: createEmptyProjectDocument(),
+    });
+    setProjectIsDirty(false);
     onSelectUniversity(null);
     onPreviewProjectChange(null);
 
@@ -459,8 +596,9 @@ export default function ArchiveView({
   }
 
   function handleCloseProject() {
-    if (selectedSlug === NEW_PROJECT_SLUG) {
-      setLocalDraft(null);
+    if (selectedSlug === NEW_PROJECT_SLUG && !editorProjectState?.savedSlug) {
+      setEditorProjectState(null);
+      setProjectIsDirty(false);
     }
 
     onPreviewProjectChange(null);
@@ -470,8 +608,9 @@ export default function ArchiveView({
   }
 
   function handleExitEditMode() {
-    setLocalDraft(null);
+    setEditorProjectState(null);
     setEditingUniversityId(null);
+    setProjectIsDirty(false);
     onPreviewProjectChange(null);
     replaceQuery((params) => {
       params.delete("edit");
@@ -667,6 +806,7 @@ export default function ArchiveView({
                   ) : (
                     <>
                       {selectedUniversity ? <StatusPill label={selectedUniversity.shortName} /> : null}
+                      {projectIsDirty ? <StatusPill label="Unsaved" /> : null}
                     </>
                   )}
                 </div>
@@ -676,6 +816,7 @@ export default function ArchiveView({
                   </span>
                 ) : selectedProject && editorUnlocked ? (
                   <div className="flex items-center gap-2">
+                    {projectIsDirty ? <StatusPill label="Unsaved" /> : null}
                     <button
                       type="button"
                       disabled={projectSavingMode !== null || writesDisabled}
@@ -707,6 +848,17 @@ export default function ArchiveView({
           )}
 
           <div className="min-h-0 flex-1 overflow-y-auto">
+            {selectedProject && !editorUnlocked && (
+              <div className="pointer-events-none sticky top-0 z-30 -mb-[44px] px-8 py-4">
+                <button
+                  type="button"
+                  onClick={handleCloseProject}
+                  className="pointer-events-auto border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black shadow-sm transition hover:bg-black hover:text-white"
+                >
+                  &larr; Back
+                </button>
+              </div>
+            )}
             <div className="space-y-5 px-5 py-5">
               {editorUnlocked && writesDisabled ? (
                 <div className="border-2 border-[#D97706] bg-[#FFF4E8] px-4 py-4 text-sm leading-7 text-[#8A3B12]">
@@ -758,6 +910,21 @@ export default function ArchiveView({
                       hideTopBar
                       onBack={handleCloseProject}
                       onSavingStateChange={setProjectSavingMode}
+                      onDocumentChange={(document) =>
+                        setEditorProjectState((current) => ({
+                          routeSlug: current?.routeSlug ?? selectedSlug ?? NEW_PROJECT_SLUG,
+                          savedSlug: current?.savedSlug,
+                          document,
+                        }))
+                      }
+                      onDirtyStateChange={setProjectIsDirty}
+                      onSaveSuccess={({ slug, document }) =>
+                        setEditorProjectState((current) => ({
+                          routeSlug: current?.routeSlug ?? selectedSlug ?? slug,
+                          savedSlug: slug,
+                          document,
+                        }))
+                      }
                     />
                   </motion.div>
                 ) : selectedProject ? (

@@ -206,8 +206,8 @@ export default function SettingsPanel({
                 </div>
                 {!hasStructuredDetails ? (
                   <p className="mt-3 text-xs leading-5 text-black/35">
-                    Images can be dropped directly into the editor body, so there is no separate
-                    gallery panel anymore.
+                    Body images stay inline with the writing surface. Gallery images appear in the
+                    selected-project stage.
                   </p>
                 ) : null}
               </div>
@@ -225,7 +225,10 @@ export default function SettingsPanel({
                   />
                   <div className="space-y-2">
                     {project.collaborators.map((item, index) => (
-                      <div key={`collab-${index}`} className="flex gap-2">
+                      <div
+                        key={`collab-${index}`}
+                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                      >
                         <input
                           value={item.name}
                           onChange={(e) =>
@@ -274,7 +277,10 @@ export default function SettingsPanel({
                   />
                   <div className="space-y-2">
                     {project.credits.map((item, index) => (
-                      <div key={`credit-${index}`} className="flex gap-2">
+                      <div
+                        key={`credit-${index}`}
+                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                      >
                         <input
                           value={item.label}
                           onChange={(e) => updateCredit(index, { ...item, label: e.target.value })}
@@ -318,7 +324,10 @@ export default function SettingsPanel({
                   />
                   <div className="space-y-2">
                     {project.externalLinks.map((item, index) => (
-                      <div key={`link-${index}`} className="flex gap-2">
+                      <div
+                        key={`link-${index}`}
+                        className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"
+                      >
                         <input
                           value={item.label}
                           onChange={(e) => updateLink(index, { ...item, label: e.target.value })}

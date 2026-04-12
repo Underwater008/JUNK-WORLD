@@ -63,3 +63,158 @@ body {
 .bn-shadcn .bn-editor {
   min-height: inherit;
 }
+
+.project-editor-shell {
+  position: relative;
+}
+
+.project-editor-body.bn-container {
+  background: transparent;
+}
+
+.project-editor-body .bn-editor {
+  min-height: 420px;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1.85;
+  color: rgba(37, 37, 37, 0.9);
+}
+
+.project-editor-body .bn-editor p {
+  color: rgba(37, 37, 37, 0.88);
+}
+
+.project-editor-body .bn-editor .bn-block-content[data-is-empty="true"]::before,
+.project-editor-body .bn-editor [data-content-type="paragraph"][data-is-empty="true"]::before {
+  color: rgba(37, 37, 37, 0.3);
+}
+
+.project-editor-shell .bn-shadcn .bn-menu-dropdown,
+.project-editor-shell .bn-shadcn .bn-color-picker-dropdown,
+.project-editor-shell .bn-shadcn .bn-toolbar,
+.project-editor-shell .bn-shadcn .bn-popover-content,
+.project-editor-shell [data-radix-popper-content-wrapper] .bn-menu-dropdown,
+.project-editor-shell [data-radix-popper-content-wrapper] .bn-color-picker-dropdown,
+.project-editor-shell [data-radix-popper-content-wrapper] .bn-toolbar,
+.project-editor-shell [data-radix-popper-content-wrapper] .bn-popover-content {
+  background: rgba(255, 249, 238, 0.98) !important;
+  border: 1px solid rgba(0, 0, 0, 0.12) !important;
+  border-radius: 1rem !important;
+  box-shadow: 0 22px 45px rgba(0, 0, 0, 0.16) !important;
+  backdrop-filter: blur(14px);
+}
+
+.project-editor-shell .bn-shadcn .bn-toolbar {
+  padding: 0.3rem !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-menu-dropdown,
+.project-editor-shell .bn-shadcn .bn-popover-content {
+  padding: 0.25rem !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-menu-dropdown button,
+.project-editor-shell .bn-shadcn .bn-toolbar button,
+.project-editor-shell .bn-shadcn .bn-popover-content button {
+  border-radius: 0.7rem !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-file-block-content-wrapper {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 1rem;
+}
+
+.project-editor-shell .bn-shadcn .bn-file-block-content-wrapper figcaption {
+  color: rgba(37, 37, 37, 0.48);
+}
+
+.project-slash-menu {
+  width: min(20rem, calc(100vw - 2rem));
+  max-height: min(24rem, 58vh);
+  overflow-y: auto;
+  padding: 0.55rem;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 1.15rem;
+  background: rgba(255, 249, 238, 0.99);
+  box-shadow: 0 24px 55px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(16px);
+}
+
+.project-slash-menu__group {
+  margin: 0.45rem 0 0.3rem;
+  padding: 0 0.45rem;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgba(37, 37, 37, 0.36);
+}
+
+.project-slash-menu__item {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.55rem 0.55rem 0.45rem;
+  border: 0;
+  border-radius: 0.95rem;
+  background: transparent;
+  color: rgba(37, 37, 37, 0.94);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 140ms ease, transform 140ms ease;
+}
+
+.project-slash-menu__item:hover,
+.project-slash-menu__item.is-selected {
+  background: rgba(0, 0, 0, 0.065);
+}
+
+.project-slash-menu__icon {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(0, 0, 0, 0.09);
+  border-radius: 0.8rem;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.project-slash-menu__copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+
+.project-slash-menu__title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.project-slash-menu__subtext {
+  font-size: 0.7rem;
+  line-height: 1.25;
+  color: rgba(37, 37, 37, 0.5);
+}
+
+.project-slash-menu__badge {
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(37, 37, 37, 0.5);
+}
+
+.project-slash-menu__status {
+  padding: 0.65rem 0.75rem;
+  font-size: 0.74rem;
+  color: rgba(37, 37, 37, 0.48);
+}

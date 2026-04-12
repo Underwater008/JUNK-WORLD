@@ -3,7 +3,7 @@
 import { useRef, useEffect } from "react";
 import * as THREE from "three";
 import { feature } from "topojson-client";
-import { University } from "@/types";
+import type { ProjectMarkerOffset, University } from "@/types";
 
 const R = 70;
 const LABEL_Z_THRESHOLD = 10;
@@ -45,6 +45,20 @@ interface GlobeProps {
   hideLabels?: boolean;
   soloLabelId?: string;
   maxLabels?: number;
+  disableAutoRotate?: boolean;
+  disableDrag?: boolean;
+  verticalOffset?: number;
+  cameraY?: number;
+  focusMarker?: {
+    id: string;
+    title: string;
+    markerOffset: ProjectMarkerOffset;
+    color?: string;
+    label?: string;
+  } | null;
+  hideProjectLabels?: boolean;
+  hideSelectedUniversityMarker?: boolean;
+  focusTargetYOffset?: number;
 }
 
 export default function Globe({
@@ -57,6 +71,14 @@ export default function Globe({
   hideLabels = false,
   soloLabelId,
   maxLabels,
+  disableAutoRotate = false,
+  disableDrag = false,
+  verticalOffset = 0,
+  cameraY = 40,
+  focusMarker = null,
+  hideProjectLabels = false,
+  hideSelectedUniversityMarker = false,
+  focusTargetYOffset = 0,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
@@ -79,11 +101,18 @@ export default function Globe({
   const compactRef = useRef(compact);
   const scaleRef = useRef(scale);
   const allowDragInCompactRef = useRef(allowDragInCompact);
+  const disableAutoRotateRef = useRef(disableAutoRotate);
+  const disableDragRef = useRef(disableDrag);
   const universitiesRef = useRef(universities);
   const soloLabelIdRef = useRef(soloLabelId);
   const selectedUniversityRef = useRef(selectedUniversity);
   const maxLabelsRef = useRef(maxLabels);
   const hideLabelsRef = useRef(hideLabels);
+  const focusMarkerRef = useRef(focusMarker);
+  const hideProjectLabelsRef = useRef(hideProjectLabels);
+  const hideSelectedUniversityMarkerRef = useRef(hideSelectedUniversityMarker);
+  const focusTargetYOffsetRef = useRef(focusTargetYOffset);
+  const cameraYRef = useRef(cameraY);
   const labelsReadyRef = useRef(false);
   const prevVisibleRef = useRef<Set<number>>(new Set());
 
@@ -92,34 +121,67 @@ export default function Globe({
     compactRef.current = compact;
     scaleRef.current = scale;
     allowDragInCompactRef.current = allowDragInCompact;
+    disableAutoRotateRef.current = disableAutoRotate;
+    disableDragRef.current = disableDrag;
     universitiesRef.current = universities;
     soloLabelIdRef.current = soloLabelId;
     selectedUniversityRef.current = selectedUniversity;
     maxLabelsRef.current = maxLabels;
     hideLabelsRef.current = hideLabels;
+    focusMarkerRef.current = focusMarker;
+    hideProjectLabelsRef.current = hideProjectLabels;
+    hideSelectedUniversityMarkerRef.current = hideSelectedUniversityMarker;
+    focusTargetYOffsetRef.current = focusTargetYOffset;
+    cameraYRef.current = cameraY;
 
     const s = sceneRef.current;
     if (s && s.renderer) {
-      if (compact && !allowDragInCompact) {
+      if (disableDrag || (compact && !allowDragInCompact)) {
         s.drag.active = false;
         s.renderer.domElement.style.cursor = "default";
       } else {
         s.renderer.domElement.style.cursor = "grab";
       }
     }
-  }, [compact, scale, allowDragInCompact, universities, soloLabelId, selectedUniversity, maxLabels, hideLabels]);
+  }, [
+    compact,
+    scale,
+    allowDragInCompact,
+    disableAutoRotate,
+    disableDrag,
+    universities,
+    soloLabelId,
+    selectedUniversity,
+    maxLabels,
+    hideLabels,
+    focusMarker,
+    hideProjectLabels,
+    hideSelectedUniversityMarker,
+    focusTargetYOffset,
+    cameraY,
+  ]);
 
   // Focus on selected university or hovered project
   useEffect(() => {
     const s = sceneRef.current;
     if (!s) return;
+    const front = new THREE.Vector3(0, focusTargetYOffset, 1).normalize();
+
+    if (focusMarker) {
+      const pointDir = toVec3(
+        focusMarker.markerOffset.lat,
+        focusMarker.markerOffset.lng,
+        1
+      ).normalize();
+      s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
+      return;
+    }
 
     // If a project is hovered/expanded, rotate to its location
     if (hoveredProject && selectedUniversity) {
       const project = selectedUniversity.projects.find(p => p.id === hoveredProject);
       if (project) {
         const pointDir = toVec3(project.markerOffset.lat, project.markerOffset.lng, 1).normalize();
-        const front = new THREE.Vector3(0, 0, 1);
         s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
         return;
       }
@@ -135,9 +197,8 @@ export default function Globe({
       selectedUniversity.lng,
       1
     ).normalize();
-    const front = new THREE.Vector3(0, 0, 1);
     s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
-  }, [selectedUniversity, hoveredProject]);
+  }, [focusMarker, focusTargetYOffset, selectedUniversity, hoveredProject]);
 
   // Initialize Three.js scene (ONCE)
   useEffect(() => {
@@ -151,7 +212,7 @@ export default function Globe({
     const cw = container.offsetWidth;
     const ch = container.offsetHeight;
     const camera = new THREE.PerspectiveCamera(45, cw / ch, 1, 1000);
-    camera.position.z = 280;
+    camera.position.set(0, cameraYRef.current, 280);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -277,7 +338,13 @@ export default function Globe({
     // 4. Interaction Handlers
     
     const onDown = (e: PointerEvent) => {
-      if ((compactRef.current && !allowDragInCompactRef.current) || !sceneRef.current) return;
+      if (
+        disableDragRef.current ||
+        (compactRef.current && !allowDragInCompactRef.current) ||
+        !sceneRef.current
+      ) {
+        return;
+      }
       sceneRef.current.drag = { active: true, x: e.clientX, y: e.clientY };
       el.style.cursor = "grabbing";
     };
@@ -285,14 +352,25 @@ export default function Globe({
     const onUp = () => {
       if (!sceneRef.current) return;
       sceneRef.current.drag.active = false;
-      if (!compactRef.current || allowDragInCompactRef.current) {
+      if (
+        !disableDragRef.current &&
+        (!compactRef.current || allowDragInCompactRef.current)
+      ) {
         el.style.cursor = "grab";
+      } else {
+        el.style.cursor = "default";
       }
     };
 
     const onMove = (e: PointerEvent) => {
       const s = sceneRef.current;
-      if (!s || (compactRef.current && !allowDragInCompactRef.current)) return;
+      if (
+        !s ||
+        disableDragRef.current ||
+        (compactRef.current && !allowDragInCompactRef.current)
+      ) {
+        return;
+      }
       
       if (s.drag.active) {
         const dx = e.clientX - s.drag.x;
@@ -328,14 +406,17 @@ export default function Globe({
 
       const isCompact = compactRef.current;
       const currentUniversities = universitiesRef.current;
+      const autoRotateDisabled = disableAutoRotateRef.current;
 
       // Rotation logic
-      const canDrag = !isCompact || allowDragInCompactRef.current;
+      const canDrag =
+        !disableDragRef.current &&
+        (!isCompact || allowDragInCompactRef.current);
       if (canDrag && s.drag.active) {
         // Drag handled in onMove — skip auto-rotate
       } else if (s.targetQ) {
-        s.rot.slerp(s.targetQ, 0.05);
-      } else {
+        s.rot.slerp(s.targetQ, autoRotateDisabled ? 0.08 : 0.05);
+      } else if (!autoRotateDisabled) {
         // Auto-rotate
         const speed = isCompact ? 0.0015 : 0.001;
         if (isCompact) {
@@ -491,7 +572,14 @@ export default function Globe({
         const label = projectLabelsRef.current[i];
         if (!label) continue;
 
-        const projects = selectedUniversityRef.current?.projects;
+        if (hideProjectLabelsRef.current) {
+          label.style.opacity = "0";
+          continue;
+        }
+
+        const projects = focusMarkerRef.current
+          ? [focusMarkerRef.current]
+          : selectedUniversityRef.current?.projects;
         if (!projects || !projects[i]) {
           label.style.opacity = "0";
           continue;
@@ -545,6 +633,14 @@ export default function Globe({
     };
   }, []); // Empty dependency array = mount once
 
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s) return;
+
+    s.camera.position.y = cameraY;
+    s.camera.updateProjectionMatrix();
+  }, [cameraY]);
+
   // Update Markers when universities or selection change
   useEffect(() => {
     const s = sceneRef.current;
@@ -568,7 +664,7 @@ export default function Globe({
     const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
     const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
 
-    if (selectedUniversity) {
+    if (selectedUniversity && !hideSelectedUniversityMarkerRef.current) {
       const m = new THREE.Mesh(mkGeo, mkMat);
       m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
       s.markersGroup.add(m);
@@ -578,6 +674,28 @@ export default function Globe({
         m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
         s.markersGroup.add(m);
       });
+    }
+
+    const focusedProjectMarker = focusMarkerRef.current;
+    if (focusedProjectMarker) {
+      const focusGeo = new THREE.SphereGeometry(1.6, 12, 12);
+      const focusMat = new THREE.MeshBasicMaterial({
+        color: new THREE.Color(
+          focusedProjectMarker.color ??
+            selectedUniversity?.color ??
+            "#000000"
+        ),
+      });
+      const focusMesh = new THREE.Mesh(focusGeo, focusMat);
+      focusMesh.position.copy(
+        toVec3(
+          focusedProjectMarker.markerOffset.lat,
+          focusedProjectMarker.markerOffset.lng,
+          R + 1
+        )
+      );
+      s.markersGroup.add(focusMesh);
+      return;
     }
 
     // Project markers for selected university
@@ -598,7 +716,14 @@ export default function Globe({
   }, [universities, selectedUniversity]);
 
   return (
-    <div ref={containerRef} className="w-full h-full relative" style={{ touchAction: "none" }}>
+    <div
+      ref={containerRef}
+      className="relative h-full w-full"
+      style={{
+        touchAction: "none",
+        transform: verticalOffset ? `translateY(${verticalOffset}px)` : undefined,
+      }}
+    >
       <div className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${hideLabels ? "opacity-0" : ""}`}>
         {universities.map((uni, i) => (
           <div
@@ -628,27 +753,37 @@ export default function Globe({
       </div>
       {/* Project location labels */}
       <div className="absolute inset-0 pointer-events-none">
-        {(selectedUniversity?.projects ?? []).map((project, i) => (
-          <div
-            key={project.id}
-            ref={(el) => {
-              projectLabelsRef.current[i] = el;
-            }}
-            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap"
-            style={{ opacity: 0, transition: "transform 800ms ease-out, opacity 400ms ease-out" }}
-          >
-            <span
-              className="text-[8px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded-sm"
+        {(focusMarker ? [focusMarker] : selectedUniversity?.projects ?? []).map((project, i) => {
+          const projectLabel =
+            "label" in project && typeof project.label === "string"
+              ? project.label
+              : project.title;
+
+          return (
+            <div
+              key={project.id}
+              ref={(el) => {
+                projectLabelsRef.current[i] = el;
+              }}
+              className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap"
               style={{
-                color: selectedUniversity?.color ?? "#000",
-                backgroundColor: "rgba(255,255,255,0.85)",
-                border: `1px solid ${selectedUniversity?.color ?? "#000"}`,
+                opacity: 0,
+                transition: "transform 800ms ease-out, opacity 400ms ease-out",
               }}
             >
-              {project.title}
-            </span>
-          </div>
-        ))}
+              <span
+                className="text-[8px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded-sm"
+                style={{
+                  color: focusMarker?.color ?? selectedUniversity?.color ?? "#000",
+                  backgroundColor: "rgba(255,255,255,0.85)",
+                  border: `1px solid ${focusMarker?.color ?? selectedUniversity?.color ?? "#000"}`,
+                }}
+              >
+                {projectLabel}
+              </span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
