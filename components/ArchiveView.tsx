@@ -73,6 +73,7 @@ export type SelectedProjectStageSnapshot = {
 
 export type SelectedProjectStageController = {
   uploadGalleryFiles: (files: File[]) => Promise<void>;
+  setGalleryItems: (items: ProjectGalleryItem[]) => void;
 };
 
 interface ArchiveViewProps {
@@ -524,6 +525,9 @@ export default function ArchiveView({
         );
 
         projectEditorRef.current?.appendGalleryItems(uploadedItems);
+      },
+      setGalleryItems: (items) => {
+        projectEditorRef.current?.setGalleryItems(items);
       },
     };
 

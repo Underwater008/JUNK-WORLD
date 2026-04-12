@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   type ChangeEvent,
+  type DragEvent,
   type MutableRefObject,
 } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -59,7 +60,16 @@ function getLogoLeft(panel: string) {
 
 function getAboutGlobePose(panel: string) {
   const panelWidth = Number.parseFloat(panel);
-  return { x: `${panelWidth / 2}%`, y: "0%" };
+  return { x: `${panelWidth / 2}%`, y: "-18%" };
+}
+
+function moveGalleryItem<T>(items: T[], fromIndex: number, toIndex: number) {
+  if (fromIndex === toIndex) return items;
+
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(fromIndex, 1);
+  nextItems.splice(toIndex, 0, movedItem);
+  return nextItems;
 }
 
 function ProjectStageGallery({
@@ -78,6 +88,8 @@ function ProjectStageGallery({
   const [activeIndex, setActiveIndex] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const galleryLength = project.gallery.length;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -107,6 +119,70 @@ function ProjectStageGallery({
     return () => window.clearTimeout(timeoutId);
   }, [uploadError]);
 
+  function commitGalleryOrder(nextGallery: SelectedProjectStageSnapshot["gallery"]) {
+    selectedProjectStageControllerRef?.current?.setGalleryItems(nextGallery);
+  }
+
+  function handleDeleteGalleryItem(index: number) {
+    if (!editable) return;
+
+    const nextGallery = project.gallery.filter((_, itemIndex) => itemIndex !== index);
+    commitGalleryOrder(nextGallery);
+    setActiveIndex((current) => {
+      if (!nextGallery.length) return 0;
+      if (current > index) return current - 1;
+      if (current === index) return Math.min(index, nextGallery.length - 1);
+      return current;
+    });
+  }
+
+  function handleDragStart(event: DragEvent<HTMLDivElement>, index: number) {
+    if (!editable) return;
+
+    setDraggedIndex(index);
+    setDragOverIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>, index: number) {
+    if (!editable || draggedIndex === null) return;
+
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    if (dragOverIndex !== index) {
+      setDragOverIndex(index);
+    }
+  }
+
+  function handleDragEnd() {
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, dropIndex: number) {
+    if (!editable || draggedIndex === null) return;
+
+    event.preventDefault();
+    if (draggedIndex !== dropIndex) {
+      const nextGallery = moveGalleryItem(project.gallery, draggedIndex, dropIndex);
+      commitGalleryOrder(nextGallery);
+      setActiveIndex((current) => {
+        if (current === draggedIndex) return dropIndex;
+        if (draggedIndex < dropIndex && current > draggedIndex && current <= dropIndex) {
+          return current - 1;
+        }
+        if (draggedIndex > dropIndex && current >= dropIndex && current < draggedIndex) {
+          return current + 1;
+        }
+        return current;
+      });
+    }
+
+    setDraggedIndex(null);
+    setDragOverIndex(null);
+  }
+
   async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     event.target.value = "";
@@ -127,34 +203,125 @@ function ProjectStageGallery({
     }
   }
 
+  const frameTopClass = "top-28";
+
   if (!galleryLength) {
-    return (
-      <div className="relative z-20 h-full min-h-0 overflow-visible">
-        {editable ? (
-          <div className="absolute inset-x-0 bottom-8 z-30 flex justify-center px-6">
-            <div className="flex flex-col items-center gap-3">
+    if (expanded) {
+      return (
+        <motion.div
+          className="relative z-20 h-full min-h-0 overflow-hidden"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.35, ease }}
+        >
+          <div className="absolute inset-x-8 top-8 z-30 flex items-start justify-between gap-6">
+            <div className="flex max-w-[820px] flex-wrap items-end gap-x-5 gap-y-2">
+              <h2 className="font-serif text-[clamp(1.8rem,3.3vw,3.8rem)] leading-[0.94] text-white">
+                {project.title}
+              </h2>
+              <p className="pb-1 text-[10px] font-semibold uppercase tracking-[0.26em] text-white/55">
+                0 media
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 bg-black/45 px-2 py-2 backdrop-blur-sm">
+              {editable ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {uploading ? "Uploading..." : "Add images"}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => void handleFileChange(event)}
+                  />
+                </>
+              ) : null}
+
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="border border-white/18 bg-[#050505] px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.22em] text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={() => onExpandedChange?.(false)}
+                className="border border-white/18 bg-transparent px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
               >
-                {uploading ? "Uploading..." : "Add gallery images"}
+                Close gallery
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(event) => void handleFileChange(event)}
-              />
-              {uploadError ? (
-                <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/70">
-                  {uploadError}
-                </p>
-              ) : null}
             </div>
+          </div>
+
+          <div className="absolute inset-x-8 top-32 bottom-10 z-20 flex items-center justify-center">
+            <div className="border border-white/12 bg-black/38 px-8 py-7 text-center backdrop-blur-sm">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/48">
+                Gallery empty
+              </p>
+              <p className="mt-3 max-w-[24rem] text-sm leading-7 text-white/70">
+                {editable
+                  ? "Add images to rebuild the gallery."
+                  : "No images are available for this project yet."}
+              </p>
+            </div>
+          </div>
+
+          {uploadError ? (
+            <div className="absolute left-8 top-8 z-40">
+              <p className="bg-[#050505]/94 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white/62 backdrop-blur-sm">
+                {uploadError}
+              </p>
+            </div>
+          ) : null}
+        </motion.div>
+      );
+    }
+
+    if (editable) {
+      return (
+        <div className="relative z-20 h-full min-h-0 overflow-visible">
+          <button
+            type="button"
+            onClick={() => onExpandedChange?.(true)}
+            className={`group absolute inset-x-8 z-20 flex h-[min(32vh,360px)] items-center justify-center overflow-hidden border border-white/14 bg-[linear-gradient(180deg,rgba(12,12,12,0.94),rgba(3,3,3,0.98))] text-left ${frameTopClass}`}
+          >
+            <div className="pointer-events-none absolute inset-[18px] border border-dashed border-white/12" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06),transparent_56%)] opacity-70 transition duration-300 group-hover:opacity-100" />
+            <div className="relative z-10 flex flex-col items-center gap-3 px-6 text-center">
+              <span className="border border-white/18 bg-black/58 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-white transition duration-300 group-hover:bg-white group-hover:text-black">
+                Edit gallery
+              </span>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/42">
+                0 media
+              </p>
+              <p className="max-w-[22rem] text-sm leading-7 text-white/62">
+                Open the gallery editor to add images and build the sequence.
+              </p>
+            </div>
+          </button>
+
+          {uploadError ? (
+            <div className="absolute left-8 top-8 z-30">
+              <p className="bg-[#050505]/94 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white/62 shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm">
+                {uploadError}
+              </p>
+            </div>
+          ) : null}
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative z-20 h-full min-h-0 overflow-visible">
+        {uploadError ? (
+          <div className="absolute inset-x-0 bottom-8 z-30 flex justify-center px-6">
+            <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-white/70">
+              {uploadError}
+            </p>
           </div>
         ) : null}
       </div>
@@ -162,16 +329,8 @@ function ProjectStageGallery({
   }
 
   const currentItem = project.gallery[activeIndex] ?? project.gallery[0];
-  const controlsTopClass = editable ? "top-14" : "top-10";
-  const frameTopClass = editable ? "top-36" : "top-28";
   const galleryCtaLabel = galleryLength > 1 ? "See all" : "Open image";
   const heroLayoutId = `${project.slug}-gallery-hero`;
-  const orderedGallery = [
-    { item: currentItem, originalIndex: activeIndex, hero: true },
-    ...project.gallery
-      .map((item, index) => ({ item, originalIndex: index, hero: false }))
-      .filter(({ originalIndex }) => originalIndex !== activeIndex),
-  ];
 
   if (expanded) {
     return (
@@ -182,16 +341,14 @@ function ProjectStageGallery({
         exit={{ opacity: 0 }}
         transition={{ duration: 0.35, ease }}
       >
-        <div className="pointer-events-none absolute inset-x-0 top-0 bottom-[12%] bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.12),transparent_20%),radial-gradient(circle_at_72%_18%,rgba(232,181,74,0.2),transparent_18%),linear-gradient(180deg,rgba(5,5,5,0.96),rgba(5,5,5,0.9)_52%,rgba(5,5,5,0.28)_82%,transparent)]" />
-
         <div className="absolute inset-x-8 top-8 z-30 flex items-start justify-between gap-6">
-          <div className="max-w-[620px]">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/55">
-              {galleryLength} media
-            </p>
-            <h2 className="mt-3 font-serif text-[clamp(2.2rem,4vw,4.8rem)] leading-[0.94] text-white">
+          <div className="flex max-w-[820px] flex-wrap items-end gap-x-5 gap-y-2">
+            <h2 className="font-serif text-[clamp(1.8rem,3.3vw,3.8rem)] leading-[0.94] text-white">
               {project.title}
             </h2>
+            <p className="pb-1 text-[10px] font-semibold uppercase tracking-[0.26em] text-white/55">
+              {galleryLength} media
+            </p>
           </div>
 
           <div className="flex items-center gap-2 bg-black/45 px-2 py-2 backdrop-blur-sm">
@@ -226,37 +383,80 @@ function ProjectStageGallery({
           </div>
         </div>
 
-        <div className="absolute left-1/2 top-24 z-20 h-[42%] w-[min(86vw,1280px)] -translate-x-1/2 overflow-y-auto pr-3">
+        <div className="absolute left-1/2 top-28 bottom-6 z-20 w-[min(88vw,1320px)] -translate-x-1/2 overflow-y-auto pr-3 pb-6">
           <div className="grid grid-cols-2 items-start gap-4 lg:grid-cols-3 xl:grid-cols-4">
-            {orderedGallery.map(({ item, originalIndex, hero }, index) => (
-              <motion.button
-                key={`${project.slug}-${item.url}-${originalIndex}-${hero ? "hero" : "tile"}`}
-                type="button"
-                onClick={() => setActiveIndex(originalIndex)}
+            {project.gallery.map((item, index) => {
+              const hero = index === activeIndex;
+              const showDropTarget =
+                editable && draggedIndex !== null && dragOverIndex === index && draggedIndex !== index;
+
+              return (
+              <motion.div
+                key={`${project.slug}-${item.url}-${index}-${hero ? "hero" : "tile"}`}
+                onClick={() => setActiveIndex(index)}
                 layout
                 layoutId={hero ? heroLayoutId : undefined}
+                draggable={editable}
+                onDragStartCapture={(event) => handleDragStart(event, index)}
+                onDragOverCapture={(event) => handleDragOver(event, index)}
+                onDropCapture={(event) => handleDrop(event, index)}
+                onDragEndCapture={handleDragEnd}
                 initial={hero ? false : { opacity: 0, y: 24 }}
                 animate={hero ? undefined : { opacity: 1, y: 0 }}
                 exit={hero ? undefined : { opacity: 0, y: 18 }}
                 transition={hero ? galleryHeroTransition : { duration: 0.38, ease, delay: index * 0.03 }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    setActiveIndex(index);
+                  }
+                }}
                 className={`group relative overflow-hidden border bg-[#080808] text-left ${
                   hero
                     ? "col-span-2 self-start lg:col-span-2 xl:col-span-2"
                     : ""
                 } ${
-                  hero || originalIndex === activeIndex ? "border-white/40" : "border-white/10"
+                  showDropTarget
+                    ? "border-white/75"
+                    : hero
+                      ? "border-white/40"
+                      : "border-white/10"
+                } ${
+                  editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
                 }`}
               >
+                {editable ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      handleDeleteGalleryItem(index);
+                    }}
+                    className="absolute right-3 top-3 z-20 flex h-9 w-9 items-center justify-center border border-white/18 bg-black/72 text-white opacity-0 transition hover:bg-white hover:text-black group-hover:opacity-100 group-focus-within:opacity-100"
+                    aria-label={`Delete image ${index + 1}`}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+                      <path d="M3.25 4.25H10.75" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M5.25 2.75H8.75" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M4.25 4.25V10.25C4.25 10.6642 4.58579 11 5 11H9C9.41421 11 9.75 10.6642 9.75 10.25V4.25" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M6 6V9.25" stroke="currentColor" strokeWidth="1.2" />
+                      <path d="M8 6V9.25" stroke="currentColor" strokeWidth="1.2" />
+                    </svg>
+                  </button>
+                ) : null}
                 <motion.img
                   src={item.url}
-                  alt={item.alt || `${project.title} image ${originalIndex + 1}`}
+                  alt={item.alt || `${project.title} image ${index + 1}`}
+                  draggable={false}
                   className="block h-auto w-full transition duration-300 ease-out group-hover:opacity-95"
                   transition={hero ? galleryHeroTransition : undefined}
                 />
                 <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,transparent,rgba(0,0,0,0.18)_52%,rgba(0,0,0,0.78))] opacity-90" />
                 <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-4 px-4 py-4">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-white/48">
-                    {String(originalIndex + 1).padStart(2, "0")}
+                    {String(index + 1).padStart(2, "0")}
                   </span>
                   {item.alt ? (
                     <span className="max-w-[68%] text-right text-[11px] leading-5 text-white/86">
@@ -264,8 +464,9 @@ function ProjectStageGallery({
                     </span>
                   ) : null}
                 </div>
-              </motion.button>
-            ))}
+              </motion.div>
+            );
+            })}
           </div>
         </div>
 
@@ -282,29 +483,6 @@ function ProjectStageGallery({
 
   return (
     <div className="relative z-20 h-full min-h-0 overflow-visible">
-      {editable ? (
-        <div className={`absolute right-8 z-30 ${controlsTopClass}`}>
-          <div className="flex items-center gap-2 bg-[#050505]/94 px-1.5 py-1 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-sm">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {uploading ? "Uploading..." : "Add images"}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(event) => void handleFileChange(event)}
-            />
-          </div>
-        </div>
-      ) : null}
-
       <motion.button
         type="button"
         onClick={() => onExpandedChange?.(true)}
@@ -318,6 +496,7 @@ function ProjectStageGallery({
             key={`${project.slug}-${activeIndex}`}
             src={currentItem.url}
             alt={currentItem.alt || project.title}
+            draggable={false}
             initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -18 }}
@@ -363,15 +542,7 @@ function SelectedProjectStage({
 }) {
   return (
     <LayoutGroup id={`project-gallery-${project.slug}`}>
-      <motion.div
-        className="relative h-full min-h-0 overflow-hidden"
-        initial={false}
-        animate={{
-          borderLeftWidth: galleryExpanded ? 0 : 2,
-        }}
-        transition={{ duration: 0.45, ease }}
-        style={{ borderLeftStyle: "solid", borderLeftColor: "#000" }}
-      >
+      <div className="relative h-full min-h-0 overflow-hidden">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,181,74,0.12),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_18%)]" />
         <div className="absolute inset-0">
           <ProjectStageGallery
@@ -382,7 +553,7 @@ function SelectedProjectStage({
             onExpandedChange={onGalleryExpandedChange}
           />
         </div>
-      </motion.div>
+      </div>
     </LayoutGroup>
   );
 }
@@ -742,7 +913,7 @@ function HomeContent({
               hideSelectedUniversityMarker={showSelectedProjectStage}
               scale={
                 galleryExpandedActive
-                  ? 1.24
+                  ? 1.12
                   : showSelectedProjectStage
                     ? 1.24
                     : undefined
@@ -768,9 +939,12 @@ function HomeContent({
                   ? "100%"
                   : `calc(100% - ${currentPanelWidth})`,
               }}
-              exit={{ opacity: 0 }}
+              exit={{
+                opacity: 0,
+                transition: { duration: 0.12, ease },
+              }}
               transition={{
-                opacity: { duration: 0.18, ease, delay: 0.42 },
+                opacity: { duration: 0.2, ease },
                 left: globeTransition,
                 width: globeTransition,
               }}

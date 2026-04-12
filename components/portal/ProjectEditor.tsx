@@ -38,6 +38,7 @@ export interface ProjectEditorHandle {
   saveDraft: () => void;
   publish: () => void;
   appendGalleryItems: (items: ProjectDocument["gallery"]) => void;
+  setGalleryItems: (items: ProjectDocument["gallery"]) => void;
   savingMode: "draft" | "publish" | null;
 }
 
@@ -132,6 +133,12 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     setProject((current) => ({
       ...current,
       gallery: [...current.gallery, ...items],
+    }));
+  }, []);
+  const setGalleryItems = useCallback((items: ProjectDocument["gallery"]) => {
+    setProject((current) => ({
+      ...current,
+      gallery: items,
     }));
   }, []);
 
@@ -255,8 +262,9 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     saveDraft: () => void persistProject("draft"),
     publish: () => void persistProject("publish"),
     appendGalleryItems,
+    setGalleryItems,
     savingMode,
-  }), [appendGalleryItems, persistProject, savingMode]);
+  }), [appendGalleryItems, persistProject, savingMode, setGalleryItems]);
 
   useEffect(() => {
     onSavingStateChange?.(savingMode);
