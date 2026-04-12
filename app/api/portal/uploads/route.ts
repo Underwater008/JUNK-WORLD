@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     const storage = getSupabaseStorageClient();
     const bucket = getProjectStorageBucketName();
     const extension = file.name.includes(".") ? file.name.split(".").pop() : "bin";
-    const objectPath = `projects/${new Date().getFullYear()}/${randomUUID()}.${extension}`;
+    const prefix = new URL(request.url).searchParams.get("prefix") || "projects/" + new Date().getFullYear();
+    const objectPath = `${prefix}/${randomUUID()}.${extension}`;
 
     const { error } = await storage.storage.from(bucket).upload(objectPath, file, {
       cacheControl: "3600",

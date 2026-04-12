@@ -9,7 +9,6 @@ import Header from "@/components/Header";
 import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
 import MobileLayout from "@/components/MobileLayout";
-import ProjectsView from "@/components/ProjectsView";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { University } from "@/types";
 
@@ -29,25 +28,30 @@ const panelWidth: Record<View, string> = {
 };
 
 const globePose: Record<View, { x: string; y: string }> = {
-  about: { x: "18%", y: "0%" },
+  about: { x: "0%", y: "0%" },
   projects: { x: "26%", y: "0%" },
   members: { x: "32%", y: "0%" },
 };
 
 const ease = [0.4, 0, 0.2, 1] as const;
-const projectsGlobeBandHeight = "38vh";
-const projectsEditorPose = { x: "14%", y: "-24%" };
 
 function getLogoLeft(poseX: string) {
   return `calc(50% + ${poseX})`;
 }
 
+function getAboutGlobePose(panel: string) {
+  const panelWidth = Number.parseFloat(panel);
+  return { x: `${panelWidth / 2}%`, y: "0%" };
+}
+
 function HomeContent({
   universities,
+  baseUniversities,
   editorSessionAvailable,
   writesDisabled,
 }: {
   universities: University[];
+  baseUniversities: University[];
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
 }) {
@@ -59,8 +63,6 @@ function HomeContent({
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
   const [projectPreviewSlug, setProjectPreviewSlug] = useState<string | null>(null);
   const isProjectsView = view === "projects";
-  const editRequested = searchParams.get("edit") === "1";
-  const isProjectsEditView = isProjectsView && editRequested;
   const isMobile = useIsMobile();
   const selectedProjectSlug = searchParams.get("project");
 
@@ -93,8 +95,9 @@ function HomeContent({
   const globeSelectedUniversity = isProjectsView
     ? projectFocusedUniversity ?? selectedUniversity
     : selectedUniversity;
-  const currentPanelWidth = isProjectsEditView ? "0px" : panelWidth[view];
-  const currentGlobePose = isProjectsEditView ? projectsEditorPose : globePose[view];
+  const currentPanelWidth = panelWidth[view];
+  const currentGlobePose =
+    view === "about" ? getAboutGlobePose(currentPanelWidth) : globePose[view];
   const currentLogoLeft = getLogoLeft(currentGlobePose.x);
 
   useEffect(() => {
@@ -166,6 +169,7 @@ function HomeContent({
         view={view}
         onViewChange={handleViewChange}
         universities={universities}
+        baseUniversities={baseUniversities}
         selectedUniversity={selectedUniversity}
         onSelectUniversity={setSelectedUniversity}
         hoveredProject={hoveredProject}
@@ -221,15 +225,8 @@ function HomeContent({
             hoveredProject={
               isProjectsView ? focusedProject?.id ?? null : hoveredProject
             }
-            compact={isProjectsEditView ? true : isCompact}
-            allowDragInCompact={isProjectsEditView}
-            scale={
-              isProjectsEditView
-                ? focusedProject
-                  ? 1.08
-                  : 1.0
-                : undefined
-            }
+            compact={isCompact}
+            allowDragInCompact={false}
             hideLabels={false}
             soloLabelId={
               isProjectsView
@@ -251,7 +248,7 @@ function HomeContent({
           initial={false}
           animate={{ width: currentPanelWidth }}
           transition={{ duration: 0.5, ease }}
-          style={{ borderRight: isProjectsEditView ? "0px solid transparent" : "2px solid black" }}
+          style={{ borderRight: "2px solid black" }}
         >
           <AnimatePresence mode="wait">
             {view === "about" && (
@@ -266,7 +263,7 @@ function HomeContent({
                 <AboutContent />
               </motion.div>
             )}
-            {view === "projects" && !isProjectsEditView && (
+            {view === "projects" && (
               <motion.div
                 key="archive"
                 className="h-full"
@@ -277,9 +274,12 @@ function HomeContent({
               >
                 <ArchiveView
                   universities={universities}
+                  baseUniversities={baseUniversities}
                   selectedUniversity={selectedUniversity}
                   onSelectUniversity={setSelectedUniversity}
                   onPreviewProjectChange={setProjectPreviewSlug}
+                  editorSessionAvailable={editorSessionAvailable}
+                  writesDisabled={writesDisabled}
                 />
               </motion.div>
             )}
@@ -298,32 +298,6 @@ function HomeContent({
           </AnimatePresence>
         </motion.div>
 
-        {isProjectsEditView ? (
-          <div className="relative z-10 flex-1 overflow-hidden">
-            <motion.div
-              className="absolute inset-x-0 bottom-0 overflow-y-auto border-t-2 border-black bg-[var(--ink-wash-200)]"
-              initial={false}
-              animate={{
-                opacity: 1,
-              }}
-              transition={{
-                duration: 0.24,
-                ease: "easeOut",
-              }}
-              style={{
-                top: projectsGlobeBandHeight,
-              }}
-            >
-              <ProjectsView
-                universities={universities}
-                editorSessionAvailable={editorSessionAvailable}
-                writesDisabled={writesDisabled}
-                showGlobe={false}
-                onPreviewProjectChange={setProjectPreviewSlug}
-              />
-            </motion.div>
-          </div>
-        ) : null}
       </div>
     </main>
   );
@@ -331,10 +305,12 @@ function HomeContent({
 
 export default function HomeShell({
   universities,
+  baseUniversities,
   editorSessionAvailable,
   writesDisabled,
 }: {
   universities: University[];
+  baseUniversities: University[];
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
 }) {
@@ -342,6 +318,7 @@ export default function HomeShell({
     <Suspense>
       <HomeContent
         universities={universities}
+        baseUniversities={baseUniversities}
         editorSessionAvailable={editorSessionAvailable}
         writesDisabled={writesDisabled}
       />

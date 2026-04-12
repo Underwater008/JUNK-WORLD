@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { backfillProjectDocument, DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
+import { DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
+import { backfillProjectDocument } from "@/lib/projects/defaults.server";
 import { slugify } from "@/lib/utils";
 import type { ProjectDocument } from "@/types";
 
@@ -57,10 +58,10 @@ function dedupeStrings(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
-export function normalizeProjectDocument(
+export async function normalizeProjectDocument(
   input: unknown,
   fallbackSlug = ""
-): ProjectDocument {
+): Promise<ProjectDocument> {
   const parsed = projectDocumentSchema.parse(input);
   const slug = slugify(parsed.slug || fallbackSlug || parsed.title);
 
@@ -69,7 +70,7 @@ export function normalizeProjectDocument(
   }
 
   return {
-    ...backfillProjectDocument(parsed, parsed.universityId),
+    ...(await backfillProjectDocument(parsed, parsed.universityId)),
     slug,
     tags: dedupeStrings(parsed.tags),
     cardImageUrl: parsed.cardImageUrl || parsed.coverImageUrl,

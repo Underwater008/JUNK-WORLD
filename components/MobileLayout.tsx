@@ -33,6 +33,7 @@ interface MobileLayoutProps {
   view: View;
   onViewChange: (view: View) => void;
   universities: University[];
+  baseUniversities: University[];
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   hoveredProject: string | null;
@@ -45,6 +46,7 @@ export default function MobileLayout({
   view,
   onViewChange,
   universities,
+  baseUniversities,
   selectedUniversity,
   onSelectUniversity,
   hoveredProject,
@@ -79,6 +81,7 @@ export default function MobileLayout({
         <div className="flex-1 min-h-0 overflow-y-auto safe-bottom">
           <ProjectsView
             universities={universities}
+            baseUniversities={baseUniversities}
             mobile
             editorSessionAvailable={editorSessionAvailable}
             writesDisabled={writesDisabled}

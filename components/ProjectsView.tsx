@@ -2,19 +2,26 @@
 
 import { useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Globe from "@/components/Globe";
 import LoginForm from "@/components/portal/LoginForm";
 import LogoutButton from "@/components/portal/LogoutButton";
+import ProjectCardDisplay from "@/components/ProjectCardDisplay";
 import ProjectEditor from "@/components/portal/ProjectEditor";
-import BlockNoteDocument from "@/components/projects/BlockNoteDocument";
 import { createEmptyProjectDocument } from "@/lib/projects/defaults";
 import { getPortalWriteDisabledMessage } from "@/lib/portal/mode";
-import { getBaseUniversities } from "@/lib/universities";
 import type { ProjectDocument, University } from "@/types";
 
 const NEW_PROJECT_SLUG = "__new__";
 const panelEase = [0.4, 0, 0.2, 1] as const;
+const BlockNoteDocument = dynamic(
+  () => import("@/components/projects/BlockNoteDocument"),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[220px] bg-black/[0.02]" />,
+  }
+);
 
 type ProjectEntry = {
   id: string;
@@ -41,6 +48,7 @@ type ProjectEntry = {
 
 interface ProjectsViewProps {
   universities: University[];
+  baseUniversities: University[];
   mobile?: boolean;
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
@@ -50,12 +58,6 @@ interface ProjectsViewProps {
 
 function formatIndex(index: number) {
   return String(index + 1).padStart(2, "0");
-}
-
-function extractPremise(description: string) {
-  const [sentence] = description.split(". ");
-  if (!sentence) return description;
-  return sentence.endsWith(".") ? sentence : `${sentence}.`;
 }
 
 function getProjectPath(slug: string) {
@@ -198,108 +200,6 @@ function ProjectImage({
   );
 }
 
-function ProjectCard({
-  project,
-  index,
-  onSelect,
-  onPreview,
-  onPreviewEnd,
-  showBadges,
-}: {
-  project: ProjectEntry;
-  index: number;
-  onSelect: () => void;
-  onPreview: () => void;
-  onPreviewEnd: () => void;
-  showBadges: boolean;
-}) {
-  return (
-    <motion.button
-      type="button"
-      layoutId={`project-card-${project.slug}`}
-      initial={{ opacity: 0, y: 24 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 18 }}
-      transition={{ duration: 0.45, delay: index * 0.04 }}
-      whileHover={{ y: -4 }}
-      onMouseEnter={onPreview}
-      onMouseLeave={onPreviewEnd}
-      onFocus={onPreview}
-      onBlur={onPreviewEnd}
-      onClick={onSelect}
-      className="group flex h-full flex-col overflow-hidden border-2 border-black bg-white text-left shadow-[6px_6px_0_#000] transition-shadow hover:shadow-[10px_10px_0_#000]"
-    >
-      <ProjectImage project={project} index={index} />
-
-      <div className="flex flex-1 flex-col px-4 py-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-              {project.shortName} / {project.year}
-            </p>
-            <h2
-              className="mt-2 min-h-[2.8rem] overflow-hidden font-serif text-[1.55rem] leading-[0.94] text-black"
-              style={{
-                display: "-webkit-box",
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: "vertical",
-              }}
-            >
-              {project.title}
-            </h2>
-          </div>
-          <span className="font-serif text-3xl leading-none text-black/15">
-            {formatIndex(index)}
-          </span>
-        </div>
-
-        <p
-          className="mt-3 overflow-hidden text-[13px] leading-5 text-black/85"
-          style={{
-            display: "-webkit-box",
-            WebkitLineClamp: 3,
-            WebkitBoxOrient: "vertical",
-          }}
-        >
-          {extractPremise(project.description)}
-        </p>
-
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          {project.tags.map((tag) => (
-            <span
-              key={tag}
-              className="border border-black px-1.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-black"
-            >
-              {tag}
-            </span>
-          ))}
-          {showBadges ? (
-            <>
-              <StatusPill label={project.status} />
-              {project.hasUnpublishedChanges ? <StatusPill label="Draft Changes" filled /> : null}
-            </>
-          ) : null}
-        </div>
-
-        <div className="mt-auto flex items-end justify-between gap-4 border-t border-black pt-3">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-              Origin
-            </p>
-            <p className="mt-1 text-[13px] leading-5 text-black">{project.university}</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/55">
-              Open
-            </span>
-            <div className="h-[3px] w-12 shrink-0" style={{ backgroundColor: project.color }} />
-          </div>
-        </div>
-      </div>
-    </motion.button>
-  );
-}
-
 function FocusedHeroCard({
   project,
   index,
@@ -399,30 +299,6 @@ function ProjectContent({
         </div>
       </section>
 
-      {project.document.gallery.length ? (
-        <section className="overflow-hidden border-2 border-black bg-white">
-          <div className="border-b-2 border-black px-5 py-4">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
-              Gallery
-            </p>
-          </div>
-          <div className={`grid gap-px bg-black ${mobile ? "grid-cols-1" : "md:grid-cols-2"}`}>
-            {project.document.gallery.map((item) => (
-              <figure key={item.url} className="bg-white p-3">
-                <img
-                  src={item.url}
-                  alt={item.alt || project.title}
-                  className="aspect-[16/10] w-full object-cover"
-                />
-                {item.alt ? (
-                  <figcaption className="mt-2 text-sm text-black/60">{item.alt}</figcaption>
-                ) : null}
-              </figure>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       <div className={`grid gap-5 ${mobile ? "grid-cols-1" : "xl:grid-cols-[minmax(0,0.9fr)_minmax(260px,0.5fr)]"}`}>
         <section className="space-y-5">
           {project.document.collaborators.length ? (
@@ -515,47 +391,31 @@ function AccessGate({
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 24, opacity: 0 }}
         transition={{ duration: 0.25, ease: "easeOut" }}
-        className="relative w-full max-w-2xl overflow-hidden border-2 border-black bg-[#F4F0E8] shadow-[12px_12px_0_#000]"
+        className="relative w-full max-w-[560px] overflow-hidden border-2 border-black bg-white shadow-[12px_12px_0_#000]"
       >
-        <div
-          className="pointer-events-none absolute inset-0 opacity-45"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(0, 0, 0, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.04) 1px, transparent 1px)",
-            backgroundSize: "36px 36px",
-          }}
-        />
-        <div className="relative grid gap-0 md:grid-cols-[minmax(0,0.95fr)_minmax(280px,0.7fr)]">
-          <section className="border-b-2 border-black bg-white px-5 py-5 md:border-b-0 md:border-r-2 md:px-6 md:py-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-              Edit Mode
-            </p>
-            <h2 className="mt-4 font-serif text-4xl leading-[0.94] text-black">
-              Unlock the live projects surface.
-            </h2>
-            <p className="mt-4 max-w-xl text-sm leading-7 text-black/75">
-              After login, the current screen stays in place and turns editable. You
-              can add cards, adjust globe targets, edit cover images, and build the
-              long-form body with block content.
-            </p>
+        <section className="relative bg-white px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+                Shared Password
+              </p>
+              <h3 className="mt-4 font-serif text-3xl leading-none text-black">
+                Enter editor access.
+              </h3>
+            </div>
             <button
               type="button"
               onClick={onExit}
-              className="mt-6 border border-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+              className="shrink-0 border border-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
             >
-              Back To Public View
+              Public View
             </button>
-          </section>
-          <section className="bg-[#F8F3EA] px-5 py-5 md:px-6 md:py-6">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-              Shared Password
-            </p>
-            <h3 className="mt-4 font-serif text-3xl leading-none text-black">
-              Enter editor access.
-            </h3>
-            <LoginForm nextPath={nextPath} submitLabel="Unlock Editor" />
-          </section>
-        </div>
+          </div>
+          <p className="mt-4 max-w-md text-sm leading-7 text-black/60">
+            Unlock inline editing for cards, globe targets, cover media, and block content.
+          </p>
+          <LoginForm nextPath={nextPath} submitLabel="Unlock Editor" />
+        </section>
       </motion.div>
     </motion.div>
   );
@@ -563,6 +423,7 @@ function AccessGate({
 
 export default function ProjectsView({
   universities,
+  baseUniversities,
   mobile = false,
   editorSessionAvailable,
   writesDisabled,
@@ -572,7 +433,6 @@ export default function ProjectsView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const baseUniversities = useMemo(() => getBaseUniversities(), []);
   const universitiesById = useMemo(
     () => new Map(universities.map((university) => [university.id, university])),
     [universities]
@@ -932,11 +792,6 @@ export default function ProjectsView({
                         ? undefined
                         : contentProject.slug
                     }
-                    publishedAt={
-                      contentProject.status === "published"
-                        ? new Date().toISOString()
-                        : null
-                    }
                     initialProject={
                       contentProject.document ?? createEmptyProjectDocument()
                     }
@@ -957,14 +812,26 @@ export default function ProjectsView({
               >
                 {projects.length ? (
                   <div
-                    className={`grid gap-4 ${
-                      mobile ? "grid-cols-1" : "md:grid-cols-2 2xl:grid-cols-3"
+                    className={`grid gap-3 ${
+                      mobile ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
                     }`}
                   >
                     {projects.map((project, index) => (
-                      <ProjectCard
+                      <ProjectCardDisplay
                         key={project.slug}
-                        project={project}
+                        project={{
+                          slug: project.slug,
+                          title: project.title,
+                          thumbnail: project.thumbnail,
+                          year: project.year,
+                          tags: project.tags,
+                          locationLabel: project.locationLabel,
+                          shortName: project.shortName,
+                          color: project.color,
+                          logo: project.logo,
+                          status: project.status,
+                          hasUnpublishedChanges: project.hasUnpublishedChanges,
+                        }}
                         index={index}
                         onSelect={() => handleSelectProject(project.slug)}
                         onPreview={() => handlePreviewChange(project.slug)}

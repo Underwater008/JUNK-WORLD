@@ -2,6 +2,7 @@ import HomeShell from "@/components/HomeShell";
 import { isPortalWriteDisabled } from "@/lib/portal/mode";
 import { hasPortalSession } from "@/lib/portal/session";
 import { getHomepageUniversities } from "@/lib/projects/server";
+import { getBaseUniversities } from "@/lib/universities";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,15 @@ export default async function HomePage({
   const editorSessionAvailable = await hasPortalSession();
   const includeDrafts =
     view === "projects" && edit === "1" && editorSessionAvailable;
-  const universities = await getHomepageUniversities({ includeDrafts });
+  const [universities, baseUniversities] = await Promise.all([
+    getHomepageUniversities({ includeDrafts }),
+    getBaseUniversities(),
+  ]);
 
   return (
     <HomeShell
       universities={universities}
+      baseUniversities={baseUniversities}
       editorSessionAvailable={editorSessionAvailable}
       writesDisabled={isPortalWriteDisabled()}
     />

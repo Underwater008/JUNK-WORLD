@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import type postgres from "postgres";
 import { getSql } from "@/lib/db";
 import { isPortalWriteDisabled } from "@/lib/portal/mode";
-import { backfillProjectDocument, createEmptyProjectDocument } from "@/lib/projects/defaults";
+import { createEmptyProjectDocument } from "@/lib/projects/defaults";
+import { backfillProjectDocument } from "@/lib/projects/defaults.server";
 import { normalizeProjectDocument } from "@/lib/projects/schema";
 import { getUniversityById, isKnownUniversityId, mergeProjectsIntoUniversities } from "@/lib/universities";
 import type {
@@ -58,16 +59,16 @@ async function ensureProjectTable() {
   projectSchemaEnsured = true;
 }
 
-function mapProjectRow(row: ProjectRow): ProjectRecord {
+async function mapProjectRow(row: ProjectRow): Promise<ProjectRecord> {
   return {
     id: row.id,
     slug: row.slug,
     universityId: row.university_id,
     draftContent: row.draft_content
-      ? backfillProjectDocument(row.draft_content, row.university_id)
+      ? await backfillProjectDocument(row.draft_content, row.university_id)
       : null,
     publishedContent: row.published_content
-      ? backfillProjectDocument(row.published_content, row.university_id)
+      ? await backfillProjectDocument(row.published_content, row.university_id)
       : null,
     publishedAt: row.published_at,
     updatedAt: row.updated_at,
@@ -79,8 +80,8 @@ function pickPreferredContent(row: ProjectRecord) {
   return row.draftContent ?? row.publishedContent ?? createEmptyProjectDocument();
 }
 
-function assertUniversity(universityId: string) {
-  if (!isKnownUniversityId(universityId)) {
+async function assertUniversity(universityId: string) {
+  if (!(await isKnownUniversityId(universityId))) {
     throw new Error("Selected university is not in the current JUNK catalog.");
   }
 }
@@ -135,8 +136,8 @@ export async function getExperienceProjects({
       order by published_at desc nulls last, updated_at desc;
     `;
 
-    return rows
-      .map(mapProjectRow)
+    const records = await Promise.all(rows.map(mapProjectRow));
+    return records
       .map((row) => toExperienceProject(row, includeDrafts))
       .filter((row): row is ExperienceProject => Boolean(row));
   } catch {
@@ -150,7 +151,7 @@ export async function getHomepageUniversities({
   includeDrafts?: boolean;
 } = {}): Promise<University[]> {
   const experienceProjects = await getExperienceProjects({ includeDrafts });
-  return mergeProjectsIntoUniversities(experienceProjects);
+  return await mergeProjectsIntoUniversities(experienceProjects);
 }
 
 export async function getExperienceProjectBySlug(
@@ -171,7 +172,7 @@ export async function getExperienceProjectBySlug(
     limit 1;
   `;
 
-  const mapped = rows[0] ? mapProjectRow(rows[0]) : null;
+  const mapped = rows[0] ? await mapProjectRow(rows[0]) : null;
   if (!mapped) return null;
 
   const experienceProject = toExperienceProject(mapped, includeDrafts);
@@ -179,7 +180,7 @@ export async function getExperienceProjectBySlug(
 
   return {
     ...experienceProject,
-    university: getUniversityById(experienceProject.universityId),
+    university: await getUniversityById(experienceProject.universityId),
   };
 }
 
@@ -196,8 +197,8 @@ export async function getPortalProjectSummaries(): Promise<PortalProjectSummary[
     order by updated_at desc;
   `;
 
-  return rows.map((row) => {
-    const record = mapProjectRow(row);
+  const records = await Promise.all(rows.map(mapProjectRow));
+  return records.map((record) => {
     const content = pickPreferredContent(record);
 
     return {
@@ -225,14 +226,14 @@ export async function getPortalProjectBySlug(slug: string) {
   const row = rows[0];
   if (!row) return null;
 
-  return mapProjectRow(row);
+  return await mapProjectRow(row);
 }
 
 export async function createProjectDraft(input: unknown) {
   await ensureProjectTable();
 
-  const document = normalizeProjectDocument(input);
-  assertUniversity(document.universityId);
+  const document = await normalizeProjectDocument(input);
+  await assertUniversity(document.universityId);
 
   const sql = getSql();
   const inserted = await sql<ProjectRow[]>`
@@ -248,7 +249,7 @@ export async function createProjectDraft(input: unknown) {
     returning id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at;
   `;
 
-  return mapProjectRow(inserted[0]);
+  return await mapProjectRow(inserted[0]);
 }
 
 export async function updateProjectDraft(currentSlug: string, input: unknown) {
@@ -259,8 +260,8 @@ export async function updateProjectDraft(currentSlug: string, input: unknown) {
     throw new Error("Project not found.");
   }
 
-  const document = normalizeProjectDocument(input, existing.slug);
-  assertUniversity(document.universityId);
+  const document = await normalizeProjectDocument(input, existing.slug);
+  await assertUniversity(document.universityId);
 
   const sql = getSql();
   const updated = await sql<ProjectRow[]>`
@@ -275,7 +276,7 @@ export async function updateProjectDraft(currentSlug: string, input: unknown) {
 
   return {
     previousSlug: currentSlug,
-    record: mapProjectRow(updated[0]),
+    record: await mapProjectRow(updated[0]),
   };
 }
 
@@ -287,8 +288,8 @@ export async function publishProject(currentSlug: string, input: unknown) {
     throw new Error("Project not found.");
   }
 
-  const document = normalizeProjectDocument(input, existing.slug);
-  assertUniversity(document.universityId);
+  const document = await normalizeProjectDocument(input, existing.slug);
+  await assertUniversity(document.universityId);
 
   const sql = getSql();
   const updated = await sql<ProjectRow[]>`
@@ -305,6 +306,6 @@ export async function publishProject(currentSlug: string, input: unknown) {
 
   return {
     previousSlug: currentSlug,
-    record: mapProjectRow(updated[0]),
+    record: await mapProjectRow(updated[0]),
   };
 }

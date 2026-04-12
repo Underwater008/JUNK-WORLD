@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 
 export default function LoginForm({
   nextPath,
@@ -10,7 +9,6 @@ export default function LoginForm({
   nextPath: string;
   submitLabel?: string;
 }) {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -35,8 +33,7 @@ export default function LoginForm({
         return;
       }
 
-      router.replace(nextPath);
-      router.refresh();
+      window.location.assign(nextPath);
     } catch {
       setError("Portal access failed. Please try again.");
     } finally {
