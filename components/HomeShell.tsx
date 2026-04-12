@@ -154,61 +154,37 @@ function ProjectStageGallery({
   }
 
   const currentItem = project.gallery[activeIndex] ?? project.gallery[0];
+  const controlsTopClass = editable ? "top-14" : "top-10";
+  const frameTopClass = editable ? "top-36" : "top-28";
 
   return (
     <div className="relative z-20 h-full min-h-0 overflow-visible bg-[#050505]">
-      <div className="absolute right-8 top-7 z-30">
-        <div className="flex items-center gap-2 bg-[#050505]/94 px-1.5 py-1 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-sm">
-          {editable ? (
-            <>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                {uploading ? "Uploading..." : "Add images"}
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                multiple
-                className="hidden"
-                onChange={(event) => void handleFileChange(event)}
-              />
-            </>
-          ) : null}
-          {galleryLength > 1 ? (
-            <>
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveIndex((current) =>
-                    current === 0 ? galleryLength - 1 : current - 1
-                  )
-                }
-                className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
-                aria-label="Previous gallery image"
-              >
-                Prev
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setActiveIndex((current) => (current + 1) % galleryLength)
-                }
-                className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
-                aria-label="Next gallery image"
-              >
-                Next
-              </button>
-            </>
-          ) : null}
+      {editable ? (
+        <div className={`absolute right-8 z-30 ${controlsTopClass}`}>
+          <div className="flex items-center gap-2 bg-[#050505]/94 px-1.5 py-1 shadow-[0_10px_30px_rgba(0,0,0,0.22)] backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="border border-white/18 bg-[#050505] px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {uploading ? "Uploading..." : "Add images"}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(event) => void handleFileChange(event)}
+            />
+          </div>
         </div>
-      </div>
+      ) : null}
 
-      <div className="absolute inset-x-8 top-12 bottom-[-12%] z-20 border border-white/10 bg-black shadow-[0_34px_90px_rgba(0,0,0,0.42)]">
+      <div
+        className={`absolute inset-x-8 bottom-[-12%] z-20 border border-white/10 bg-black shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
+      >
         <AnimatePresence mode="wait" initial={false}>
           <motion.figure
             key={`${project.slug}-${activeIndex}`}
@@ -227,26 +203,6 @@ function ProjectStageGallery({
         </AnimatePresence>
       </div>
 
-      <div className="absolute inset-x-8 bottom-4 z-30 flex justify-end">
-        {galleryLength > 1 ? (
-          <div className="flex items-center gap-2 bg-[#050505]/94 px-2 py-1 shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm">
-            {project.gallery.map((item, index) => (
-              <button
-                key={`${item.url}-${index}`}
-                type="button"
-                onClick={() => setActiveIndex(index)}
-                className={`h-2.5 transition-all ${
-                  index === activeIndex
-                    ? "w-8 bg-white"
-                    : "w-2.5 bg-white/38 hover:bg-white/62"
-                }`}
-                aria-label={`Show gallery image ${index + 1}`}
-              />
-            ))}
-          </div>
-        ) : null}
-      </div>
-
       {uploadError ? (
         <div className="absolute left-8 top-8 z-30">
           <p className="bg-[#050505]/94 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.16em] text-white/62 shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm">
@@ -260,85 +216,34 @@ function ProjectStageGallery({
 
 function SelectedProjectStage({
   project,
-  projectUniversity,
   editable = false,
   selectedProjectStageControllerRef,
 }: {
   project: SelectedProjectStageSnapshot;
-  projectUniversity: University | null;
   editable?: boolean;
   selectedProjectStageControllerRef?: MutableRefObject<SelectedProjectStageController | null>;
 }) {
-  const focusedUniversity = projectUniversity
-    ? {
-        ...projectUniversity,
-        projects: projectUniversity.projects.filter(
-          (candidate) => candidate.id === project.id
-        ),
-      }
-    : null;
-  const latitude = project.markerOffset.lat.toFixed(4);
-  const longitude = project.markerOffset.lng.toFixed(4);
-
   return (
-    <div className="relative h-full min-h-0 overflow-hidden border-l-2 border-black bg-[#050505]">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,181,74,0.12),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_18%)]" />
+    <div className="relative h-full min-h-0 overflow-hidden border-l-2 border-black">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(232,181,74,0.12),transparent_24%),radial-gradient(circle_at_bottom_right,rgba(255,255,255,0.08),transparent_18%)]" />
       <motion.div
-        className="relative grid h-full min-h-0 grid-rows-[minmax(0,43%)_minmax(0,57%)]"
+        className="absolute inset-x-0 top-0 h-[43%] min-h-0"
         initial={false}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.4, ease }}
       >
         <motion.div
-          initial={{ opacity: 0, y: -26 }}
+          initial={false}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -20 }}
           transition={{ duration: 0.45, ease }}
-          className="relative z-20 min-h-0"
+          className="relative z-20 h-full min-h-0"
         >
           <ProjectStageGallery
             project={project}
             editable={editable}
             selectedProjectStageControllerRef={selectedProjectStageControllerRef}
           />
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 36 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 22 }}
-          transition={{ duration: 0.5, ease }}
-          className="relative z-10 min-h-0 overflow-hidden"
-        >
-          <div className="pointer-events-none absolute inset-x-0 top-5 z-30 flex justify-center px-6">
-            <div className="bg-[#050505]/94 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-white/72 shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur-sm">
-              {`Lat ${latitude} / Lng ${longitude}`}
-            </div>
-          </div>
-          <div className="absolute inset-x-[-12%] top-0 bottom-[-56%]">
-            <Globe
-              universities={focusedUniversity ? [focusedUniversity] : []}
-              selectedUniversity={focusedUniversity}
-              onSelectUniversity={() => {}}
-              hoveredProject={null}
-              compact={false}
-              hideLabels
-              hideProjectLabels
-              hideSelectedUniversityMarker
-              disableAutoRotate
-              disableDrag
-              scale={1.24}
-              verticalOffset={72}
-              cameraY={18}
-              focusTargetYOffset={0.48}
-              focusMarker={{
-                id: project.id,
-                title: project.title,
-                markerOffset: project.markerOffset,
-                color: project.color,
-              }}
-            />
-          </div>
         </motion.div>
       </motion.div>
     </div>
@@ -423,6 +328,77 @@ function HomeContent({
     view === "about" ? getAboutGlobePose(currentPanelWidth) : globePose[view];
   const currentLogoLeft = getLogoLeft(currentPanelWidth);
   const showSelectedProjectStage = isProjectsView && Boolean(selectedProject);
+  const detailStageUniversity = useMemo(
+    () =>
+      selectedProject && projectFocusedUniversity
+        ? {
+            ...projectFocusedUniversity,
+            projects: projectFocusedUniversity.projects.filter(
+              (candidate) => candidate.id === selectedProject.id
+            ),
+          }
+        : null,
+    [projectFocusedUniversity, selectedProject]
+  );
+  const detailStageFocusMarker = useMemo(
+    () =>
+      selectedProject
+        ? {
+            id: selectedProject.id,
+            title: selectedProject.title,
+            markerOffset: selectedProject.markerOffset,
+            color: selectedProject.color,
+            label: `Lat ${selectedProject.markerOffset.lat.toFixed(4)} / Lng ${selectedProject.markerOffset.lng.toFixed(4)}`,
+          }
+        : null,
+    [selectedProject]
+  );
+  const globeTransition = {
+    duration: 0.68,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
+  const globeViewport = showSelectedProjectStage
+    ? {
+        left: currentPanelWidth,
+        top: "43%",
+        width: `calc(100% - ${currentPanelWidth})`,
+        height: "57%",
+      }
+    : {
+        left: "0%",
+        top: "0%",
+        width: "100%",
+        height: "100%",
+      };
+  const globeSceneTarget = showSelectedProjectStage
+    ? {
+        left: "-12%",
+        top: "0%",
+        width: "124%",
+        height: "156%",
+        x: "0%",
+        y: "0%",
+      }
+    : {
+        left: "0%",
+        top: "0%",
+        width: "100%",
+        height: "100%",
+        ...currentGlobePose,
+      };
+  const globeUniversities = showSelectedProjectStage
+    ? detailStageUniversity
+      ? [detailStageUniversity]
+      : []
+    : universities;
+  const globeSelected = showSelectedProjectStage
+    ? detailStageUniversity
+    : globeSelectedUniversity;
+  const globeHoveredProject = showSelectedProjectStage
+    ? null
+    : isProjectsView
+      ? focusedProject?.id ?? null
+      : hoveredProject;
 
   useEffect(() => {
     setView(getViewFromParams(searchParams));
@@ -543,65 +519,76 @@ function HomeContent({
 
       <div className="relative flex flex-1 overflow-hidden">
         <div className="absolute inset-0 bg-black" />
+        <motion.div
+          className="absolute overflow-hidden"
+          initial={false}
+          animate={globeViewport}
+          transition={globeTransition}
+        >
+          <motion.div
+            className="absolute"
+            initial={false}
+            animate={globeSceneTarget}
+            transition={globeTransition}
+          >
+            <Globe
+              universities={globeUniversities}
+              selectedUniversity={globeSelected}
+              onSelectUniversity={setSelectedUniversity}
+              hoveredProject={globeHoveredProject}
+              compact={showSelectedProjectStage ? false : isCompact}
+              allowDragInCompact={false}
+              hideLabels={showSelectedProjectStage}
+              soloLabelId={
+                showSelectedProjectStage
+                  ? undefined
+                  : isProjectsView
+                    ? (projectFocusedUniversity ?? selectedUniversity)?.id
+                    : undefined
+              }
+              maxLabels={
+                showSelectedProjectStage
+                  ? undefined
+                  : isProjectsView
+                    ? projectFocusedUniversity || selectedUniversity
+                      ? 1
+                      : 7
+                    : undefined
+              }
+              disableAutoRotate={showSelectedProjectStage}
+              disableDrag={showSelectedProjectStage}
+              hideSelectedUniversityMarker={showSelectedProjectStage}
+              scale={showSelectedProjectStage ? 1.24 : undefined}
+              verticalOffset={showSelectedProjectStage ? 72 : 0}
+              cameraY={showSelectedProjectStage ? 18 : 40}
+              focusTargetYOffset={showSelectedProjectStage ? 0.48 : 0}
+              focusMarker={showSelectedProjectStage ? detailStageFocusMarker : null}
+            />
+          </motion.div>
+        </motion.div>
+
         <AnimatePresence initial={false} mode="wait">
           {showSelectedProjectStage && selectedProject ? (
             <motion.div
               key={`selected-stage-${selectedProject.slug}`}
               className="absolute inset-y-0 right-0"
               style={{ width: `calc(100% - ${currentPanelWidth})` }}
-              initial={{ opacity: 0, x: 90 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: 110 }}
-              transition={{ duration: 0.45, ease }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{
+                duration: 0.18,
+                ease,
+                delay: 0.42,
+              }}
             >
               <SelectedProjectStage
                 project={selectedProject}
-                projectUniversity={projectFocusedUniversity}
                 editable={editorUnlocked && !writesDisabled}
                 selectedProjectStageControllerRef={selectedProjectStageControllerRef}
               />
             </motion.div>
-          ) : (
-            <motion.div
-              key="browse-globe"
-              className="absolute inset-0"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.35, ease }}
-            >
-              <motion.div
-                className="absolute inset-0 bg-black"
-                initial={false}
-                animate={currentGlobePose}
-                transition={{ duration: 0.5, ease }}
-              >
-                <Globe
-                  universities={universities}
-                  selectedUniversity={globeSelectedUniversity}
-                  onSelectUniversity={setSelectedUniversity}
-                  hoveredProject={
-                    isProjectsView ? focusedProject?.id ?? null : hoveredProject
-                  }
-                  compact={isCompact}
-                  allowDragInCompact={false}
-                  hideLabels={false}
-                  soloLabelId={
-                    isProjectsView
-                      ? (projectFocusedUniversity ?? selectedUniversity)?.id
-                      : undefined
-                  }
-                  maxLabels={
-                    isProjectsView
-                      ? projectFocusedUniversity || selectedUniversity
-                        ? 1
-                        : 7
-                      : undefined
-                  }
-                />
-              </motion.div>
-            </motion.div>
-          )}
+          ) : null}
         </AnimatePresence>
 
         <motion.div

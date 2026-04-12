@@ -34,6 +34,86 @@ function toVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
   );
 }
 
+function createDefaultRotationQuaternion() {
+  return new THREE.Quaternion().setFromEuler(
+    new THREE.Euler(0.3, 0, 0, "YXZ")
+  );
+}
+
+function createMarkerNode({
+  color,
+  radius,
+}: {
+  color: THREE.ColorRepresentation;
+  radius: number;
+}) {
+  const group = new THREE.Group();
+
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(radius, 18, 18),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color(color) })
+  );
+  group.add(dot);
+
+  return group;
+}
+
+function disposeMarkerNode(node: THREE.Object3D) {
+  node.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    child.geometry.dispose();
+    if (Array.isArray(child.material)) {
+      child.material.forEach((material) => material.dispose());
+      return;
+    }
+    child.material.dispose();
+  });
+}
+
+function getFocusQuaternion({
+  selectedUniversity,
+  hoveredProject,
+  focusMarker,
+  focusTargetYOffset,
+}: {
+  selectedUniversity: University | null;
+  hoveredProject: string | null;
+  focusMarker: GlobeProps["focusMarker"];
+  focusTargetYOffset: number;
+}) {
+  const front = new THREE.Vector3(0, focusTargetYOffset, 1).normalize();
+
+  if (focusMarker) {
+    const pointDir = toVec3(
+      focusMarker.markerOffset.lat,
+      focusMarker.markerOffset.lng,
+      1
+    ).normalize();
+    return new THREE.Quaternion().setFromUnitVectors(pointDir, front);
+  }
+
+  if (hoveredProject && selectedUniversity) {
+    const project = selectedUniversity.projects.find(
+      (candidate) => candidate.id === hoveredProject
+    );
+    if (project) {
+      const pointDir = toVec3(
+        project.markerOffset.lat,
+        project.markerOffset.lng,
+        1
+      ).normalize();
+      return new THREE.Quaternion().setFromUnitVectors(pointDir, front);
+    }
+  }
+
+  if (!selectedUniversity) {
+    return null;
+  }
+
+  const pointDir = toVec3(selectedUniversity.lat, selectedUniversity.lng, 1).normalize();
+  return new THREE.Quaternion().setFromUnitVectors(pointDir, front);
+}
+
 interface GlobeProps {
   universities: University[];
   selectedUniversity: University | null;
@@ -103,6 +183,7 @@ export default function Globe({
   const allowDragInCompactRef = useRef(allowDragInCompact);
   const disableAutoRotateRef = useRef(disableAutoRotate);
   const disableDragRef = useRef(disableDrag);
+  const hoveredProjectRef = useRef(hoveredProject);
   const universitiesRef = useRef(universities);
   const soloLabelIdRef = useRef(soloLabelId);
   const selectedUniversityRef = useRef(selectedUniversity);
@@ -123,6 +204,7 @@ export default function Globe({
     allowDragInCompactRef.current = allowDragInCompact;
     disableAutoRotateRef.current = disableAutoRotate;
     disableDragRef.current = disableDrag;
+    hoveredProjectRef.current = hoveredProject;
     universitiesRef.current = universities;
     soloLabelIdRef.current = soloLabelId;
     selectedUniversityRef.current = selectedUniversity;
@@ -149,6 +231,7 @@ export default function Globe({
     allowDragInCompact,
     disableAutoRotate,
     disableDrag,
+    hoveredProject,
     universities,
     soloLabelId,
     selectedUniversity,
@@ -165,39 +248,12 @@ export default function Globe({
   useEffect(() => {
     const s = sceneRef.current;
     if (!s) return;
-    const front = new THREE.Vector3(0, focusTargetYOffset, 1).normalize();
-
-    if (focusMarker) {
-      const pointDir = toVec3(
-        focusMarker.markerOffset.lat,
-        focusMarker.markerOffset.lng,
-        1
-      ).normalize();
-      s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
-      return;
-    }
-
-    // If a project is hovered/expanded, rotate to its location
-    if (hoveredProject && selectedUniversity) {
-      const project = selectedUniversity.projects.find(p => p.id === hoveredProject);
-      if (project) {
-        const pointDir = toVec3(project.markerOffset.lat, project.markerOffset.lng, 1).normalize();
-        s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
-        return;
-      }
-    }
-
-    if (!selectedUniversity) {
-      s.targetQ = null;
-      return;
-    }
-
-    const pointDir = toVec3(
-      selectedUniversity.lat,
-      selectedUniversity.lng,
-      1
-    ).normalize();
-    s.targetQ = new THREE.Quaternion().setFromUnitVectors(pointDir, front);
+    s.targetQ = getFocusQuaternion({
+      selectedUniversity,
+      hoveredProject,
+      focusMarker,
+      focusTargetYOffset,
+    });
   }, [focusMarker, focusTargetYOffset, selectedUniversity, hoveredProject]);
 
   // Initialize Three.js scene (ONCE)
@@ -232,9 +288,13 @@ export default function Globe({
     globe.add(markersGroup);
 
     // Initial rotation state
-    const rot = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(0.3, 0, 0, "YXZ")
-    );
+    const initialTargetQ = getFocusQuaternion({
+      selectedUniversity: selectedUniversityRef.current,
+      hoveredProject: hoveredProjectRef.current,
+      focusMarker: focusMarkerRef.current,
+      focusTargetYOffset: focusTargetYOffsetRef.current,
+    });
+    const rot = initialTargetQ?.clone() ?? createDefaultRotationQuaternion();
     const autoAxis = new THREE.Vector3(0, 1, 0);
     const autoQ = new THREE.Quaternion();
 
@@ -246,7 +306,7 @@ export default function Globe({
       globe,
       markersGroup,
       rot,
-      targetQ: null,
+      targetQ: initialTargetQ,
       autoQ,
       drag: { active: false, x: 0, y: 0 },
     };
@@ -440,6 +500,13 @@ export default function Globe({
       const newScale = currentScale + (targetScale - currentScale) * 0.02;
       s.globe.scale.setScalar(newScale);
 
+      const nextCameraY =
+        s.camera.position.y + (cameraYRef.current - s.camera.position.y) * 0.08;
+      if (Math.abs(nextCameraY - s.camera.position.y) > 0.001) {
+        s.camera.position.y = nextCameraY;
+        s.camera.updateProjectionMatrix();
+      }
+
       s.globe.quaternion.copy(s.rot);
       s.renderer.render(s.scene, s.camera);
 
@@ -609,11 +676,15 @@ export default function Globe({
 
         const px = (_projVec.x * 0.5 + 0.5) * canvasW2;
         const py = (-_projVec.y * 0.5 + 0.5) * canvasH2;
+        const isFocusMarkerLabel = Boolean(focusMarkerRef.current);
+        const labelY = isFocusMarkerLabel ? py + 5 : py;
 
         const frontFacing = _tempVec.z / R;
         const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
 
-        label.style.transform = `translate(${px}px, ${py}px) translate(-50%, -100%)`;
+        label.style.transform = `translate(${px}px, ${labelY}px) translate(-50%, ${
+          isFocusMarkerLabel ? "0%" : "-100%"
+        })`;
         label.style.opacity = String(opacity);
       }
     };
@@ -633,14 +704,6 @@ export default function Globe({
     };
   }, []); // Empty dependency array = mount once
 
-  useEffect(() => {
-    const s = sceneRef.current;
-    if (!s) return;
-
-    s.camera.position.y = cameraY;
-    s.camera.updateProjectionMatrix();
-  }, [cameraY]);
-
   // Update Markers when universities or selection change
   useEffect(() => {
     const s = sceneRef.current;
@@ -649,28 +712,18 @@ export default function Globe({
     // Clear old markers
     while(s.markersGroup.children.length > 0){
         const child = s.markersGroup.children[0];
-        if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-            if (Array.isArray(child.material)) {
-                child.material.forEach(m => m.dispose());
-            } else {
-                child.material.dispose();
-            }
-        }
+        disposeMarkerNode(child);
         s.markersGroup.remove(child);
     }
 
     // University markers — only show selected if one is selected, otherwise show all
-    const mkGeo = new THREE.SphereGeometry(1.8, 12, 12);
-    const mkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
-
     if (selectedUniversity && !hideSelectedUniversityMarkerRef.current) {
-      const m = new THREE.Mesh(mkGeo, mkMat);
+      const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
       m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
       s.markersGroup.add(m);
     } else {
       universities.forEach(uni => {
-        const m = new THREE.Mesh(mkGeo, mkMat);
+        const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
         m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
         s.markersGroup.add(m);
       });
@@ -678,15 +731,13 @@ export default function Globe({
 
     const focusedProjectMarker = focusMarkerRef.current;
     if (focusedProjectMarker) {
-      const focusGeo = new THREE.SphereGeometry(1.6, 12, 12);
-      const focusMat = new THREE.MeshBasicMaterial({
-        color: new THREE.Color(
+      const focusMesh = createMarkerNode({
+        color:
           focusedProjectMarker.color ??
-            selectedUniversity?.color ??
-            "#000000"
-        ),
+          selectedUniversity?.color ??
+          "#000000",
+        radius: 1.7,
       });
-      const focusMesh = new THREE.Mesh(focusGeo, focusMat);
       focusMesh.position.copy(
         toVec3(
           focusedProjectMarker.markerOffset.lat,
@@ -700,14 +751,11 @@ export default function Globe({
 
     // Project markers for selected university
     if (selectedUniversity) {
-      const projGeo = new THREE.SphereGeometry(1.4, 12, 12);
-      const projMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(selectedUniversity.color) });
-
       selectedUniversity.projects.forEach(project => {
         const { lat, lng } = project.markerOffset;
         // Skip if project is at the same location as the university
         if (Math.abs(lat - selectedUniversity.lat) < 0.01 && Math.abs(lng - selectedUniversity.lng) < 0.01) return;
-        const m = new THREE.Mesh(projGeo, projMat);
+        const m = createMarkerNode({ color: selectedUniversity.color, radius: 1.4 });
         m.position.copy(toVec3(lat, lng, R + 1));
         s.markersGroup.add(m);
       });
@@ -718,7 +766,7 @@ export default function Globe({
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full"
+      className="relative h-full w-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
       style={{
         touchAction: "none",
         transform: verticalOffset ? `translateY(${verticalOffset}px)` : undefined,
@@ -758,6 +806,7 @@ export default function Globe({
             "label" in project && typeof project.label === "string"
               ? project.label
               : project.title;
+          const isFocusMarkerLabel = Boolean(focusMarker);
 
           return (
             <div
@@ -768,15 +817,27 @@ export default function Globe({
               className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap"
               style={{
                 opacity: 0,
-                transition: "transform 800ms ease-out, opacity 400ms ease-out",
+                transition: isFocusMarkerLabel
+                  ? "opacity 400ms ease-out"
+                  : "transform 800ms ease-out, opacity 400ms ease-out",
               }}
             >
               <span
-                className="text-[8px] font-bold uppercase tracking-[0.08em] px-1.5 py-0.5 rounded-sm"
+                className={
+                  isFocusMarkerLabel
+                    ? "px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
+                    : "rounded-sm px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em]"
+                }
                 style={{
-                  color: focusMarker?.color ?? selectedUniversity?.color ?? "#000",
-                  backgroundColor: "rgba(255,255,255,0.85)",
-                  border: `1px solid ${focusMarker?.color ?? selectedUniversity?.color ?? "#000"}`,
+                  color: isFocusMarkerLabel
+                    ? "#ffffff"
+                    : focusMarker?.color ?? selectedUniversity?.color ?? "#000",
+                  backgroundColor: isFocusMarkerLabel
+                    ? "rgba(0, 0, 0, 0.88)"
+                    : "rgba(255,255,255,0.85)",
+                  border: isFocusMarkerLabel
+                    ? "none"
+                    : `1px solid ${focusMarker?.color ?? selectedUniversity?.color ?? "#000"}`,
                 }}
               >
                 {projectLabel}
