@@ -64,6 +64,32 @@ body {
   min-height: inherit;
 }
 
+.project-body .bn-block-content[data-content-type="numberedListItem"]::before {
+  content: attr(data-index) ".";
+}
+
+.project-body .bn-block-content[data-content-type="bulletListItem"]::before {
+  content: "•";
+}
+
+.project-body .bn-block-content[data-content-type="numberedListItem"]::before,
+.project-body .bn-block-content[data-content-type="bulletListItem"]::before {
+  display: inline-flex;
+  width: 1.75rem;
+  min-width: 1.75rem;
+  justify-content: center;
+  align-items: flex-start;
+  padding-right: 0.35rem;
+  padding-top: 0.12rem;
+  height: auto;
+  color: rgba(37, 37, 37, 0.62);
+  flex: 0 0 1.75rem;
+  overflow: visible;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
 .project-editor-shell {
   position: relative;
 }
@@ -84,9 +110,38 @@ body {
   color: rgba(37, 37, 37, 0.88);
 }
 
-.project-editor-body .bn-editor .bn-block-content[data-is-empty="true"]::before,
-.project-editor-body .bn-editor [data-content-type="paragraph"][data-is-empty="true"]::before {
-  color: rgba(37, 37, 37, 0.3);
+.project-editor-body .bn-editor .bn-block-content[data-is-empty-and-focused="true"]::before,
+.project-editor-body .bn-editor .bn-block-content[data-is-only-empty-block="true"]::before,
+.project-editor-body .bn-editor [data-content-type="paragraph"][data-is-empty-and-focused="true"]::before,
+.project-editor-body .bn-editor [data-content-type="paragraph"][data-is-only-empty-block="true"]::before {
+  color: rgba(37, 37, 37, 0.34) !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-side-menu {
+  gap: 0.18rem;
+}
+
+.project-editor-shell .bn-shadcn .bn-side-menu button {
+  height: 1.7rem !important;
+  width: 1.7rem !important;
+  min-width: 1.7rem !important;
+  padding: 0 !important;
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  border-radius: 999px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: rgba(37, 37, 37, 0.52) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-side-menu button svg {
+  width: 0.95rem !important;
+  height: 0.95rem !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-side-menu button:hover,
+.project-editor-shell .bn-shadcn .bn-side-menu button[data-state="open"] {
+  background: rgba(255, 249, 238, 0.99) !important;
+  color: rgba(37, 37, 37, 0.92) !important;
 }
 
 .project-editor-shell .bn-shadcn .bn-menu-dropdown,
@@ -106,6 +161,7 @@ body {
 
 .project-editor-shell .bn-shadcn .bn-toolbar {
   padding: 0.3rem !important;
+  gap: 0.18rem !important;
 }
 
 .project-editor-shell .bn-shadcn .bn-menu-dropdown,
@@ -113,10 +169,26 @@ body {
   padding: 0.25rem !important;
 }
 
+.project-editor-shell .bn-shadcn .bn-toolbar button,
+.project-editor-shell .bn-shadcn .bn-toolbar [data-slot="select-trigger"] {
+  border: 1px solid rgba(0, 0, 0, 0.08) !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  color: rgba(37, 37, 37, 0.9) !important;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
 .project-editor-shell .bn-shadcn .bn-menu-dropdown button,
 .project-editor-shell .bn-shadcn .bn-toolbar button,
 .project-editor-shell .bn-shadcn .bn-popover-content button {
   border-radius: 0.7rem !important;
+}
+
+.project-editor-shell .bn-shadcn .bn-toolbar button:hover,
+.project-editor-shell .bn-shadcn .bn-toolbar button[data-state="on"],
+.project-editor-shell .bn-shadcn .bn-toolbar button[data-state="open"],
+.project-editor-shell .bn-shadcn .bn-toolbar [data-slot="select-trigger"]:hover {
+  background: rgba(255, 249, 238, 0.99) !important;
+  color: rgba(37, 37, 37, 0.95) !important;
 }
 
 .project-editor-shell .bn-shadcn .bn-file-block-content-wrapper {

@@ -19,7 +19,6 @@ import CardCropOverlay from "@/components/portal/CardCropOverlay";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
 import TagEditor from "@/components/portal/TagEditor";
-import SettingsPanel from "@/components/portal/SettingsPanel";
 import type { ProjectDocument, University } from "@/types";
 
 type SaveMode = "draft" | "publish";
@@ -127,6 +126,10 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
       message,
     });
   }, []);
+  const uploadBodyAsset = useCallback(
+    (file: File) => uploadAsset(file, "projects/body"),
+    []
+  );
   const appendGalleryItems = useCallback((items: ProjectDocument["gallery"]) => {
     if (!items.length) return;
 
@@ -555,7 +558,7 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
           <BlockNoteDocument
             body={body}
             editable={!writesDisabled}
-            uploadFile={uploadAsset}
+            uploadFile={uploadBodyAsset}
             onChange={setBody}
             className="project-body project-editor-body min-h-[420px]"
             resetKey={currentSlug ?? "new-project"}
@@ -568,16 +571,6 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
           <TagEditor
             tags={project.tags}
             onChange={(tags) => patchProject("tags", tags)}
-            disabled={writesDisabled}
-          />
-
-          {/* Divider */}
-          <div className="my-8 h-px bg-black/8" />
-
-          {/* Settings panel (collapsible) */}
-          <SettingsPanel
-            project={project}
-            onPatch={patchProject}
             disabled={writesDisabled}
           />
       </div>

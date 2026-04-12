@@ -37,6 +37,15 @@ const PROJECT_SLASH_MENU_KEYS = new Set([
   "image",
 ]);
 
+function isBodyEffectivelyEmpty(body: ProjectBody) {
+  if (body.length !== 1) return false;
+
+  const [firstBlock] = body;
+  if (!firstBlock || firstBlock.type !== "paragraph") return false;
+
+  return !firstBlock.content?.length;
+}
+
 function UploadWidthClamp() {
   const editor = useBlockNoteEditor();
 
@@ -80,6 +89,7 @@ export default function BlockNoteDocument({
   className,
   resetKey = "default",
 }: BlockNoteDocumentProps) {
+  const shouldAutoFocus = editable && isBodyEffectivelyEmpty(body);
   const editor = useCreateBlockNote(
     {
       initialContent: body as PartialBlock[],
@@ -91,8 +101,16 @@ export default function BlockNoteDocument({
   return (
     <BlockNoteView
       editor={editor}
+      theme="light"
       editable={editable}
+      autoFocus={shouldAutoFocus}
+      formattingToolbar={editable}
+      linkToolbar={editable}
       className={className}
+      sideMenu={editable}
+      filePanel={editable}
+      tableHandles={editable}
+      emojiPicker={editable}
       slashMenu={false}
       onChange={onChange ? (instance) => onChange(instance.document as ProjectBody) : undefined}
     >
