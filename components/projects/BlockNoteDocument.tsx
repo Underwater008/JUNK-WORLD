@@ -2,18 +2,17 @@
 
 import "@blocknote/core/fonts/inter.css";
 
-import { filterSuggestionItems } from "@blocknote/core/extensions";
 import { BlockNoteView } from "@blocknote/shadcn";
 import type { PartialBlock } from "@blocknote/core";
 import {
-  getDefaultReactSlashMenuItems,
-  SuggestionMenuController,
+  BlockNoteViewEditor,
   useBlockNoteEditor,
   useCreateBlockNote,
   useOnUploadEnd,
 } from "@blocknote/react";
 import type { ProjectBody } from "@/types";
-import ProjectSlashMenu from "@/components/projects/ProjectSlashMenu";
+import ProjectFormattingToolbar from "@/components/projects/ProjectFormattingToolbar";
+import { PROJECT_BODY_EDITOR_SCHEMA } from "@/components/projects/ProjectBodyImageBlock";
 
 interface BlockNoteDocumentProps {
   body: ProjectBody;
@@ -24,26 +23,13 @@ interface BlockNoteDocumentProps {
   resetKey?: string;
 }
 
-const PROJECT_SLASH_MENU_KEYS = new Set([
-  "paragraph",
-  "heading",
-  "heading_2",
-  "heading_3",
-  "bullet_list",
-  "numbered_list",
-  "check_list",
-  "quote",
-  "divider",
-  "image",
-]);
-
 function isBodyEffectivelyEmpty(body: ProjectBody) {
   if (body.length !== 1) return false;
 
   const [firstBlock] = body;
   if (!firstBlock || firstBlock.type !== "paragraph") return false;
 
-  return !firstBlock.content?.length;
+  return !Array.isArray(firstBlock.content) || firstBlock.content.length === 0;
 }
 
 function UploadWidthClamp() {
@@ -93,7 +79,12 @@ export default function BlockNoteDocument({
   const editor = useCreateBlockNote(
     {
       initialContent: body as PartialBlock[],
+      schema: PROJECT_BODY_EDITOR_SCHEMA,
       uploadFile,
+      placeholders: {
+        default: "",
+        emptyDocument: "",
+      },
     },
     [resetKey]
   );
@@ -104,36 +95,25 @@ export default function BlockNoteDocument({
       theme="light"
       editable={editable}
       autoFocus={shouldAutoFocus}
-      formattingToolbar={editable}
+      formattingToolbar={false}
       linkToolbar={editable}
       className={className}
-      sideMenu={editable}
-      filePanel={editable}
+      sideMenu={false}
+      filePanel={false}
       tableHandles={editable}
       emojiPicker={editable}
       slashMenu={false}
+      renderEditor={false}
       onChange={onChange ? (instance) => onChange(instance.document as ProjectBody) : undefined}
     >
       {editable ? (
-        <>
-          <SuggestionMenuController
-            triggerCharacter="/"
-            suggestionMenuComponent={ProjectSlashMenu}
-            getItems={async (query) =>
-              filterSuggestionItems(
-                getDefaultReactSlashMenuItems(editor)
-                  .filter((item) =>
-                    PROJECT_SLASH_MENU_KEYS.has(
-                      ((item as { key?: string }).key ?? "").toLowerCase()
-                    )
-                  ),
-                query
-              )
-            }
-          />
-          <UploadWidthClamp />
-        </>
+        <div className="project-editor-toolbar-shell">
+          <ProjectFormattingToolbar />
+        </div>
       ) : null}
+      <BlockNoteViewEditor>
+        {editable ? <UploadWidthClamp /> : null}
+      </BlockNoteViewEditor>
     </BlockNoteView>
   );
 }
