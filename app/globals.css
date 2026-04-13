@@ -184,6 +184,20 @@ body {
   background: transparent;
 }
 
+.project-editor-body .bn-editor:focus,
+.project-editor-body .bn-editor:focus-visible,
+.project-editor-body .ProseMirror:focus,
+.project-editor-body .ProseMirror:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.project-editor-body .bn-block-content.ProseMirror-selectednode > *,
+.project-editor-body .ProseMirror-selectednode > .bn-block-content > * {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
 .project-editor-toolbar-shell {
   display: flex;
   align-items: center;

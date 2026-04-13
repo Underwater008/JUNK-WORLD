@@ -38,6 +38,7 @@ export interface ProjectEditorHandle {
   publish: () => void;
   appendGalleryItems: (items: ProjectDocument["gallery"]) => void;
   setGalleryItems: (items: ProjectDocument["gallery"]) => void;
+  setMarkerOffset: (markerOffset: ProjectDocument["markerOffset"]) => void;
   savingMode: "draft" | "publish" | null;
 }
 
@@ -144,6 +145,15 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
       gallery: items,
     }));
   }, []);
+  const setMarkerOffset = useCallback(
+    (markerOffset: ProjectDocument["markerOffset"]) => {
+      setProject((current) => ({
+        ...current,
+        markerOffset,
+      }));
+    },
+    []
+  );
 
   const persistProject = useCallback(
     async (nextMode: SaveMode) => {
@@ -266,8 +276,9 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     publish: () => void persistProject("publish"),
     appendGalleryItems,
     setGalleryItems,
+    setMarkerOffset,
     savingMode,
-  }), [appendGalleryItems, persistProject, savingMode, setGalleryItems]);
+  }), [appendGalleryItems, persistProject, savingMode, setGalleryItems, setMarkerOffset]);
 
   useEffect(() => {
     onSavingStateChange?.(savingMode);
@@ -521,9 +532,6 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
             universities={universities}
             onUniversityChange={handleUniversityChange}
             onYearChange={(year) => patchProject("year", year)}
-            onMarkerOffsetChange={(markerOffset) =>
-              patchProject("markerOffset", markerOffset)
-            }
             onLocationLabelChange={(label) => patchProject("locationLabel", label)}
             onSlugChange={(slug) => {
               setSlugTouched(true);

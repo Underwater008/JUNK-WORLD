@@ -58,6 +58,10 @@ function getLogoLeft(panel: string) {
   return `${center}%`;
 }
 
+function getShiftedGlobeCenter(globeX: string) {
+  return `${50 + Number.parseFloat(globeX)}%`;
+}
+
 function getAboutGlobePose(panel: string) {
   const panelWidth = Number.parseFloat(panel);
   return { x: `${panelWidth / 2}%`, y: "-18%" };
@@ -287,7 +291,7 @@ function ProjectStageGallery({
           <button
             type="button"
             onClick={() => onExpandedChange?.(true)}
-            className={`group absolute inset-x-8 z-20 flex h-[min(32vh,360px)] items-center justify-center overflow-hidden border border-white/14 bg-[linear-gradient(180deg,rgba(12,12,12,0.94),rgba(3,3,3,0.98))] text-left ${frameTopClass}`}
+            className={`group pointer-events-auto absolute inset-x-8 z-20 flex h-[min(32vh,360px)] items-center justify-center overflow-hidden border border-white/14 bg-[linear-gradient(180deg,rgba(12,12,12,0.94),rgba(3,3,3,0.98))] text-left ${frameTopClass}`}
           >
             <div className="pointer-events-none absolute inset-[18px] border border-dashed border-white/12" />
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.06),transparent_56%)] opacity-70 transition duration-300 group-hover:opacity-100" />
@@ -488,7 +492,7 @@ function ProjectStageGallery({
         onClick={() => onExpandedChange?.(true)}
         layoutId={heroLayoutId}
         transition={galleryHeroTransition}
-        className={`group absolute inset-x-8 z-20 h-[min(32vh,360px)] overflow-hidden border border-white/10 bg-black text-left shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
+        className={`group pointer-events-auto absolute inset-x-8 z-20 h-[min(32vh,360px)] overflow-hidden border border-white/10 bg-black text-left shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
         aria-label={`${galleryCtaLabel} for ${project.title}`}
       >
         <AnimatePresence mode="wait" initial={false}>
@@ -576,11 +580,36 @@ function HomeContent({
     useState<University | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
   const [projectPreviewSlug, setProjectPreviewSlug] = useState<string | null>(null);
+  const [projectOpeningSlug, setProjectOpeningSlug] = useState<string | null>(null);
   const [selectedProjectStageSnapshot, setSelectedProjectStageSnapshot] =
     useState<SelectedProjectStageSnapshot | null>(null);
   const [galleryExpanded, setGalleryExpanded] = useState(false);
+  const [detailExitGlobeState, setDetailExitGlobeState] = useState<{
+    university: University;
+    focusMarker: {
+      id: string;
+      title: string;
+      markerOffset: { lat: number; lng: number };
+      color?: string;
+      label?: string;
+    };
+  } | null>(null);
+  const [globeViewportSnapExit, setGlobeViewportSnapExit] = useState(false);
+  const [panelSnapToAbout, setPanelSnapToAbout] = useState(false);
+  const [globeOverlayActive, setGlobeOverlayActive] = useState(false);
   const selectedProjectStageControllerRef =
     useRef<SelectedProjectStageController | null>(null);
+  const previousShowSelectedProjectStageRef = useRef(false);
+  const previousViewRef = useRef<View>(view);
+  const previousOverlayViewRef = useRef<View>(view);
+  const lastDetailStageUniversityRef = useRef<University | null>(null);
+  const lastDetailStageFocusMarkerRef = useRef<{
+    id: string;
+    title: string;
+    markerOffset: { lat: number; lng: number };
+    color?: string;
+    label?: string;
+  } | null>(null);
   const isProjectsView = view === "projects";
   const isMobile = useIsMobile();
   const selectedProjectSlug = searchParams.get("project");
@@ -607,11 +636,12 @@ function HomeContent({
     [universities]
   );
 
+  const effectiveProjectSlug = selectedProjectSlug ?? projectOpeningSlug;
   const selectedProject =
-    isProjectsView && selectedProjectSlug
+    isProjectsView && effectiveProjectSlug
       ? selectedProjectStageSnapshot?.slug === selectedProjectSlug
         ? selectedProjectStageSnapshot
-        : projectEntries.find((project) => project.slug === selectedProjectSlug) ?? null
+        : projectEntries.find((project) => project.slug === effectiveProjectSlug) ?? null
       : null;
 
   const previewProject =
@@ -634,11 +664,20 @@ function HomeContent({
     : selectedUniversity;
   const showSelectedProjectStage = isProjectsView && Boolean(selectedProject);
   const galleryExpandedActive = showSelectedProjectStage && galleryExpanded;
+  const projectLocationEditable =
+    showSelectedProjectStage &&
+    editorUnlocked &&
+    !writesDisabled &&
+    !galleryExpandedActive;
   const currentPanelWidth = panelWidth[view];
   const activePanelWidth = galleryExpandedActive ? "0%" : currentPanelWidth;
   const currentGlobePose =
     view === "about" ? getAboutGlobePose(activePanelWidth) : globePose[view];
-  const currentLogoLeft = getLogoLeft(activePanelWidth);
+  const currentLogoLeft = galleryExpandedActive
+    ? "50%"
+    : showSelectedProjectStage
+      ? getLogoLeft(activePanelWidth)
+      : getShiftedGlobeCenter(currentGlobePose.x);
   const detailStageUniversity = useMemo(
     () =>
       selectedProject && projectFocusedUniversity
@@ -664,10 +703,38 @@ function HomeContent({
         : null,
     [selectedProject]
   );
+  const previewStageFocusMarker = useMemo(
+    () =>
+      previewProject
+        ? {
+            id: previewProject.id,
+            title: previewProject.title,
+            markerOffset: previewProject.markerOffset,
+            color: previewProject.color,
+            label: previewProject.title,
+          }
+        : null,
+    [previewProject]
+  );
+  const activeGlobeFocusMarker =
+    showSelectedProjectStage ? detailStageFocusMarker : previewStageFocusMarker;
+  const detailGlobeModeActive =
+    showSelectedProjectStage || Boolean(detailExitGlobeState);
   const globeTransition = {
     duration: 0.68,
     ease: [0.22, 1, 0.36, 1] as const,
   };
+  const panelContentTransition = {
+    duration: 0.34,
+    ease: [0.22, 1, 0.36, 1] as const,
+  };
+  const snapGlobePoseForAbout = globeViewportSnapExit && view === "about";
+  const globeViewportTransition = globeViewportSnapExit
+    ? { duration: 0 }
+    : globeTransition;
+  const panelTransition = panelSnapToAbout
+    ? { duration: 0 }
+    : { duration: 0.5, ease };
   const globeViewport = galleryExpandedActive
     ? {
         left: `calc(${currentPanelWidth} / 2)`,
@@ -713,22 +780,36 @@ function HomeContent({
         height: "100%",
         ...currentGlobePose,
       };
-  const globeUniversities = showSelectedProjectStage
-    ? detailStageUniversity
-      ? [detailStageUniversity]
-      : []
+  const globeUniversities = detailGlobeModeActive
+    ? showSelectedProjectStage
+      ? detailStageUniversity
+        ? [detailStageUniversity]
+        : []
+      : detailExitGlobeState
+        ? [detailExitGlobeState.university]
+        : []
     : universities;
-  const globeSelected = showSelectedProjectStage
-    ? detailStageUniversity
+  const globeSelected = detailGlobeModeActive
+    ? showSelectedProjectStage
+      ? detailStageUniversity
+      : detailExitGlobeState?.university ?? null
     : globeSelectedUniversity;
-  const globeHoveredProject = showSelectedProjectStage
+  const globeHoveredProject = detailGlobeModeActive
     ? null
+    : previewProject
+      ? null
     : isProjectsView
       ? focusedProject?.id ?? null
       : hoveredProject;
   const handleGalleryExpandedChange = useCallback((expanded: boolean) => {
     setGalleryExpanded(expanded);
   }, []);
+  const handleFocusMarkerOffsetChange = useCallback(
+    (markerOffset: { lat: number; lng: number }) => {
+      selectedProjectStageControllerRef.current?.setMarkerOffset(markerOffset);
+    },
+    []
+  );
 
   useEffect(() => {
     setView(getViewFromParams(searchParams));
@@ -739,6 +820,99 @@ function HomeContent({
 
     setSelectedProjectStageSnapshot(null);
   }, [isProjectsView, selectedProjectSlug]);
+
+  useEffect(() => {
+    if (!showSelectedProjectStage || !detailStageUniversity || !detailStageFocusMarker) {
+      return;
+    }
+
+    lastDetailStageUniversityRef.current = detailStageUniversity;
+    lastDetailStageFocusMarkerRef.current = detailStageFocusMarker;
+  }, [detailStageFocusMarker, detailStageUniversity, showSelectedProjectStage]);
+
+  useEffect(() => {
+    if (selectedProjectSlug && projectOpeningSlug === selectedProjectSlug) {
+      setProjectOpeningSlug(null);
+      return;
+    }
+
+    if (!selectedProjectSlug && projectOpeningSlug && !isProjectsView) {
+      setProjectOpeningSlug(null);
+    }
+  }, [isProjectsView, projectOpeningSlug, selectedProjectSlug]);
+
+  useEffect(() => {
+    if (
+      previousViewRef.current !== view &&
+      view === "about" &&
+      previousShowSelectedProjectStageRef.current
+    ) {
+      setPanelSnapToAbout(true);
+      const timeoutId = window.setTimeout(() => {
+        setPanelSnapToAbout(false);
+      }, 180);
+      previousViewRef.current = view;
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    previousViewRef.current = view;
+  }, [view]);
+
+  useEffect(() => {
+    if (previousOverlayViewRef.current === view) return;
+
+    setGlobeOverlayActive(true);
+    const timeoutId = window.setTimeout(() => {
+      setGlobeOverlayActive(false);
+    }, 760);
+
+    previousOverlayViewRef.current = view;
+
+    return () => window.clearTimeout(timeoutId);
+  }, [view]);
+
+  useEffect(() => {
+    let exitStateTimeoutId: number | undefined;
+    let viewportSnapTimeoutId: number | undefined;
+
+    if (previousShowSelectedProjectStageRef.current && !showSelectedProjectStage) {
+      if (
+        lastDetailStageUniversityRef.current &&
+        lastDetailStageFocusMarkerRef.current
+      ) {
+        setDetailExitGlobeState({
+          university: lastDetailStageUniversityRef.current,
+          focusMarker: lastDetailStageFocusMarkerRef.current,
+        });
+        exitStateTimeoutId = window.setTimeout(() => {
+          setDetailExitGlobeState(null);
+        }, view === "projects" ? 520 : 420);
+      }
+
+      if (view !== "projects") {
+        setGlobeViewportSnapExit(true);
+        viewportSnapTimeoutId = window.setTimeout(() => {
+          setGlobeViewportSnapExit(false);
+        }, 120);
+      }
+
+      previousShowSelectedProjectStageRef.current = showSelectedProjectStage;
+      return () => {
+        if (viewportSnapTimeoutId !== undefined) {
+          window.clearTimeout(viewportSnapTimeoutId);
+        }
+        if (exitStateTimeoutId !== undefined) {
+          window.clearTimeout(exitStateTimeoutId);
+        }
+      };
+    }
+
+    if (showSelectedProjectStage) {
+      setDetailExitGlobeState(null);
+    }
+
+    previousShowSelectedProjectStageRef.current = showSelectedProjectStage;
+  }, [showSelectedProjectStage, view]);
 
   useEffect(() => {
     setGalleryExpanded(false);
@@ -784,6 +958,7 @@ function HomeContent({
       setSelectedUniversity(null);
       setHoveredProject(null);
       setProjectPreviewSlug(null);
+      setProjectOpeningSlug(null);
       if (view === "projects" || newView === "projects") {
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       }
@@ -873,10 +1048,15 @@ function HomeContent({
       <div className="relative flex flex-1 overflow-hidden">
         <div className="absolute inset-0 bg-black" />
         <motion.div
-          className="absolute overflow-hidden"
+          className={`absolute ${
+            showSelectedProjectStage || galleryExpandedActive
+              ? "overflow-hidden"
+              : "overflow-visible"
+          }`}
           initial={false}
           animate={globeViewport}
-          transition={globeTransition}
+          transition={globeViewportTransition}
+          style={{ pointerEvents: globeOverlayActive ? "none" : undefined }}
         >
           <motion.div
             className="absolute"
@@ -889,18 +1069,20 @@ function HomeContent({
               selectedUniversity={globeSelected}
               onSelectUniversity={setSelectedUniversity}
               hoveredProject={globeHoveredProject}
-              compact={showSelectedProjectStage ? false : isCompact}
+              compact={detailGlobeModeActive ? false : isCompact}
               allowDragInCompact={false}
-              hideLabels={showSelectedProjectStage}
+              hideLabels={detailGlobeModeActive}
               soloLabelId={
                 showSelectedProjectStage
                   ? undefined
                   : isProjectsView
-                    ? (projectFocusedUniversity ?? selectedUniversity)?.id
+                    ? focusedProject
+                      ? undefined
+                      : selectedUniversity?.id
                     : undefined
               }
               maxLabels={
-                showSelectedProjectStage
+                detailGlobeModeActive
                   ? undefined
                   : isProjectsView
                     ? projectFocusedUniversity || selectedUniversity
@@ -908,20 +1090,55 @@ function HomeContent({
                       : 7
                     : undefined
               }
-              disableAutoRotate={showSelectedProjectStage}
-              disableDrag={showSelectedProjectStage}
-              hideSelectedUniversityMarker={showSelectedProjectStage}
+              disableAutoRotate={detailGlobeModeActive}
+              disableDrag={detailGlobeModeActive && !projectLocationEditable}
+              hideSelectedUniversityMarker={detailGlobeModeActive}
               scale={
-                galleryExpandedActive
+                snapGlobePoseForAbout
+                  ? 1
+                  : galleryExpandedActive
                   ? 1.12
-                  : showSelectedProjectStage
+                  : detailGlobeModeActive
                     ? 1.24
                     : undefined
               }
-              verticalOffset={galleryExpandedActive ? 72 : showSelectedProjectStage ? 72 : 0}
-              cameraY={galleryExpandedActive ? 18 : showSelectedProjectStage ? 18 : 40}
-              focusTargetYOffset={galleryExpandedActive ? 0.48 : showSelectedProjectStage ? 0.48 : 0}
-              focusMarker={showSelectedProjectStage ? detailStageFocusMarker : null}
+              verticalOffset={
+                snapGlobePoseForAbout
+                  ? 0
+                  : galleryExpandedActive
+                    ? 72
+                    : detailGlobeModeActive
+                      ? 72
+                      : 0
+              }
+              cameraY={
+                snapGlobePoseForAbout
+                  ? 40
+                  : galleryExpandedActive
+                    ? 18
+                    : detailGlobeModeActive
+                      ? 18
+                      : 40
+              }
+              focusTargetYOffset={
+                snapGlobePoseForAbout
+                  ? 0
+                  : galleryExpandedActive
+                    ? 0.48
+                    : detailGlobeModeActive
+                      ? 0.48
+                      : 0
+              }
+              focusMarker={
+                showSelectedProjectStage
+                  ? detailStageFocusMarker
+                  : detailExitGlobeState?.focusMarker ?? activeGlobeFocusMarker
+              }
+              editableFocusMarker={showSelectedProjectStage && projectLocationEditable}
+              onFocusMarkerOffsetChange={
+                projectLocationEditable ? handleFocusMarkerOffsetChange : undefined
+              }
+              snapPose={snapGlobePoseForAbout}
             />
           </motion.div>
         </motion.div>
@@ -948,6 +1165,7 @@ function HomeContent({
                 left: globeTransition,
                 width: globeTransition,
               }}
+              style={{ pointerEvents: projectLocationEditable ? "none" : "auto" }}
             >
               <SelectedProjectStage
                 project={selectedProject}
@@ -961,30 +1179,41 @@ function HomeContent({
         </AnimatePresence>
 
         <motion.div
-          className="relative z-20 shrink-0 overflow-hidden bg-[var(--ink-wash-200)]"
+          className="pointer-events-none absolute inset-y-0 left-0 z-10 overflow-hidden bg-[var(--ink-wash-200)]"
           initial={false}
           animate={{
             width: activePanelWidth,
             x: galleryExpandedActive ? "-6%" : "0%",
             opacity: galleryExpandedActive ? 0 : 1,
-            borderRightWidth: galleryExpandedActive ? 0 : 2,
           }}
-          transition={{ duration: 0.5, ease }}
+          transition={panelTransition}
+        />
+
+        <motion.div
+          className="relative z-20 shrink-0 overflow-hidden"
+          initial={false}
+          animate={{
+            width: activePanelWidth,
+            x: galleryExpandedActive ? "-6%" : "0%",
+            opacity: galleryExpandedActive ? 0 : 1,
+            borderRightWidth: galleryExpandedActive || panelSnapToAbout ? 0 : 2,
+          }}
+          transition={panelTransition}
           style={{
+            pointerEvents: galleryExpandedActive ? "none" : "auto",
             borderRightStyle: "solid",
             borderRightColor: "#000",
-            pointerEvents: galleryExpandedActive ? "none" : "auto",
           }}
         >
-          <AnimatePresence mode="wait">
+          <AnimatePresence initial={false} mode="sync">
             {view === "about" && (
               <motion.div
                 key="about"
-                className="h-full"
-                initial={{ opacity: 0, x: -40 }}
+                className="absolute inset-0 h-full"
+                initial={{ opacity: 0, x: 28 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.35, ease: "easeOut", delay: 0.15 }}
+                exit={{ opacity: 0, x: -28 }}
+                transition={panelContentTransition}
               >
                 <AboutContent />
               </motion.div>
@@ -992,11 +1221,11 @@ function HomeContent({
             {view === "projects" && (
               <motion.div
                 key="archive"
-                className="h-full"
-                initial={{ opacity: 0, x: -40 }}
+                className="absolute inset-0 h-full"
+                initial={{ opacity: 0, x: 28 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.25, ease: "easeOut" }}
+                exit={{ opacity: 0, x: -28 }}
+                transition={panelContentTransition}
               >
                 <ArchiveView
                   universities={universities}
@@ -1004,6 +1233,8 @@ function HomeContent({
                   selectedUniversity={selectedUniversity}
                   onSelectUniversity={setSelectedUniversity}
                   onPreviewProjectChange={setProjectPreviewSlug}
+                  onProjectOpenStart={setProjectOpeningSlug}
+                  previewProjectSlug={projectPreviewSlug}
                   onSelectedProjectStageChange={setSelectedProjectStageSnapshot}
                   selectedProjectStageControllerRef={selectedProjectStageControllerRef}
                   editorSessionAvailable={editorSessionAvailable}
@@ -1014,11 +1245,11 @@ function HomeContent({
             {view === "members" && (
               <motion.div
                 key="members"
-                className="h-full"
-                initial={{ opacity: 0, x: -40 }}
+                className="absolute inset-0 h-full"
+                initial={{ opacity: 0, x: 28 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -40 }}
-                transition={{ duration: 0.35, ease: "easeOut", delay: 0.15 }}
+                exit={{ opacity: 0, x: -28 }}
+                transition={panelContentTransition}
               >
                 <MembersContent onSelectMember={handleSelectMember} />
               </motion.div>

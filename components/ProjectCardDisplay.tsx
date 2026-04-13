@@ -24,6 +24,7 @@ interface ProjectCardDisplayProps {
   onPreviewEnd?: () => void;
   showBadges?: boolean;
   isActive?: boolean;
+  isSuppressed?: boolean;
 }
 
 export default function ProjectCardDisplay({
@@ -34,6 +35,7 @@ export default function ProjectCardDisplay({
   onPreviewEnd,
   showBadges = false,
   isActive = false,
+  isSuppressed = false,
 }: ProjectCardDisplayProps) {
   const hasThumbnail = Boolean(project.thumbnail);
 
@@ -41,18 +43,27 @@ export default function ProjectCardDisplay({
     <motion.button
       type="button"
       initial={{ opacity: 0, y: 14 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35, delay: index * 0.035 }}
+      animate={{
+        opacity: isSuppressed ? 0 : 1,
+        y: 0,
+        scale: isSuppressed ? 0.985 : 1,
+      }}
+      transition={{
+        opacity: { duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: index * 0.035 },
+        y: { duration: 0.35, delay: index * 0.035 },
+        scale: { duration: 0.22, ease: [0.22, 1, 0.36, 1], delay: index * 0.035 },
+      }}
       onClick={onSelect}
       onMouseEnter={onPreview}
       onMouseLeave={onPreviewEnd}
       onFocus={onPreview}
       onBlur={onPreviewEnd}
+      style={{ pointerEvents: isSuppressed ? "none" : "auto" }}
       className={`group relative flex flex-col overflow-hidden border border-black text-left transition-all ${
         isActive
-          ? "translate-x-[1px] translate-y-[1px] shadow-[2px_2px_0_#000]"
+          ? "z-10 -translate-y-[2px] shadow-[4px_4px_0_#000]"
           : "hover:-translate-y-[2px] hover:shadow-[4px_4px_0_#000]"
-      }`}
+      } ${isSuppressed ? "shadow-none" : ""}`}
     >
       {/* Image area */}
       <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-black">

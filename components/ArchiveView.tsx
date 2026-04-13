@@ -74,6 +74,7 @@ export type SelectedProjectStageSnapshot = {
 export type SelectedProjectStageController = {
   uploadGalleryFiles: (files: File[]) => Promise<void>;
   setGalleryItems: (items: ProjectGalleryItem[]) => void;
+  setMarkerOffset: (markerOffset: ProjectMarkerOffset) => void;
 };
 
 interface ArchiveViewProps {
@@ -82,6 +83,8 @@ interface ArchiveViewProps {
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   onPreviewProjectChange: (slug: string | null) => void;
+  onProjectOpenStart?: (slug: string) => void;
+  previewProjectSlug?: string | null;
   onSelectedProjectStageChange?: (project: SelectedProjectStageSnapshot | null) => void;
   selectedProjectStageControllerRef?: MutableRefObject<SelectedProjectStageController | null>;
   editorSessionAvailable: boolean;
@@ -313,6 +316,8 @@ export default function ArchiveView({
   selectedUniversity,
   onSelectUniversity,
   onPreviewProjectChange,
+  onProjectOpenStart,
+  previewProjectSlug = null,
   onSelectedProjectStageChange,
   selectedProjectStageControllerRef,
   editorSessionAvailable,
@@ -329,6 +334,8 @@ export default function ArchiveView({
   const [projectSavingMode, setProjectSavingMode] = useState<"draft" | "publish" | null>(null);
   const [projectIsDirty, setProjectIsDirty] = useState(false);
   const projectEditorRef = useRef<ProjectEditorHandle>(null);
+  const previewClearTimeoutRef = useRef<number | null>(null);
+  const previewProjectSlugRef = useRef<string | null>(previewProjectSlug);
   const baseUniversitiesById = useMemo(
     () => new Map(baseUniversities.map((university) => [university.id, university])),
     [baseUniversities]
@@ -461,23 +468,6 @@ export default function ArchiveView({
             project.slug === activeEditorProjectState.routeSlug
         ) ?? null
       : null);
-  const selectedProjectStageSnapshot = useMemo<SelectedProjectStageSnapshot | null>(() => {
-    if (!selectedProject) return null;
-
-    return {
-      id: selectedProject.id,
-      slug: selectedProject.slug,
-      universityId: selectedProject.universityId,
-      title: selectedProject.title,
-      universityName: selectedProject.university,
-      shortName: selectedProject.shortName,
-      color: selectedProject.color,
-      locationLabel: selectedProject.locationLabel,
-      gallery: selectedProject.document?.gallery ?? [],
-      markerOffset:
-        selectedProject.document?.markerOffset ?? { lat: 0, lng: 0 },
-    };
-  }, [selectedProject]);
   const selectedProjectIndex = selectedProject
     ? filteredProjects.findIndex((project) => project.slug === selectedProject.slug)
     : -1;
@@ -502,8 +492,36 @@ export default function ArchiveView({
     : "/?view=projects";
 
   useEffect(() => {
-    onSelectedProjectStageChange?.(selectedProjectStageSnapshot);
-  }, [onSelectedProjectStageChange, selectedProjectStageSnapshot]);
+    onSelectedProjectStageChange?.(
+      selectedProject
+        ? {
+            id: selectedProject.id,
+            slug: selectedProject.slug,
+            universityId: selectedProject.universityId,
+            title: selectedProject.title,
+            universityName: selectedProject.university,
+            shortName: selectedProject.shortName,
+            color: selectedProject.color,
+            locationLabel: selectedProject.locationLabel,
+            gallery: selectedProject.document?.gallery ?? [],
+            markerOffset:
+              selectedProject.document?.markerOffset ?? { lat: 0, lng: 0 },
+          }
+        : null
+    );
+  }, [onSelectedProjectStageChange, selectedProject]);
+
+  useEffect(() => {
+    previewProjectSlugRef.current = previewProjectSlug;
+  }, [previewProjectSlug]);
+
+  useEffect(() => {
+    return () => {
+      if (previewClearTimeoutRef.current !== null) {
+        window.clearTimeout(previewClearTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectStageControllerRef) return;
@@ -528,6 +546,9 @@ export default function ArchiveView({
       },
       setGalleryItems: (items) => {
         projectEditorRef.current?.setGalleryItems(items);
+      },
+      setMarkerOffset: (markerOffset) => {
+        projectEditorRef.current?.setMarkerOffset(markerOffset);
       },
     };
 
@@ -589,6 +610,8 @@ export default function ArchiveView({
   }
 
   function handleSelectProject(slug: string) {
+    handleProjectPreviewStart(slug);
+    onProjectOpenStart?.(slug);
     replaceQuery((params) => {
       params.set("view", "projects");
       if (params.get("project") === slug) {
@@ -605,7 +628,13 @@ export default function ArchiveView({
       setProjectIsDirty(false);
     }
 
-    onPreviewProjectChange(null);
+    if (selectedProject?.slug) {
+      handleProjectPreviewStart(selectedProject.slug);
+      schedulePreviewClear(520);
+    } else {
+      onPreviewProjectChange(null);
+    }
+
     replaceQuery((params) => {
       params.delete("project");
     });
@@ -643,6 +672,38 @@ export default function ArchiveView({
 
   function handleCloseUniversityEditor() {
     setEditingUniversityId(null);
+  }
+
+  function handleProjectPreviewStart(slug: string) {
+    if (previewClearTimeoutRef.current !== null) {
+      window.clearTimeout(previewClearTimeoutRef.current);
+      previewClearTimeoutRef.current = null;
+    }
+    onPreviewProjectChange(slug);
+  }
+
+  function handleProjectPreviewEnd(slug: string) {
+    if (previewClearTimeoutRef.current !== null) {
+      window.clearTimeout(previewClearTimeoutRef.current);
+    }
+
+    previewClearTimeoutRef.current = window.setTimeout(() => {
+      if (previewProjectSlugRef.current === slug) {
+        onPreviewProjectChange(null);
+      }
+      previewClearTimeoutRef.current = null;
+    }, 120);
+  }
+
+  function schedulePreviewClear(delay = 120) {
+    if (previewClearTimeoutRef.current !== null) {
+      window.clearTimeout(previewClearTimeoutRef.current);
+    }
+
+    previewClearTimeoutRef.current = window.setTimeout(() => {
+      onPreviewProjectChange(null);
+      previewClearTimeoutRef.current = null;
+    }, delay);
   }
 
   function handleUniversitySaved(savedId: string) {
@@ -962,9 +1023,10 @@ export default function ArchiveView({
                       }}
                       index={index}
                       onSelect={() => handleSelectProject(project.slug)}
-                      onPreview={() => onPreviewProjectChange(project.slug)}
-                      onPreviewEnd={() => onPreviewProjectChange(null)}
+                      onPreview={() => handleProjectPreviewStart(project.slug)}
+                      onPreviewEnd={() => handleProjectPreviewEnd(project.slug)}
                       showBadges={editorUnlocked}
+                      isActive={previewProjectSlug === project.slug}
                     />
                   ))}
                 </div>

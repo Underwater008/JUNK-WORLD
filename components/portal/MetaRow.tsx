@@ -13,7 +13,6 @@ interface MetaRowProps {
   universities: University[];
   onUniversityChange: (universityId: string) => void;
   onYearChange: (year: number) => void;
-  onMarkerOffsetChange: (markerOffset: ProjectMarkerOffset) => void;
   onLocationLabelChange: (label: string) => void;
   onSlugChange: (slug: string) => void;
   disabled?: boolean;
@@ -29,7 +28,6 @@ export default function MetaRow({
   universities,
   onUniversityChange,
   onYearChange,
-  onMarkerOffsetChange,
   onLocationLabelChange,
   onSlugChange,
   disabled = false,
@@ -126,8 +124,8 @@ export default function MetaRow({
                     Edit core metadata.
                   </h3>
                   <p className="mt-3 max-w-lg text-sm leading-6 text-black/60">
-                    Set the university, year, location, globe coordinates, and URL slug without
-                    crowding the writing surface.
+                    Set the university, year, location, and URL slug here. Adjust the globe
+                    position directly on the project view while editing.
                   </p>
                 </div>
                 <button
@@ -194,45 +192,27 @@ export default function MetaRow({
                       Globe position
                     </p>
                     <p className="mt-2 text-sm leading-6 text-black/58">
-                      Fine-tune where the project sits on the globe. Use decimals for precise
-                      placement.
+                      Drag the globe on the project page while editing. The marker stays fixed
+                      and the coordinates update from that interaction instead of this panel.
                     </p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="flex flex-col gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
+                    <div className="border border-black/10 bg-white px-3 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
                         Latitude
-                      </span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={markerOffset.lat}
-                        onChange={(e) =>
-                          onMarkerOffsetChange({
-                            ...markerOffset,
-                            lat: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="border border-black/15 bg-white px-3 py-3 text-sm text-black outline-none transition focus:border-black"
-                      />
-                    </label>
-                    <label className="flex flex-col gap-2">
-                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
+                      </p>
+                      <p className="mt-2 text-sm text-black">
+                        {markerOffset.lat.toFixed(4)}
+                      </p>
+                    </div>
+                    <div className="border border-black/10 bg-white px-3 py-3">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
                         Longitude
-                      </span>
-                      <input
-                        type="number"
-                        step="0.0001"
-                        value={markerOffset.lng}
-                        onChange={(e) =>
-                          onMarkerOffsetChange({
-                            ...markerOffset,
-                            lng: Number(e.target.value) || 0,
-                          })
-                        }
-                        className="border border-black/15 bg-white px-3 py-3 text-sm text-black outline-none transition focus:border-black"
-                      />
-                    </label>
+                      </p>
+                      <p className="mt-2 text-sm text-black">
+                        {markerOffset.lng.toFixed(4)}
+                      </p>
+                    </div>
                   </div>
                 </div>
 

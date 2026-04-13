@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
 import { feature } from "topojson-client";
 import type { ProjectMarkerOffset, University } from "@/types";
@@ -32,6 +32,20 @@ function toVec3(lat: number, lng: number, radius: number): THREE.Vector3 {
     radius * Math.cos(phi),
     radius * Math.sin(phi) * Math.sin(theta)
   );
+}
+
+function toLatLng(vec: THREE.Vector3): ProjectMarkerOffset {
+  const point = vec.clone().normalize();
+  return {
+    lat: THREE.MathUtils.radToDeg(
+      Math.asin(THREE.MathUtils.clamp(point.y, -1, 1))
+    ),
+    lng: THREE.MathUtils.radToDeg(Math.atan2(-point.z, point.x)),
+  };
+}
+
+function getFocusTargetVector(focusTargetYOffset: number) {
+  return new THREE.Vector3(0, focusTargetYOffset, 1).normalize();
 }
 
 function createDefaultRotationQuaternion() {
@@ -81,7 +95,7 @@ function getFocusQuaternion({
   focusMarker: GlobeProps["focusMarker"];
   focusTargetYOffset: number;
 }) {
-  const front = new THREE.Vector3(0, focusTargetYOffset, 1).normalize();
+  const front = getFocusTargetVector(focusTargetYOffset);
 
   if (focusMarker) {
     const pointDir = toVec3(
@@ -139,6 +153,9 @@ interface GlobeProps {
   hideProjectLabels?: boolean;
   hideSelectedUniversityMarker?: boolean;
   focusTargetYOffset?: number;
+  editableFocusMarker?: boolean;
+  onFocusMarkerOffsetChange?: (markerOffset: ProjectMarkerOffset) => void;
+  snapPose?: boolean;
 }
 
 export default function Globe({
@@ -159,10 +176,21 @@ export default function Globe({
   hideProjectLabels = false,
   hideSelectedUniversityMarker = false,
   focusTargetYOffset = 0,
+  editableFocusMarker = false,
+  onFocusMarkerOffsetChange,
+  snapPose = false,
 }: GlobeProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
   const projectLabelsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const editableFocusMarkerRef = useRef(editableFocusMarker);
+  const onFocusMarkerOffsetChangeRef = useRef(onFocusMarkerOffsetChange);
+  const editableFocusMarkerGroupRef = useRef<HTMLDivElement | null>(null);
+  const editableMarkerOffsetRef = useRef<ProjectMarkerOffset | null>(
+    focusMarker?.markerOffset ?? null
+  );
+  const [editableMarkerOffset, setEditableMarkerOffset] =
+    useState<ProjectMarkerOffset | null>(focusMarker?.markerOffset ?? null);
 
   // Scene state refs
   const sceneRef = useRef<{
@@ -215,6 +243,8 @@ export default function Globe({
     hideSelectedUniversityMarkerRef.current = hideSelectedUniversityMarker;
     focusTargetYOffsetRef.current = focusTargetYOffset;
     cameraYRef.current = cameraY;
+    editableFocusMarkerRef.current = editableFocusMarker;
+    onFocusMarkerOffsetChangeRef.current = onFocusMarkerOffsetChange;
 
     const s = sceneRef.current;
     if (s && s.renderer) {
@@ -242,7 +272,41 @@ export default function Globe({
     hideSelectedUniversityMarker,
     focusTargetYOffset,
     cameraY,
+    editableFocusMarker,
+    onFocusMarkerOffsetChange,
   ]);
+
+  useEffect(() => {
+    if (!editableFocusMarker) {
+      editableMarkerOffsetRef.current = null;
+      const frameId = window.requestAnimationFrame(() => {
+        setEditableMarkerOffset(null);
+      });
+      return () => window.cancelAnimationFrame(frameId);
+    }
+
+    const nextOffset = focusMarker?.markerOffset ?? null;
+    editableMarkerOffsetRef.current = nextOffset;
+
+    if (sceneRef.current?.drag.active) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      setEditableMarkerOffset(nextOffset);
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [editableFocusMarker, focusMarker]);
+
+  useEffect(() => {
+    const s = sceneRef.current;
+    if (!s || !snapPose) return;
+
+    const targetScale = scale ?? (compact ? 1.0 : 1.15);
+    s.globe.scale.setScalar(targetScale);
+    s.camera.position.y = cameraY;
+    s.camera.updateProjectionMatrix();
+  }, [cameraY, compact, scale, snapPose]);
 
   // Focus on selected university or hovered project
   useEffect(() => {
@@ -397,11 +461,69 @@ export default function Globe({
 
     // 4. Interaction Handlers
     
+    const updateEditableMarkerOffset = (commit = false) => {
+      const activeScene = sceneRef.current;
+      if (
+        !activeScene ||
+        !editableFocusMarkerRef.current ||
+        !focusMarkerRef.current
+      ) {
+        return;
+      }
+
+      const focusTarget = getFocusTargetVector(focusTargetYOffsetRef.current);
+      const pointDir = focusTarget
+        .clone()
+        .applyQuaternion(activeScene.rot.clone().invert())
+        .normalize();
+      const nextOffset = toLatLng(pointDir);
+
+      editableMarkerOffsetRef.current = nextOffset;
+      setEditableMarkerOffset((current) => {
+        if (
+          current &&
+          Math.abs(current.lat - nextOffset.lat) < 0.0001 &&
+          Math.abs(current.lng - nextOffset.lng) < 0.0001
+        ) {
+          return current;
+        }
+        return nextOffset;
+      });
+
+      if (commit) {
+        onFocusMarkerOffsetChangeRef.current?.(nextOffset);
+      }
+    };
+
+    const isPointerOverGlobe = (clientX: number, clientY: number) => {
+      const activeScene = sceneRef.current;
+      if (!activeScene) return false;
+
+      const rect = activeScene.renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return false;
+
+      const center = new THREE.Vector3(0, 0, 0).project(activeScene.camera);
+      const edge = new THREE.Vector3(
+        R * activeScene.globe.scale.x,
+        0,
+        0
+      ).project(activeScene.camera);
+
+      const centerX = rect.left + (center.x * 0.5 + 0.5) * rect.width;
+      const centerY = rect.top + (-center.y * 0.5 + 0.5) * rect.height;
+      const edgeX = rect.left + (edge.x * 0.5 + 0.5) * rect.width;
+      const edgeY = rect.top + (-edge.y * 0.5 + 0.5) * rect.height;
+      const radius = Math.hypot(edgeX - centerX, edgeY - centerY);
+
+      return Math.hypot(clientX - centerX, clientY - centerY) <= radius;
+    };
+
     const onDown = (e: PointerEvent) => {
       if (
         disableDragRef.current ||
         (compactRef.current && !allowDragInCompactRef.current) ||
-        !sceneRef.current
+        !sceneRef.current ||
+        !isPointerOverGlobe(e.clientX, e.clientY)
       ) {
         return;
       }
@@ -411,14 +533,20 @@ export default function Globe({
     
     const onUp = () => {
       if (!sceneRef.current) return;
+      const wasDragging = sceneRef.current.drag.active;
       sceneRef.current.drag.active = false;
       if (
         !disableDragRef.current &&
-        (!compactRef.current || allowDragInCompactRef.current)
+        (!compactRef.current || allowDragInCompactRef.current) &&
+        isPointerOverGlobe(sceneRef.current.drag.x, sceneRef.current.drag.y)
       ) {
         el.style.cursor = "grab";
       } else {
         el.style.cursor = "default";
+      }
+
+      if (wasDragging && editableFocusMarkerRef.current) {
+        updateEditableMarkerOffset(true);
       }
     };
 
@@ -431,7 +559,9 @@ export default function Globe({
       ) {
         return;
       }
-      
+
+      const pointerOverGlobe = isPointerOverGlobe(e.clientX, e.clientY);
+
       if (s.drag.active) {
         const dx = e.clientX - s.drag.x;
         const dy = e.clientY - s.drag.y;
@@ -443,12 +573,27 @@ export default function Globe({
         
         s.rot.premultiply(qY).premultiply(qX);
         s.targetQ = null;
+
+        if (editableFocusMarkerRef.current) {
+          updateEditableMarkerOffset();
+        }
+        return;
+      }
+
+      el.style.cursor = pointerOverGlobe ? "grab" : "default";
+    };
+
+    const onLeave = () => {
+      const s = sceneRef.current;
+      if (!s?.drag.active) {
+        el.style.cursor = "default";
       }
     };
 
     el.addEventListener("pointerdown", onDown);
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
     window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointermove", onMove);
 
     // 5. Animation Loop
     const _tempVec = new THREE.Vector3();
@@ -635,24 +780,42 @@ export default function Globe({
       }
 
       // Project label positioning
+      const visibleProjectLabels: Array<{
+        idx: number;
+        x: number;
+        y: number;
+        w: number;
+        h: number;
+        opacity: number;
+        isFocusMarkerLabel: boolean;
+      }> = [];
+      const focusedProjectId = hoveredProjectRef.current;
+      const projectLabelProjects = focusMarkerRef.current
+        ? [focusMarkerRef.current]
+        : focusedProjectId && selectedUniversityRef.current
+          ? selectedUniversityRef.current.projects.filter(
+              (project) => project.id === focusedProjectId
+            )
+          : selectedUniversityRef.current?.projects ?? [];
+
       for (let i = 0; i < projectLabelsRef.current.length; i++) {
         const label = projectLabelsRef.current[i];
         if (!label) continue;
 
-        if (hideProjectLabelsRef.current) {
+        if (
+          hideProjectLabelsRef.current ||
+          (editableFocusMarkerRef.current && Boolean(focusMarkerRef.current))
+        ) {
           label.style.opacity = "0";
           continue;
         }
 
-        const projects = focusMarkerRef.current
-          ? [focusMarkerRef.current]
-          : selectedUniversityRef.current?.projects;
-        if (!projects || !projects[i]) {
+        if (!projectLabelProjects[i]) {
           label.style.opacity = "0";
           continue;
         }
 
-        const project = projects[i];
+        const project = projectLabelProjects[i];
         const { lat, lng } = project.markerOffset;
 
         const phi = (90 - lat) * (Math.PI / 180);
@@ -677,15 +840,75 @@ export default function Globe({
         const px = (_projVec.x * 0.5 + 0.5) * canvasW2;
         const py = (-_projVec.y * 0.5 + 0.5) * canvasH2;
         const isFocusMarkerLabel = Boolean(focusMarkerRef.current);
-        const labelY = isFocusMarkerLabel ? py + 5 : py;
+        const labelY = isFocusMarkerLabel ? py + 5 : py + 14;
 
         const frontFacing = _tempVec.z / R;
         const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
 
-        label.style.transform = `translate(${px}px, ${labelY}px) translate(-50%, ${
-          isFocusMarkerLabel ? "0%" : "-100%"
-        })`;
-        label.style.opacity = String(opacity);
+        visibleProjectLabels.push({
+          idx: i,
+          x: px,
+          y: labelY,
+          w: label.offsetWidth || (isFocusMarkerLabel ? 150 : 110),
+          h: label.offsetHeight || 24,
+          opacity,
+          isFocusMarkerLabel,
+        });
+      }
+
+      for (let iter = 0; iter < 6; iter++) {
+        for (let i = 0; i < visibleProjectLabels.length; i++) {
+          for (let j = i + 1; j < visibleProjectLabels.length; j++) {
+            const a = visibleProjectLabels[i];
+            const b = visibleProjectLabels[j];
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const overlapX = (a.w / 2 + b.w / 2 + 12) - Math.abs(dx);
+            const overlapY = (a.h / 2 + b.h / 2 + 10) - Math.abs(dy);
+
+            if (overlapX > 0 && overlapY > 0) {
+              if (overlapX < overlapY) {
+                const push = overlapX * 0.5;
+                const sign = dx >= 0 ? 1 : -1;
+                a.x -= sign * push;
+                b.x += sign * push;
+              } else {
+                const push = overlapY * 0.5;
+                a.y -= push * 0.35;
+                b.y += push * 0.65;
+              }
+            }
+          }
+        }
+      }
+
+      for (const visibleProjectLabel of visibleProjectLabels) {
+        const label = projectLabelsRef.current[visibleProjectLabel.idx];
+        if (!label) continue;
+
+        label.style.transform = `translate(${visibleProjectLabel.x}px, ${visibleProjectLabel.y}px) translate(-50%, 0%)`;
+        label.style.opacity = String(visibleProjectLabel.opacity);
+      }
+
+      const editableMarkerGroup = editableFocusMarkerGroupRef.current;
+      if (
+        editableMarkerGroup &&
+        editableFocusMarkerRef.current &&
+        focusMarkerRef.current
+      ) {
+        const focusTarget = getFocusTargetVector(focusTargetYOffsetRef.current);
+        _tempVec.copy(focusTarget).multiplyScalar(R + 1);
+        _projVec.copy(_tempVec).project(s.camera);
+
+        const canvasW3 = s.renderer.domElement.width / s.renderer.getPixelRatio();
+        const canvasH3 = s.renderer.domElement.height / s.renderer.getPixelRatio();
+        const px = (_projVec.x * 0.5 + 0.5) * canvasW3;
+        const py = (-_projVec.y * 0.5 + 0.5) * canvasH3;
+
+        editableMarkerGroup.style.transform = `translate(${px}px, ${py}px) translate(-50%, -50%)`;
+        editableMarkerGroup.style.opacity = "1";
+      } else if (editableMarkerGroup) {
+        editableMarkerGroup.style.opacity = "0";
       }
     };
     animate();
@@ -694,8 +917,9 @@ export default function Globe({
       cancelAnimationFrame(frameRef.current);
       resizeObserver.disconnect();
       el.removeEventListener("pointerdown", onDown);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointermove", onMove);
       
       // Dispose logic
       if (container.contains(el)) container.removeChild(el);
@@ -716,11 +940,16 @@ export default function Globe({
         s.markersGroup.remove(child);
     }
 
-    // University markers — only show selected if one is selected, otherwise show all
-    if (selectedUniversity && !hideSelectedUniversityMarkerRef.current) {
-      const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
-      m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
-      s.markersGroup.add(m);
+    // University markers — if a selected university is active, either show just that one
+    // or none at all when the detail stage explicitly hides it.
+    const focusedProjectId = hoveredProjectRef.current;
+
+    if (selectedUniversity && !focusedProjectId) {
+      if (!hideSelectedUniversityMarkerRef.current) {
+        const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
+        m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
+        s.markersGroup.add(m);
+      }
     } else {
       universities.forEach(uni => {
         const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
@@ -731,27 +960,33 @@ export default function Globe({
 
     const focusedProjectMarker = focusMarkerRef.current;
     if (focusedProjectMarker) {
-      const focusMesh = createMarkerNode({
-        color:
-          focusedProjectMarker.color ??
-          selectedUniversity?.color ??
-          "#000000",
-        radius: 1.7,
-      });
-      focusMesh.position.copy(
-        toVec3(
-          focusedProjectMarker.markerOffset.lat,
-          focusedProjectMarker.markerOffset.lng,
-          R + 1
-        )
-      );
-      s.markersGroup.add(focusMesh);
+      if (!editableFocusMarkerRef.current) {
+        const focusMesh = createMarkerNode({
+          color:
+            focusedProjectMarker.color ??
+            selectedUniversity?.color ??
+            "#000000",
+          radius: 1.7,
+        });
+        focusMesh.position.copy(
+          toVec3(
+            focusedProjectMarker.markerOffset.lat,
+            focusedProjectMarker.markerOffset.lng,
+            R + 1
+          )
+        );
+        s.markersGroup.add(focusMesh);
+      }
       return;
     }
 
     // Project markers for selected university
     if (selectedUniversity) {
-      selectedUniversity.projects.forEach(project => {
+      const projectsToRender = focusedProjectId
+        ? selectedUniversity.projects.filter((project) => project.id === focusedProjectId)
+        : selectedUniversity.projects;
+
+      projectsToRender.forEach(project => {
         const { lat, lng } = project.markerOffset;
         // Skip if project is at the same location as the university
         if (Math.abs(lat - selectedUniversity.lat) < 0.01 && Math.abs(lng - selectedUniversity.lng) < 0.01) return;
@@ -760,13 +995,16 @@ export default function Globe({
         s.markersGroup.add(m);
       });
     }
-
-  }, [universities, selectedUniversity]);
+  }, [universities, selectedUniversity, hoveredProject, focusMarker, editableFocusMarker]);
 
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      className={`relative h-full w-full ${
+        snapPose
+          ? ""
+          : "transition-transform duration-700 ease-[cubic-bezier(0.22,1,0.36,1)]"
+      }`}
       style={{
         touchAction: "none",
         transform: verticalOffset ? `translateY(${verticalOffset}px)` : undefined,
@@ -801,7 +1039,12 @@ export default function Globe({
       </div>
       {/* Project location labels */}
       <div className="absolute inset-0 pointer-events-none">
-        {(focusMarker ? [focusMarker] : selectedUniversity?.projects ?? []).map((project, i) => {
+        {(!editableFocusMarker || !focusMarker
+          ? focusMarker
+            ? [focusMarker]
+            : selectedUniversity?.projects ?? []
+          : []
+        ).map((project, i) => {
           const projectLabel =
             "label" in project && typeof project.label === "string"
               ? project.label
@@ -826,18 +1069,12 @@ export default function Globe({
                 className={
                   isFocusMarkerLabel
                     ? "px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white"
-                    : "rounded-sm px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-[0.08em]"
+                    : "px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-white"
                 }
                 style={{
-                  color: isFocusMarkerLabel
-                    ? "#ffffff"
-                    : focusMarker?.color ?? selectedUniversity?.color ?? "#000",
-                  backgroundColor: isFocusMarkerLabel
-                    ? "rgba(0, 0, 0, 0.88)"
-                    : "rgba(255,255,255,0.85)",
-                  border: isFocusMarkerLabel
-                    ? "none"
-                    : `1px solid ${focusMarker?.color ?? selectedUniversity?.color ?? "#000"}`,
+                  color: "#ffffff",
+                  backgroundColor: "rgba(0, 0, 0, 0.88)",
+                  border: "none",
                 }}
               >
                 {projectLabel}
@@ -845,6 +1082,21 @@ export default function Globe({
             </div>
           );
         })}
+        {editableFocusMarker && focusMarker && editableMarkerOffset ? (
+          <div
+            ref={editableFocusMarkerGroupRef}
+            className="absolute left-0 top-0 flex will-change-[transform,opacity] flex-col items-center gap-[5px]"
+            style={{
+              opacity: 0,
+              transition: "opacity 180ms ease-out",
+            }}
+          >
+            <span className="h-4 w-4 rounded-full bg-black" />
+            <span className="bg-black px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-white">
+              {`Lat ${editableMarkerOffset.lat.toFixed(4)} / Lng ${editableMarkerOffset.lng.toFixed(4)}`}
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
