@@ -1,12 +1,10 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import type postgres from "postgres";
-import { getSql } from "@/lib/db";
-import { isPortalWriteDisabled } from "@/lib/portal/mode";
 import { createEmptyProjectDocument } from "@/lib/projects/defaults";
 import { backfillProjectDocument } from "@/lib/projects/defaults.server";
 import { normalizeProjectDocument } from "@/lib/projects/schema";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import { getUniversityById, isKnownUniversityId, mergeProjectsIntoUniversities } from "@/lib/universities";
 import type {
   ExperienceProject,
@@ -27,37 +25,8 @@ type ProjectRow = {
   created_at: string;
 };
 
-function toJsonRecord(document: ProjectDocument) {
-  return JSON.parse(JSON.stringify(document)) as postgres.JSONValue;
-}
-
-let projectSchemaEnsured = false;
-
-async function ensureProjectTable() {
-  if (projectSchemaEnsured) return;
-  if (isPortalWriteDisabled()) {
-    projectSchemaEnsured = true;
-    return;
-  }
-
-  const sql = getSql();
-  await sql`
-    create table if not exists projects (
-      id text primary key,
-      slug text not null unique,
-      university_id text not null,
-      draft_content jsonb,
-      published_content jsonb,
-      published_at timestamptz,
-      updated_at timestamptz not null default now(),
-      created_at timestamptz not null default now()
-    );
-  `;
-  await sql`create index if not exists projects_university_idx on projects (university_id);`;
-  await sql`create index if not exists projects_published_idx on projects (published_at desc);`;
-
-  projectSchemaEnsured = true;
-}
+const PROJECT_SELECT =
+  "id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at";
 
 async function mapProjectRow(row: ProjectRow): Promise<ProjectRecord> {
   return {
@@ -74,6 +43,62 @@ async function mapProjectRow(row: ProjectRow): Promise<ProjectRecord> {
     updatedAt: row.updated_at,
     createdAt: row.created_at,
   };
+}
+
+function sortProjectRows(rows: ProjectRow[]) {
+  return [...rows].sort((a, b) => {
+    const publishedAtA = a.published_at ? Date.parse(a.published_at) : -Infinity;
+    const publishedAtB = b.published_at ? Date.parse(b.published_at) : -Infinity;
+
+    if (publishedAtA !== publishedAtB) {
+      return publishedAtB - publishedAtA;
+    }
+
+    return Date.parse(b.updated_at) - Date.parse(a.updated_at);
+  });
+}
+
+async function listProjectRows({
+  includeDrafts = false,
+}: {
+  includeDrafts?: boolean;
+} = {}): Promise<ProjectRow[]> {
+  const supabase = getSupabaseServerClient();
+  let query = supabase.from("projects").select(PROJECT_SELECT);
+
+  if (!includeDrafts) {
+    query = query.not("published_content", "is", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return sortProjectRows((data ?? []) as ProjectRow[]);
+}
+
+async function getProjectRowBySlug(
+  slug: string,
+  {
+    includeDrafts = false,
+  }: {
+    includeDrafts?: boolean;
+  } = {}
+): Promise<ProjectRow | null> {
+  const supabase = getSupabaseServerClient();
+  let query = supabase.from("projects").select(PROJECT_SELECT).eq("slug", slug).limit(1);
+
+  if (!includeDrafts) {
+    query = query.not("published_content", "is", null);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return ((data ?? [])[0] as ProjectRow | undefined) ?? null;
 }
 
 function pickPreferredContent(row: ProjectRecord) {
@@ -127,15 +152,7 @@ export async function getExperienceProjects({
   includeDrafts?: boolean;
 } = {}): Promise<ExperienceProject[]> {
   try {
-    await ensureProjectTable();
-    const sql = getSql();
-    const rows = await sql<ProjectRow[]>`
-      select id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at
-      from projects
-      ${includeDrafts ? sql`` : sql`where published_content is not null`}
-      order by published_at desc nulls last, updated_at desc;
-    `;
-
+    const rows = await listProjectRows({ includeDrafts });
     const records = await Promise.all(rows.map(mapProjectRow));
     return records
       .map((row) => toExperienceProject(row, includeDrafts))
@@ -162,17 +179,8 @@ export async function getExperienceProjectBySlug(
     includeDrafts?: boolean;
   } = {}
 ) {
-  await ensureProjectTable();
-  const sql = getSql();
-  const rows = await sql<ProjectRow[]>`
-    select id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at
-    from projects
-    where slug = ${slug}
-      ${includeDrafts ? sql`` : sql`and published_content is not null`}
-    limit 1;
-  `;
-
-  const mapped = rows[0] ? await mapProjectRow(rows[0]) : null;
+  const row = await getProjectRowBySlug(slug, { includeDrafts });
+  const mapped = row ? await mapProjectRow(row) : null;
   if (!mapped) return null;
 
   const experienceProject = toExperienceProject(mapped, includeDrafts);
@@ -189,14 +197,7 @@ export async function getPublishedProjectBySlug(slug: string) {
 }
 
 export async function getPortalProjectSummaries(): Promise<PortalProjectSummary[]> {
-  await ensureProjectTable();
-  const sql = getSql();
-  const rows = await sql<ProjectRow[]>`
-    select id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at
-    from projects
-    order by updated_at desc;
-  `;
-
+  const rows = await listProjectRows({ includeDrafts: true });
   const records = await Promise.all(rows.map(mapProjectRow));
   return records.map((record) => {
     const content = pickPreferredContent(record);
@@ -214,49 +215,41 @@ export async function getPortalProjectSummaries(): Promise<PortalProjectSummary[
 }
 
 export async function getPortalProjectBySlug(slug: string) {
-  await ensureProjectTable();
-  const sql = getSql();
-  const rows = await sql<ProjectRow[]>`
-    select id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at
-    from projects
-    where slug = ${slug}
-    limit 1;
-  `;
-
-  const row = rows[0];
+  const row = await getProjectRowBySlug(slug, { includeDrafts: true });
   if (!row) return null;
 
   return await mapProjectRow(row);
 }
 
 export async function createProjectDraft(input: unknown) {
-  await ensureProjectTable();
-
   const document = await normalizeProjectDocument(input, { mode: "draft" });
   if (document.universityId) {
     await assertUniversity(document.universityId);
   }
 
-  const sql = getSql();
-  const inserted = await sql<ProjectRow[]>`
-    insert into projects (id, slug, university_id, draft_content, updated_at, created_at)
-    values (
-      ${randomUUID()},
-      ${document.slug},
-      ${document.universityId},
-      ${sql.json(toJsonRecord(document))},
-      now(),
-      now()
-    )
-    returning id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at;
-  `;
+  const supabase = getSupabaseServerClient();
+  const timestamp = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("projects")
+    .insert({
+      id: randomUUID(),
+      slug: document.slug,
+      university_id: document.universityId,
+      draft_content: document,
+      updated_at: timestamp,
+      created_at: timestamp,
+    })
+    .select(PROJECT_SELECT)
+    .single();
 
-  return await mapProjectRow(inserted[0]);
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return await mapProjectRow(data as ProjectRow);
 }
 
 export async function updateProjectDraft(currentSlug: string, input: unknown) {
-  await ensureProjectTable();
-
   const existing = await getPortalProjectBySlug(currentSlug);
   if (!existing) {
     throw new Error("Project not found.");
@@ -270,26 +263,30 @@ export async function updateProjectDraft(currentSlug: string, input: unknown) {
     await assertUniversity(document.universityId);
   }
 
-  const sql = getSql();
-  const updated = await sql<ProjectRow[]>`
-    update projects
-    set slug = ${document.slug},
-        university_id = ${document.universityId},
-        draft_content = ${sql.json(toJsonRecord(document))},
-        updated_at = now()
-    where slug = ${currentSlug}
-    returning id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at;
-  `;
+  const supabase = getSupabaseServerClient();
+  const { data, error } = await supabase
+    .from("projects")
+    .update({
+      slug: document.slug,
+      university_id: document.universityId,
+      draft_content: document,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("slug", currentSlug)
+    .select(PROJECT_SELECT)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   return {
     previousSlug: currentSlug,
-    record: await mapProjectRow(updated[0]),
+    record: await mapProjectRow(data as ProjectRow),
   };
 }
 
 export async function publishProject(currentSlug: string, input: unknown) {
-  await ensureProjectTable();
-
   const existing = await getPortalProjectBySlug(currentSlug);
   if (!existing) {
     throw new Error("Project not found.");
@@ -301,21 +298,28 @@ export async function publishProject(currentSlug: string, input: unknown) {
   });
   await assertUniversity(document.universityId);
 
-  const sql = getSql();
-  const updated = await sql<ProjectRow[]>`
-    update projects
-    set slug = ${document.slug},
-        university_id = ${document.universityId},
-        draft_content = ${sql.json(toJsonRecord(document))},
-        published_content = ${sql.json(toJsonRecord(document))},
-        published_at = now(),
-        updated_at = now()
-    where slug = ${currentSlug}
-    returning id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at;
-  `;
+  const supabase = getSupabaseServerClient();
+  const timestamp = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("projects")
+    .update({
+      slug: document.slug,
+      university_id: document.universityId,
+      draft_content: document,
+      published_content: document,
+      published_at: timestamp,
+      updated_at: timestamp,
+    })
+    .eq("slug", currentSlug)
+    .select(PROJECT_SELECT)
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
 
   return {
     previousSlug: currentSlug,
-    record: await mapProjectRow(updated[0]),
+    record: await mapProjectRow(data as ProjectRow),
   };
 }

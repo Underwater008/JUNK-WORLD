@@ -4,6 +4,7 @@ import {
   Suspense,
   useState,
   useEffect,
+  useLayoutEffect,
   useCallback,
   useMemo,
   useRef,
@@ -51,6 +52,7 @@ const galleryHeroTransition = {
   duration: 0.62,
   ease: [0.22, 1, 0.36, 1] as const,
 };
+const DETAIL_EXIT_DURATION_MS = 680;
 
 function getLogoLeft(panel: string) {
   const p = Number.parseFloat(panel);
@@ -575,7 +577,7 @@ function HomeContent({
 }) {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [view, setView] = useState<View>(() => getViewFromParams(searchParams));
+  const view = getViewFromParams(searchParams);
   const [selectedUniversity, setSelectedUniversity] =
     useState<University | null>(null);
   const [hoveredProject, setHoveredProject] = useState<string | null>(null);
@@ -594,13 +596,10 @@ function HomeContent({
       label?: string;
     };
   } | null>(null);
-  const [globeViewportSnapExit, setGlobeViewportSnapExit] = useState(false);
-  const [panelSnapToAbout, setPanelSnapToAbout] = useState(false);
   const [globeOverlayActive, setGlobeOverlayActive] = useState(false);
   const selectedProjectStageControllerRef =
     useRef<SelectedProjectStageController | null>(null);
   const previousShowSelectedProjectStageRef = useRef(false);
-  const previousViewRef = useRef<View>(view);
   const previousOverlayViewRef = useRef<View>(view);
   const lastDetailStageUniversityRef = useRef<University | null>(null);
   const lastDetailStageFocusMarkerRef = useRef<{
@@ -611,6 +610,7 @@ function HomeContent({
     label?: string;
   } | null>(null);
   const isProjectsView = view === "projects";
+  const isCompact = view !== "projects";
   const isMobile = useIsMobile();
   const selectedProjectSlug = searchParams.get("project");
   const editRequested = searchParams.get("edit") === "1";
@@ -718,23 +718,36 @@ function HomeContent({
   );
   const activeGlobeFocusMarker =
     showSelectedProjectStage ? detailStageFocusMarker : previewStageFocusMarker;
-  const detailGlobeModeActive =
+  const detailFocusLockActive =
     showSelectedProjectStage || Boolean(detailExitGlobeState);
+  const detailViewportActive = showSelectedProjectStage;
   const globeTransition = {
-    duration: 0.68,
+    duration: DETAIL_EXIT_DURATION_MS / 1000,
     ease: [0.22, 1, 0.36, 1] as const,
   };
   const panelContentTransition = {
     duration: 0.34,
     ease: [0.22, 1, 0.36, 1] as const,
   };
-  const snapGlobePoseForAbout = globeViewportSnapExit && view === "about";
-  const globeViewportTransition = globeViewportSnapExit
-    ? { duration: 0 }
-    : globeTransition;
-  const panelTransition = panelSnapToAbout
-    ? { duration: 0 }
-    : { duration: 0.5, ease };
+  const panelTransition = { duration: 0.5, ease };
+  const globeCompact = detailViewportActive ? false : isCompact;
+  const globeScale = galleryExpandedActive
+    ? 1.12
+    : detailViewportActive
+      ? 1.24
+      : isProjectsView
+        ? 1.15
+        : 1;
+  const globeVerticalOffset = galleryExpandedActive || detailViewportActive ? 72 : 0;
+  const globeCameraY = galleryExpandedActive || detailViewportActive ? 18 : 40;
+  const globeFocusTargetYOffset =
+    galleryExpandedActive || detailViewportActive ? 0.48 : 0;
+  const lockedGlobeUniversity = detailViewportActive
+    ? detailStageUniversity
+    : detailExitGlobeState?.university ?? null;
+  const lockedGlobeFocusMarker = detailViewportActive
+    ? detailStageFocusMarker
+    : detailExitGlobeState?.focusMarker ?? null;
   const globeViewport = galleryExpandedActive
     ? {
         left: `calc(${currentPanelWidth} / 2)`,
@@ -742,7 +755,7 @@ function HomeContent({
         width: `calc(100% - ${currentPanelWidth})`,
         height: "57%",
       }
-    : showSelectedProjectStage
+    : detailViewportActive
     ? {
         left: currentPanelWidth,
         top: "43%",
@@ -764,7 +777,7 @@ function HomeContent({
         x: "0%",
         y: "0%",
       }
-    : showSelectedProjectStage
+    : detailViewportActive
     ? {
         left: "-12%",
         top: "0%",
@@ -780,21 +793,15 @@ function HomeContent({
         height: "100%",
         ...currentGlobePose,
       };
-  const globeUniversities = detailGlobeModeActive
-    ? showSelectedProjectStage
-      ? detailStageUniversity
-        ? [detailStageUniversity]
-        : []
-      : detailExitGlobeState
-        ? [detailExitGlobeState.university]
-        : []
+  const globeUniversities = detailFocusLockActive
+    ? lockedGlobeUniversity
+      ? [lockedGlobeUniversity]
+      : []
     : universities;
-  const globeSelected = detailGlobeModeActive
-    ? showSelectedProjectStage
-      ? detailStageUniversity
-      : detailExitGlobeState?.university ?? null
+  const globeSelected = detailFocusLockActive
+    ? lockedGlobeUniversity
     : globeSelectedUniversity;
-  const globeHoveredProject = detailGlobeModeActive
+  const globeHoveredProject = detailFocusLockActive
     ? null
     : previewProject
       ? null
@@ -812,16 +819,16 @@ function HomeContent({
   );
 
   useEffect(() => {
-    setView(getViewFromParams(searchParams));
-  }, [searchParams]);
-
-  useEffect(() => {
     if (isProjectsView && selectedProjectSlug) return;
 
-    setSelectedProjectStageSnapshot(null);
+    const frameId = window.requestAnimationFrame(() => {
+      setSelectedProjectStageSnapshot(null);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [isProjectsView, selectedProjectSlug]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!showSelectedProjectStage || !detailStageUniversity || !detailStageFocusMarker) {
       return;
     }
@@ -832,48 +839,42 @@ function HomeContent({
 
   useEffect(() => {
     if (selectedProjectSlug && projectOpeningSlug === selectedProjectSlug) {
-      setProjectOpeningSlug(null);
-      return;
+      const frameId = window.requestAnimationFrame(() => {
+        setProjectOpeningSlug(null);
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
     }
 
     if (!selectedProjectSlug && projectOpeningSlug && !isProjectsView) {
-      setProjectOpeningSlug(null);
+      const frameId = window.requestAnimationFrame(() => {
+        setProjectOpeningSlug(null);
+      });
+
+      return () => window.cancelAnimationFrame(frameId);
     }
   }, [isProjectsView, projectOpeningSlug, selectedProjectSlug]);
 
   useEffect(() => {
-    if (
-      previousViewRef.current !== view &&
-      view === "about" &&
-      previousShowSelectedProjectStageRef.current
-    ) {
-      setPanelSnapToAbout(true);
-      const timeoutId = window.setTimeout(() => {
-        setPanelSnapToAbout(false);
-      }, 180);
-      previousViewRef.current = view;
-      return () => window.clearTimeout(timeoutId);
-    }
-
-    previousViewRef.current = view;
-  }, [view]);
-
-  useEffect(() => {
     if (previousOverlayViewRef.current === view) return;
 
-    setGlobeOverlayActive(true);
+    const frameId = window.requestAnimationFrame(() => {
+      setGlobeOverlayActive(true);
+    });
     const timeoutId = window.setTimeout(() => {
       setGlobeOverlayActive(false);
     }, 760);
 
     previousOverlayViewRef.current = view;
 
-    return () => window.clearTimeout(timeoutId);
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      window.clearTimeout(timeoutId);
+    };
   }, [view]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let exitStateTimeoutId: number | undefined;
-    let viewportSnapTimeoutId: number | undefined;
 
     if (previousShowSelectedProjectStageRef.current && !showSelectedProjectStage) {
       if (
@@ -886,21 +887,11 @@ function HomeContent({
         });
         exitStateTimeoutId = window.setTimeout(() => {
           setDetailExitGlobeState(null);
-        }, view === "projects" ? 520 : 420);
-      }
-
-      if (view !== "projects") {
-        setGlobeViewportSnapExit(true);
-        viewportSnapTimeoutId = window.setTimeout(() => {
-          setGlobeViewportSnapExit(false);
-        }, 120);
+        }, DETAIL_EXIT_DURATION_MS);
       }
 
       previousShowSelectedProjectStageRef.current = showSelectedProjectStage;
       return () => {
-        if (viewportSnapTimeoutId !== undefined) {
-          window.clearTimeout(viewportSnapTimeoutId);
-        }
         if (exitStateTimeoutId !== undefined) {
           window.clearTimeout(exitStateTimeoutId);
         }
@@ -912,16 +903,24 @@ function HomeContent({
     }
 
     previousShowSelectedProjectStageRef.current = showSelectedProjectStage;
-  }, [showSelectedProjectStage, view]);
+  }, [showSelectedProjectStage]);
 
   useEffect(() => {
-    setGalleryExpanded(false);
+    const frameId = window.requestAnimationFrame(() => {
+      setGalleryExpanded(false);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [selectedProjectSlug, view]);
 
   useEffect(() => {
     if (showSelectedProjectStage) return;
 
-    setGalleryExpanded(false);
+    const frameId = window.requestAnimationFrame(() => {
+      setGalleryExpanded(false);
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
   }, [showSelectedProjectStage]);
 
   useEffect(() => {
@@ -962,7 +961,6 @@ function HomeContent({
       if (view === "projects" || newView === "projects") {
         window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       }
-      setView(newView);
       const params = new URLSearchParams(searchParams.toString());
 
       if (newView === "about") {
@@ -994,8 +992,6 @@ function HomeContent({
     },
     [universities]
   );
-
-  const isCompact = view !== "projects";
 
   if (isMobile) {
     return (
@@ -1049,13 +1045,11 @@ function HomeContent({
         <div className="absolute inset-0 bg-black" />
         <motion.div
           className={`absolute ${
-            showSelectedProjectStage || galleryExpandedActive
-              ? "overflow-hidden"
-              : "overflow-visible"
+            detailViewportActive ? "overflow-hidden" : "overflow-visible"
           }`}
           initial={false}
           animate={globeViewport}
-          transition={globeViewportTransition}
+          transition={globeTransition}
           style={{ pointerEvents: globeOverlayActive ? "none" : undefined }}
         >
           <motion.div
@@ -1069,9 +1063,9 @@ function HomeContent({
               selectedUniversity={globeSelected}
               onSelectUniversity={setSelectedUniversity}
               hoveredProject={globeHoveredProject}
-              compact={detailGlobeModeActive ? false : isCompact}
+              compact={globeCompact}
               allowDragInCompact={false}
-              hideLabels={detailGlobeModeActive}
+              hideLabels={detailFocusLockActive}
               soloLabelId={
                 showSelectedProjectStage
                   ? undefined
@@ -1082,7 +1076,7 @@ function HomeContent({
                     : undefined
               }
               maxLabels={
-                detailGlobeModeActive
+                detailFocusLockActive
                   ? undefined
                   : isProjectsView
                     ? projectFocusedUniversity || selectedUniversity
@@ -1090,55 +1084,20 @@ function HomeContent({
                       : 7
                     : undefined
               }
-              disableAutoRotate={detailGlobeModeActive}
-              disableDrag={detailGlobeModeActive && !projectLocationEditable}
-              hideSelectedUniversityMarker={detailGlobeModeActive}
-              scale={
-                snapGlobePoseForAbout
-                  ? 1
-                  : galleryExpandedActive
-                  ? 1.12
-                  : detailGlobeModeActive
-                    ? 1.24
-                    : undefined
-              }
-              verticalOffset={
-                snapGlobePoseForAbout
-                  ? 0
-                  : galleryExpandedActive
-                    ? 72
-                    : detailGlobeModeActive
-                      ? 72
-                      : 0
-              }
-              cameraY={
-                snapGlobePoseForAbout
-                  ? 40
-                  : galleryExpandedActive
-                    ? 18
-                    : detailGlobeModeActive
-                      ? 18
-                      : 40
-              }
-              focusTargetYOffset={
-                snapGlobePoseForAbout
-                  ? 0
-                  : galleryExpandedActive
-                    ? 0.48
-                    : detailGlobeModeActive
-                      ? 0.48
-                      : 0
-              }
+              disableAutoRotate={detailFocusLockActive}
+              disableDrag={detailFocusLockActive && !projectLocationEditable}
+              hideSelectedUniversityMarker={detailFocusLockActive}
+              scale={globeScale}
+              verticalOffset={globeVerticalOffset}
+              cameraY={globeCameraY}
+              focusTargetYOffset={globeFocusTargetYOffset}
               focusMarker={
-                showSelectedProjectStage
-                  ? detailStageFocusMarker
-                  : detailExitGlobeState?.focusMarker ?? activeGlobeFocusMarker
+                lockedGlobeFocusMarker ?? activeGlobeFocusMarker
               }
               editableFocusMarker={showSelectedProjectStage && projectLocationEditable}
               onFocusMarkerOffsetChange={
                 projectLocationEditable ? handleFocusMarkerOffsetChange : undefined
               }
-              snapPose={snapGlobePoseForAbout}
             />
           </motion.div>
         </motion.div>
@@ -1196,7 +1155,7 @@ function HomeContent({
             width: activePanelWidth,
             x: galleryExpandedActive ? "-6%" : "0%",
             opacity: galleryExpandedActive ? 0 : 1,
-            borderRightWidth: galleryExpandedActive || panelSnapToAbout ? 0 : 2,
+            borderRightWidth: galleryExpandedActive ? 0 : 2,
           }}
           transition={panelTransition}
           style={{

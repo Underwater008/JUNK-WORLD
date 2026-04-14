@@ -1,8 +1,7 @@
 import "server-only";
 
 import { universities as rawUniversities } from "@/data/mock";
-import { getSql } from "@/lib/db";
-import { isPortalWriteDisabled } from "@/lib/portal/mode";
+import { getSupabaseServerClient } from "@/lib/supabase";
 import type { ExperienceProject, Project, University } from "@/types";
 
 type UniversityRow = {
@@ -53,52 +52,21 @@ function getBaseUniversitiesFromMock(): University[] {
     .sort(sortUniversities);
 }
 
-let universitySchemaEnsured = false;
-
-async function ensureUniversityTable() {
-  if (universitySchemaEnsured) return;
-  if (isPortalWriteDisabled()) {
-    universitySchemaEnsured = true;
-    return;
-  }
-
-  const sql = getSql();
-  await sql`
-    create table if not exists universities (
-      id text primary key,
-      name text not null,
-      short_name text not null,
-      city text not null,
-      lat double precision not null,
-      lng double precision not null,
-      color text not null default '#000000',
-      country text not null,
-      disciplines text[] not null default '{}',
-      logo text,
-      status text not null default 'active'
-        check (status in ('active', 'inactive')),
-      updated_at timestamptz not null default now(),
-      created_at timestamptz not null default now()
-    );
-  `;
-
-  universitySchemaEnsured = true;
-}
-
 export async function getBaseUniversities(): Promise<University[]> {
   try {
-    await ensureUniversityTable();
-    const sql = getSql();
-    const rows = await sql<UniversityRow[]>`
-      select id, name, short_name, city, lat, lng, color, country, disciplines, logo, status
-      from universities
-      order by
-        case when status = 'active' then 0 else 1 end,
-        name;
-    `;
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("universities")
+      .select("id, name, short_name, city, lat, lng, color, country, disciplines, logo, status");
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const rows = (data ?? []) as UniversityRow[];
 
     if (rows.length > 0) {
-      return rows.map(mapUniversityRow);
+      return rows.map(mapUniversityRow).sort(sortUniversities);
     }
   } catch {
     // fall through to mock data

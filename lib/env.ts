@@ -6,6 +6,7 @@ import path from "node:path";
 type EnvKey =
   | "supabaseUrl"
   | "supabaseAnonKey"
+  | "supabaseServiceRoleKey"
   | "supabaseDbUrl"
   | "portalPassword"
   | "storageBucket";
@@ -22,6 +23,13 @@ const envKeyCandidates: Record<EnvKey, string[]> = {
     "SUPABASE_ANON_KEY",
     "SUPABASE_PUBLIC_KEY",
     "SUPABASE PUBLIC KEY",
+  ],
+  supabaseServiceRoleKey: [
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_SERVICE_ROLE",
+    "SUPABASE SERVICE ROLE KEY",
+    "SUPABASE_SECRET_KEY",
+    "SUPABASE SECRET KEY",
   ],
   supabaseDbUrl: [
     "DATABASE_URL",
@@ -121,11 +129,33 @@ export function getSupabaseConfig() {
   };
 }
 
+export function getSupabaseServerConfig() {
+  const { url } = getSupabaseConfig();
+  const serviceRoleKey = readEnvValue("supabaseServiceRoleKey");
+
+  return {
+    url,
+    serviceRoleKey,
+    isConfigured: Boolean(url && serviceRoleKey),
+  };
+}
+
 export function assertSupabaseConfig() {
   const config = getSupabaseConfig();
   if (!config.url || !config.anonKey || !config.dbUrl) {
     throw new Error(
       "Supabase is not fully configured. Set SUPABASE_URL, SUPABASE_ANON_KEY, DATABASE_URL, and PROJECT_PORTAL_PASSWORD (or their existing equivalents)."
+    );
+  }
+
+  return config;
+}
+
+export function assertSupabaseServerConfig() {
+  const config = getSupabaseServerConfig();
+  if (!config.url || !config.serviceRoleKey) {
+    throw new Error(
+      "Supabase server access is not fully configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or their existing equivalents)."
     );
   }
 
