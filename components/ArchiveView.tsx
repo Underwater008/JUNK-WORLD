@@ -122,7 +122,6 @@ function ArchiveRailButton({
   title,
   subtitle,
   badgeLabel,
-  countLabel,
   accentColor,
   active = false,
   logo,
@@ -131,80 +130,74 @@ function ArchiveRailButton({
   title: string;
   subtitle: string;
   badgeLabel: string;
-  countLabel: string;
   accentColor: string;
   active?: boolean;
   logo?: string;
   onClick: () => void;
 }) {
+  const showBadgeLabel = badgeLabel !== "All";
+
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
       aria-pressed={active}
-      className="pointer-events-auto group relative z-0 flex h-[82px] w-[76px] items-center justify-start overflow-visible text-left transition focus-visible:outline-none hover:z-30 focus-visible:z-30"
+      className="pointer-events-auto group relative z-0 flex h-[72px] w-[92px] items-center justify-start overflow-visible text-left focus-visible:outline-none hover:z-40 focus-visible:z-40"
     >
       <div
-        className={`relative z-10 flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden border border-black transition-[transform,background-color,box-shadow] duration-200 ease-out ${
+        className={`relative z-10 flex h-[72px] w-[92px] shrink-0 items-center justify-center overflow-hidden border-b border-black/10 transition-colors duration-200 ease-out ${
           active
-            ? "bg-white shadow-[4px_4px_0_#000]"
-            : "bg-[#F4F0E8] group-hover:bg-white group-hover:shadow-[4px_4px_0_#000] group-focus-visible:bg-white group-focus-visible:shadow-[4px_4px_0_#000]"
+            ? "bg-white"
+            : "bg-[var(--ink-wash-200)] group-hover:bg-black/5 group-focus-visible:bg-black/5"
         }`}
       >
-        <span
-          className="absolute inset-y-0 left-0 w-[4px]"
-          style={{ backgroundColor: accentColor }}
-        />
         {logo ? (
-          <img
-            src={logo}
-            alt={badgeLabel}
-            className="h-9 w-9 object-contain grayscale transition duration-200 group-hover:grayscale-0 group-focus-visible:grayscale-0"
-          />
+          <img src={logo} alt={badgeLabel} className="h-8 w-8 object-contain" />
         ) : (
           <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-black">
             {badgeLabel}
           </span>
         )}
-        <span className="absolute bottom-2 right-2 border border-black bg-white px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-black">
-          {countLabel.replace(" projects", "").replace(" project", "")}
-        </span>
+        <span
+          className="absolute inset-y-0 left-0 w-[3px]"
+          style={{ backgroundColor: accentColor }}
+        />
+        <span className="absolute inset-y-0 right-0 w-[2px] bg-black" />
       </div>
 
-      <div className="absolute left-[66px] top-1/2 z-20 w-[228px] -translate-y-1/2 -translate-x-3 opacity-0 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100">
-        <div className="relative overflow-hidden border-2 border-black bg-white px-4 py-3 shadow-[8px_8px_0_#000]">
-          <span
-            className="absolute inset-y-0 left-0 w-[6px]"
-            style={{ backgroundColor: accentColor }}
-          />
-          <div className="flex items-start justify-between gap-3 pl-3">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
+      <div
+        className="pointer-events-none absolute left-[92px] top-0 z-30 w-[228px] -translate-x-2 opacity-0 transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:pointer-events-auto group-focus-visible:translate-x-0 group-focus-visible:opacity-100"
+      >
+        <div
+          className="flex min-h-[72px] items-center justify-between border-b border-r border-black/10 bg-[var(--ink-wash-200)] px-6 py-4 transition-colors duration-200 group-hover:bg-white group-focus-visible:bg-white"
+        >
+          <div className="min-w-0">
+            {showBadgeLabel ? (
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--ink-wash-700)]">
                 {badgeLabel}
               </p>
-              <p className="mt-1 text-sm font-semibold leading-5 text-black">
-                {title}
-              </p>
-              <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
-                {subtitle}
-              </p>
-            </div>
-            <div className="flex shrink-0 items-center gap-2 self-start">
-              <span className="border border-black px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-black">
-                {countLabel}
-              </span>
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke="#000"
-                strokeWidth="2.25"
-              >
-                <path d="M5 4L10 8L5 12" />
-              </svg>
-            </div>
+            ) : null}
+            <p className="mt-1 text-sm font-semibold leading-5 text-black">
+              {title}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
+              {subtitle}
+            </p>
+          </div>
+
+          <div className="ml-3 shrink-0 text-right">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="#000"
+              strokeWidth="2.25"
+              className="ml-auto"
+            >
+              <path d="M5 4L10 8L5 12" />
+            </svg>
           </div>
         </div>
       </div>
@@ -508,6 +501,7 @@ export default function ArchiveView({
   const projectEditorRef = useRef<ProjectEditorHandle>(null);
   const previewClearTimeoutRef = useRef<number | null>(null);
   const previewProjectSlugRef = useRef<string | null>(previewProjectSlug);
+  const railScrollRef = useRef<HTMLDivElement>(null);
   const baseUniversitiesById = useMemo(
     () => new Map(baseUniversities.map((university) => [university.id, university])),
     [baseUniversities]
@@ -654,6 +648,11 @@ export default function ArchiveView({
     duration: 0.38,
     ease: [0.22, 1, 0.36, 1] as const,
   };
+  const [railScrollMetrics, setRailScrollMetrics] = useState({
+    visible: false,
+    thumbHeight: 0,
+    thumbOffset: 0,
+  });
   const railHeaderOffset = editorUnlocked
     ? selectedUniversity
       ? 156
@@ -699,6 +698,49 @@ export default function ArchiveView({
       }
     };
   }, []);
+
+  useEffect(() => {
+    const node = railScrollRef.current;
+    if (!node) return;
+
+    function updateRailScrollMetrics() {
+      const { scrollTop, scrollHeight, clientHeight } = node;
+      const hasOverflow = scrollHeight > clientHeight + 1;
+
+      if (!hasOverflow) {
+        setRailScrollMetrics({
+          visible: false,
+          thumbHeight: 0,
+          thumbOffset: 0,
+        });
+        return;
+      }
+
+      const thumbHeight = Math.max(28, (clientHeight * clientHeight) / scrollHeight);
+      const maxThumbOffset = clientHeight - thumbHeight;
+      const maxScrollTop = scrollHeight - clientHeight;
+      const thumbOffset =
+        maxScrollTop > 0 ? (scrollTop / maxScrollTop) * maxThumbOffset : 0;
+
+      setRailScrollMetrics({
+        visible: true,
+        thumbHeight,
+        thumbOffset,
+      });
+    }
+
+    updateRailScrollMetrics();
+    const frameId = window.requestAnimationFrame(updateRailScrollMetrics);
+
+    node.addEventListener("scroll", updateRailScrollMetrics, { passive: true });
+    window.addEventListener("resize", updateRailScrollMetrics);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      node.removeEventListener("scroll", updateRailScrollMetrics);
+      window.removeEventListener("resize", updateRailScrollMetrics);
+    };
+  }, [editorUnlocked, railHeaderOffset, universities.length]);
 
   useEffect(() => {
     if (!selectedProjectStageControllerRef) return;
@@ -998,13 +1040,15 @@ export default function ArchiveView({
             className="pointer-events-none absolute bottom-0 left-0"
             style={{ top: railHeaderOffset, width: ARCHIVE_RAIL_PANEL_WIDTH }}
           >
-            <div className="pointer-events-none h-full overflow-y-auto px-2 py-2">
-              <div className="flex flex-col gap-2">
+            <div
+              ref={railScrollRef}
+              className="uni-rail-scroll pointer-events-none h-full overflow-y-auto"
+            >
+              <div className="flex flex-col">
                 <ArchiveRailButton
                   title="All Projects"
                   subtitle="Across the full consortium"
                   badgeLabel="All"
-                  countLabel={`${allProjects.length} project${allProjects.length === 1 ? "" : "s"}`}
                   accentColor="#000000"
                   active={!selectedUniversity}
                   onClick={() => handleFilterChange(null)}
@@ -1012,7 +1056,6 @@ export default function ArchiveView({
 
                 {universities.map((university) => {
                   const active = selectedUniversity?.id === university.id;
-                  const projectCount = university.projects.length;
 
                   return (
                     <ArchiveRailButton
@@ -1020,7 +1063,6 @@ export default function ArchiveView({
                       title={university.name}
                       subtitle={`${university.city}, ${university.country}`}
                       badgeLabel={university.shortName}
-                      countLabel={`${projectCount} project${projectCount === 1 ? "" : "s"}`}
                       accentColor={university.color}
                       active={active}
                       logo={university.logo}
@@ -1030,6 +1072,25 @@ export default function ArchiveView({
                 })}
               </div>
             </div>
+
+            {railScrollMetrics.visible ? (
+              <div
+                className="pointer-events-none absolute inset-y-0 z-20"
+                style={{
+                  left: ARCHIVE_RAIL_COLLAPSED_WIDTH - 2,
+                  width: 2,
+                }}
+              >
+                <div className="absolute inset-y-0 left-0 w-[2px] bg-black/10" />
+                <div
+                  className="absolute left-0 w-[2px] rounded-full bg-black"
+                  style={{
+                    height: railScrollMetrics.thumbHeight,
+                    transform: `translateY(${railScrollMetrics.thumbOffset}px)`,
+                  }}
+                />
+              </div>
+            ) : null}
           </div>
         </motion.aside>
 

@@ -45,6 +45,15 @@ body {
   border-radius: 3px;
 }
 
+.uni-rail-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.uni-rail-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* Mobile safe area */
 @supports (padding-bottom: env(safe-area-inset-bottom)) {
   .safe-bottom {
