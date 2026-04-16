@@ -22,8 +22,6 @@ import type {
 const NEW_UNIVERSITY_ID = "__new_university__";
 
 const NEW_PROJECT_SLUG = "__new__";
-const ARCHIVE_RAIL_COLLAPSED_WIDTH = 92;
-const ARCHIVE_RAIL_PANEL_WIDTH = 320;
 const BlockNoteDocument = dynamic(
   () => import("@/components/projects/BlockNoteDocument"),
   {
@@ -115,93 +113,6 @@ function StatusPill({
     >
       {label}
     </span>
-  );
-}
-
-function ArchiveRailButton({
-  title,
-  subtitle,
-  badgeLabel,
-  accentColor,
-  active = false,
-  logo,
-  onClick,
-}: {
-  title: string;
-  subtitle: string;
-  badgeLabel: string;
-  accentColor: string;
-  active?: boolean;
-  logo?: string;
-  onClick: () => void;
-}) {
-  const showBadgeLabel = badgeLabel !== "All";
-
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={title}
-      aria-pressed={active}
-      className="pointer-events-auto group relative z-0 flex h-[72px] w-[92px] items-center justify-start overflow-visible text-left focus-visible:outline-none hover:z-40 focus-visible:z-40"
-    >
-      <div
-        className={`relative z-10 flex h-[72px] w-[92px] shrink-0 items-center justify-center overflow-hidden border-b border-black/10 transition-colors duration-200 ease-out ${
-          active
-            ? "bg-white"
-            : "bg-[var(--ink-wash-200)] group-hover:bg-black/5 group-focus-visible:bg-black/5"
-        }`}
-      >
-        {logo ? (
-          <img src={logo} alt={badgeLabel} className="h-8 w-8 object-contain" />
-        ) : (
-          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-black">
-            {badgeLabel}
-          </span>
-        )}
-        <span
-          className="absolute inset-y-0 left-0 w-[3px]"
-          style={{ backgroundColor: accentColor }}
-        />
-        <span className="absolute inset-y-0 right-0 w-[2px] bg-black" />
-      </div>
-
-      <div
-        className="pointer-events-none absolute left-[92px] top-0 z-30 w-[228px] -translate-x-2 opacity-0 transition-[opacity,transform] duration-200 ease-out group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:pointer-events-auto group-focus-visible:translate-x-0 group-focus-visible:opacity-100"
-      >
-        <div
-          className="flex min-h-[72px] items-center justify-between border-b border-r border-black/10 bg-[var(--ink-wash-200)] px-6 py-4 transition-colors duration-200 group-hover:bg-white group-focus-visible:bg-white"
-        >
-          <div className="min-w-0">
-            {showBadgeLabel ? (
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--ink-wash-700)]">
-                {badgeLabel}
-              </p>
-            ) : null}
-            <p className="mt-1 text-sm font-semibold leading-5 text-black">
-              {title}
-            </p>
-            <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
-              {subtitle}
-            </p>
-          </div>
-
-          <div className="ml-3 shrink-0 text-right">
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="#000"
-              strokeWidth="2.25"
-              className="ml-auto"
-            >
-              <path d="M5 4L10 8L5 12" />
-            </svg>
-          </div>
-        </div>
-      </div>
-    </button>
   );
 }
 
@@ -501,7 +412,6 @@ export default function ArchiveView({
   const projectEditorRef = useRef<ProjectEditorHandle>(null);
   const previewClearTimeoutRef = useRef<number | null>(null);
   const previewProjectSlugRef = useRef<string | null>(previewProjectSlug);
-  const railScrollRef = useRef<HTMLDivElement>(null);
   const baseUniversitiesById = useMemo(
     () => new Map(baseUniversities.map((university) => [university.id, university])),
     [baseUniversities]
@@ -648,16 +558,6 @@ export default function ArchiveView({
     duration: 0.38,
     ease: [0.22, 1, 0.36, 1] as const,
   };
-  const [railScrollMetrics, setRailScrollMetrics] = useState({
-    visible: false,
-    thumbHeight: 0,
-    thumbOffset: 0,
-  });
-  const railHeaderOffset = editorUnlocked
-    ? selectedUniversity
-      ? 156
-      : 110
-    : 0;
   const currentPath = searchParams.toString()
     ? `${pathname}?${searchParams.toString()}`
     : pathname;
@@ -698,49 +598,6 @@ export default function ArchiveView({
       }
     };
   }, []);
-
-  useEffect(() => {
-    const node = railScrollRef.current;
-    if (!node) return;
-
-    function updateRailScrollMetrics() {
-      const { scrollTop, scrollHeight, clientHeight } = node;
-      const hasOverflow = scrollHeight > clientHeight + 1;
-
-      if (!hasOverflow) {
-        setRailScrollMetrics({
-          visible: false,
-          thumbHeight: 0,
-          thumbOffset: 0,
-        });
-        return;
-      }
-
-      const thumbHeight = Math.max(28, (clientHeight * clientHeight) / scrollHeight);
-      const maxThumbOffset = clientHeight - thumbHeight;
-      const maxScrollTop = scrollHeight - clientHeight;
-      const thumbOffset =
-        maxScrollTop > 0 ? (scrollTop / maxScrollTop) * maxThumbOffset : 0;
-
-      setRailScrollMetrics({
-        visible: true,
-        thumbHeight,
-        thumbOffset,
-      });
-    }
-
-    updateRailScrollMetrics();
-    const frameId = window.requestAnimationFrame(updateRailScrollMetrics);
-
-    node.addEventListener("scroll", updateRailScrollMetrics, { passive: true });
-    window.addEventListener("resize", updateRailScrollMetrics);
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      node.removeEventListener("scroll", updateRailScrollMetrics);
-      window.removeEventListener("resize", updateRailScrollMetrics);
-    };
-  }, [editorUnlocked, railHeaderOffset, universities.length]);
 
   useEffect(() => {
     if (!selectedProjectStageControllerRef) return;
@@ -991,114 +848,126 @@ export default function ArchiveView({
             opacity: shouldHideRail ? 0 : 1,
           }}
           transition={focusTransition}
-          className="absolute inset-y-0 left-0 z-20 min-h-0 overflow-visible"
+          className="absolute inset-y-0 left-0 z-20 flex w-[320px] min-h-0 flex-col overflow-hidden border-r-2 border-black bg-[var(--ink-wash-200)]"
           aria-hidden={shouldHideRail}
-          style={{
-            width: ARCHIVE_RAIL_COLLAPSED_WIDTH,
-            pointerEvents: shouldHideRail ? "none" : "auto",
-          }}
+          style={{ pointerEvents: shouldHideRail ? "none" : "auto" }}
         >
-          <div
-            className="absolute inset-y-0 left-0 border-r-2 border-black bg-[var(--ink-wash-200)]"
-            style={{ width: ARCHIVE_RAIL_COLLAPSED_WIDTH }}
-          />
-
-          {editorUnlocked ? (
-            <div
-              className="absolute left-0 top-0 z-20 border-r-2 border-b-2 border-black bg-white px-2 py-2"
-              style={{ width: ARCHIVE_RAIL_COLLAPSED_WIDTH, pointerEvents: "auto" }}
-            >
-              <div className="flex flex-col gap-2">
+          {editorUnlocked && (
+            <div className="flex items-center justify-between border-b-2 border-black bg-white px-4 py-3">
+              <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={handleCreateUniversity}
-                  title="Add organization"
-                  className="flex h-10 w-full items-center justify-center border border-black bg-black px-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
+                  className="border border-black bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
                 >
-                  Add
+                  + Add
                 </button>
                 {selectedUniversity ? (
                   <button
                     type="button"
                     onClick={() => handleEditUniversity(selectedUniversity.id)}
-                    title={`Edit ${selectedUniversity.name}`}
-                    className="flex h-10 w-full items-center justify-center border border-black bg-white px-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+                    className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
                   >
                     Edit
                   </button>
                 ) : null}
-                <LogoutButton
-                  redirectPath={logoutPath}
-                  label="Out"
-                  className="h-10 w-full px-0 tracking-[0.18em]"
-                />
               </div>
+              <LogoutButton redirectPath={logoutPath} />
             </div>
-          ) : null}
+          )}
 
-          <div
-            className="pointer-events-none absolute bottom-0 left-0"
-            style={{ top: railHeaderOffset, width: ARCHIVE_RAIL_PANEL_WIDTH }}
-          >
-            <div
-              ref={railScrollRef}
-              className="uni-rail-scroll pointer-events-none h-full overflow-y-auto"
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <button
+              type="button"
+              onClick={() => handleFilterChange(null)}
+              className={`group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors ${
+                !selectedUniversity ? "bg-white" : "hover:bg-black/5"
+              }`}
             >
-              <div className="flex flex-col">
-                <ArchiveRailButton
-                  title="All Projects"
-                  subtitle="Across the full consortium"
-                  badgeLabel="All"
-                  accentColor="#000000"
-                  active={!selectedUniversity}
-                  onClick={() => handleFilterChange(null)}
-                />
-
-                {universities.map((university) => {
-                  const active = selectedUniversity?.id === university.id;
-
-                  return (
-                    <ArchiveRailButton
-                      key={university.id}
-                      title={university.name}
-                      subtitle={`${university.city}, ${university.country}`}
-                      badgeLabel={university.shortName}
-                      accentColor={university.color}
-                      active={active}
-                      logo={university.logo}
-                      onClick={() => handleFilterChange(university)}
-                    />
-                  );
-                })}
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-[var(--ink-wash-700)]">
+                All
               </div>
-            </div>
 
-            {railScrollMetrics.visible ? (
-              <div
-                className="pointer-events-none absolute inset-y-0 z-20"
-                style={{
-                  left: ARCHIVE_RAIL_COLLAPSED_WIDTH - 2,
-                  width: 2,
-                }}
+              <div className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold leading-tight text-black">
+                  All Projects
+                </span>
+                <span className="mt-0.5 block text-xs font-medium text-[var(--ink-wash-700)]">
+                  {allProjects.length} project{allProjects.length === 1 ? "" : "s"}
+                </span>
+              </div>
+
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke={!selectedUniversity ? "#000" : "#CCC"}
+                strokeWidth="2.5"
+                className="shrink-0 transition-colors group-hover:stroke-black"
               >
-                <div className="absolute inset-y-0 left-0 w-[2px] bg-black/10" />
-                <div
-                  className="absolute left-0 w-[2px] rounded-full bg-black"
-                  style={{
-                    height: railScrollMetrics.thumbHeight,
-                    transform: `translateY(${railScrollMetrics.thumbOffset}px)`,
-                  }}
-                />
-              </div>
-            ) : null}
+                <path d="M6 4L10 8L6 12" />
+              </svg>
+            </button>
+
+            {universities.map((university) => {
+              const active = selectedUniversity?.id === university.id;
+
+              return (
+                <button
+                  key={university.id}
+                  type="button"
+                  onClick={() => handleFilterChange(university)}
+                  className={`group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors ${
+                    active ? "bg-white" : "hover:bg-black/5"
+                  }`}
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-4">
+                    {university.logo ? (
+                      <img
+                        src={university.logo}
+                        alt={university.shortName}
+                        className="h-8 w-8 shrink-0 object-contain"
+                      />
+                    ) : (
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-[var(--ink-wash-700)]">
+                        {university.shortName}
+                      </div>
+                    )}
+
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--ink-wash-700)]">
+                        {university.shortName}
+                      </p>
+                      <p className="mt-1 text-sm font-semibold leading-5 text-black">
+                        {university.name}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
+                        {university.city}, {university.country}
+                      </p>
+                    </div>
+                  </div>
+
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    stroke={active ? "#000" : "#CCC"}
+                    strokeWidth="2.5"
+                    className="shrink-0 transition-colors group-hover:stroke-black"
+                  >
+                    <path d="M6 4L10 8L6 12" />
+                  </svg>
+                </button>
+              );
+            })}
           </div>
         </motion.aside>
 
         <motion.div
           initial={false}
-          animate={{
-            paddingLeft: shouldHideRail ? 0 : ARCHIVE_RAIL_COLLAPSED_WIDTH,
-          }}
+          animate={{ paddingLeft: shouldHideRail ? 0 : 320 }}
           transition={focusTransition}
           className="flex h-full min-h-0 w-full flex-col bg-[var(--ink-wash-200)]"
         >
