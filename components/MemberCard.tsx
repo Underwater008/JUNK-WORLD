@@ -18,10 +18,14 @@ export default function MemberCard({
   member,
   index,
   onSelect,
+  editable = false,
+  onEdit,
 }: {
   member: Member;
   index: number;
   onSelect?: (universityId: string | undefined) => void;
+  editable?: boolean;
+  onEdit?: (member: Member) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -37,12 +41,27 @@ export default function MemberCard({
         setExpanded(willExpand);
         onSelect?.(willExpand ? member.universityId : undefined);
       }}
-      className="group cursor-pointer border-t-2 border-black pt-6 pb-8"
+      className="group relative cursor-pointer border-t-2 border-black pt-6 pb-8"
     >
+      {editable && onEdit ? (
+        <div className="pointer-events-none absolute right-0 top-4 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onEdit(member);
+            }}
+            className="pointer-events-auto border border-black bg-white px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+          >
+            Edit
+          </button>
+        </div>
+      ) : null}
+
       {/* Photo / Initials */}
       <div className="mb-5">
         {member.image && !imgError ? (
-          <div className="w-[100px] h-[100px] overflow-hidden grayscale hover:grayscale-0 transition-[filter] duration-500">
+          <div className="w-[100px] h-[100px] overflow-hidden">
             <img
               src={member.image}
               alt={member.name}

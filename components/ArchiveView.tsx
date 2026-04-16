@@ -22,6 +22,8 @@ import type {
 const NEW_UNIVERSITY_ID = "__new_university__";
 
 const NEW_PROJECT_SLUG = "__new__";
+const ARCHIVE_RAIL_COLLAPSED_WIDTH = 92;
+const ARCHIVE_RAIL_PANEL_WIDTH = 320;
 const BlockNoteDocument = dynamic(
   () => import("@/components/projects/BlockNoteDocument"),
   {
@@ -116,6 +118,100 @@ function StatusPill({
   );
 }
 
+function ArchiveRailButton({
+  title,
+  subtitle,
+  badgeLabel,
+  countLabel,
+  accentColor,
+  active = false,
+  logo,
+  onClick,
+}: {
+  title: string;
+  subtitle: string;
+  badgeLabel: string;
+  countLabel: string;
+  accentColor: string;
+  active?: boolean;
+  logo?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-pressed={active}
+      className="pointer-events-auto group relative z-0 flex h-[82px] w-[76px] items-center justify-start overflow-visible text-left transition focus-visible:outline-none hover:z-30 focus-visible:z-30"
+    >
+      <div
+        className={`relative z-10 flex h-[72px] w-[72px] shrink-0 items-center justify-center overflow-hidden border border-black transition-[transform,background-color,box-shadow] duration-200 ease-out ${
+          active
+            ? "bg-white shadow-[4px_4px_0_#000]"
+            : "bg-[#F4F0E8] group-hover:bg-white group-hover:shadow-[4px_4px_0_#000] group-focus-visible:bg-white group-focus-visible:shadow-[4px_4px_0_#000]"
+        }`}
+      >
+        <span
+          className="absolute inset-y-0 left-0 w-[4px]"
+          style={{ backgroundColor: accentColor }}
+        />
+        {logo ? (
+          <img
+            src={logo}
+            alt={badgeLabel}
+            className="h-9 w-9 object-contain grayscale transition duration-200 group-hover:grayscale-0 group-focus-visible:grayscale-0"
+          />
+        ) : (
+          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-black">
+            {badgeLabel}
+          </span>
+        )}
+        <span className="absolute bottom-2 right-2 border border-black bg-white px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-[0.16em] text-black">
+          {countLabel.replace(" projects", "").replace(" project", "")}
+        </span>
+      </div>
+
+      <div className="absolute left-[66px] top-1/2 z-20 w-[228px] -translate-y-1/2 -translate-x-3 opacity-0 transition-[opacity,transform] duration-200 ease-out group-hover:translate-x-0 group-hover:opacity-100 group-focus-visible:translate-x-0 group-focus-visible:opacity-100">
+        <div className="relative overflow-hidden border-2 border-black bg-white px-4 py-3 shadow-[8px_8px_0_#000]">
+          <span
+            className="absolute inset-y-0 left-0 w-[6px]"
+            style={{ backgroundColor: accentColor }}
+          />
+          <div className="flex items-start justify-between gap-3 pl-3">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[var(--ink-wash-700)]">
+                {badgeLabel}
+              </p>
+              <p className="mt-1 text-sm font-semibold leading-5 text-black">
+                {title}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
+                {subtitle}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 self-start">
+              <span className="border border-black px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-black">
+                {countLabel}
+              </span>
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="#000"
+                strokeWidth="2.25"
+              >
+                <path d="M5 4L10 8L5 12" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 function AccessGate({
   nextPath,
   onExit,
@@ -159,6 +255,79 @@ function AccessGate({
             Unlock inline editing for cards, metadata, media, globe targets, and project body content.
           </p>
           <LoginForm nextPath={nextPath} submitLabel="Unlock Editor" />
+        </section>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function DeleteProjectDialog({
+  project,
+  deleting,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  project: ArchiveProjectEntry;
+  deleting: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end bg-black/55 p-3 sm:items-center sm:justify-center sm:p-6"
+    >
+      <motion.div
+        initial={{ y: 24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 24, opacity: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="relative w-full max-w-[560px] overflow-hidden border-2 border-black bg-white shadow-[12px_12px_0_#000]"
+      >
+        <section className="bg-white px-5 py-5 sm:px-6 sm:py-6">
+          <div>
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-red-600">
+                Delete Project
+              </p>
+              <h3 className="mt-4 font-serif text-3xl leading-none text-black">
+                Delete &ldquo;{project.title}&rdquo;?
+              </h3>
+              <p className="mt-4 max-w-md text-sm leading-7 text-black/60">
+                This will permanently remove the project from the archive and portal.
+              </p>
+              <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-black/40">
+                {project.shortName} / {project.year}
+              </p>
+              {error ? (
+                <p className="mt-4 border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                  {error}
+                </p>
+              ) : null}
+            </div>
+          </div>
+          <div className="mt-6 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={deleting}
+              className="border border-black/20 bg-white px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black/60 transition hover:border-black hover:text-black disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={deleting}
+              className="border border-red-600 bg-red-600 px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-red-600 disabled:opacity-40"
+            >
+              {deleting ? "Deleting..." : "Yes, Delete"}
+            </button>
+          </div>
         </section>
       </motion.div>
     </motion.div>
@@ -333,6 +502,9 @@ export default function ArchiveView({
   const [editingUniversityId, setEditingUniversityId] = useState<string | null>(null);
   const [projectSavingMode, setProjectSavingMode] = useState<"draft" | "publish" | null>(null);
   const [projectIsDirty, setProjectIsDirty] = useState(false);
+  const [projectDeleteTarget, setProjectDeleteTarget] = useState<ArchiveProjectEntry | null>(null);
+  const [projectDeleteError, setProjectDeleteError] = useState<string | null>(null);
+  const [deletingProjectSlug, setDeletingProjectSlug] = useState<string | null>(null);
   const projectEditorRef = useRef<ProjectEditorHandle>(null);
   const previewClearTimeoutRef = useRef<number | null>(null);
   const previewProjectSlugRef = useRef<string | null>(previewProjectSlug);
@@ -482,6 +654,11 @@ export default function ArchiveView({
     duration: 0.38,
     ease: [0.22, 1, 0.36, 1] as const,
   };
+  const railHeaderOffset = editorUnlocked
+    ? selectedUniversity
+      ? 156
+      : 110
+    : 0;
   const currentPath = searchParams.toString()
     ? `${pathname}?${searchParams.toString()}`
     : pathname;
@@ -716,6 +893,52 @@ export default function ArchiveView({
     router.refresh();
   }
 
+  async function handleConfirmProjectDelete() {
+    if (!projectDeleteTarget || writesDisabled) return;
+
+    setDeletingProjectSlug(projectDeleteTarget.slug);
+    setProjectDeleteError(null);
+
+    try {
+      const response = await fetch(
+        `/api/portal/projects/${encodeURIComponent(projectDeleteTarget.slug)}`,
+        {
+          method: "DELETE",
+        }
+      );
+
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error || "Delete failed.");
+      }
+
+      if (previewProjectSlugRef.current === projectDeleteTarget.slug) {
+        onPreviewProjectChange(null);
+      }
+
+      setEditorProjectState((current) => {
+        if (!current) return null;
+
+        return current.routeSlug === projectDeleteTarget.slug ||
+          current.savedSlug === projectDeleteTarget.slug
+          ? null
+          : current;
+      });
+      setProjectIsDirty(false);
+      setProjectDeleteTarget(null);
+      router.refresh();
+    } catch (error) {
+      setProjectDeleteError(
+        error instanceof Error ? error.message : "Delete failed."
+      );
+    } finally {
+      setDeletingProjectSlug(null);
+    }
+  }
+
   return (
     <section className="relative h-full bg-[var(--ink-wash-200)]">
       <div className="relative h-full min-h-0">
@@ -726,125 +949,95 @@ export default function ArchiveView({
             opacity: shouldHideRail ? 0 : 1,
           }}
           transition={focusTransition}
-          className="absolute inset-y-0 left-0 z-20 flex w-[320px] min-h-0 flex-col overflow-hidden border-r-2 border-black bg-[var(--ink-wash-200)]"
+          className="absolute inset-y-0 left-0 z-20 min-h-0 overflow-visible"
           aria-hidden={shouldHideRail}
-          style={{ pointerEvents: shouldHideRail ? "none" : "auto" }}
+          style={{
+            width: ARCHIVE_RAIL_COLLAPSED_WIDTH,
+            pointerEvents: shouldHideRail ? "none" : "auto",
+          }}
         >
-          {editorUnlocked && (
-            <div className="flex items-center justify-between border-b-2 border-black bg-white px-4 py-3">
-              <div className="flex gap-2">
+          <div
+            className="absolute inset-y-0 left-0 border-r-2 border-black bg-[var(--ink-wash-200)]"
+            style={{ width: ARCHIVE_RAIL_COLLAPSED_WIDTH }}
+          />
+
+          {editorUnlocked ? (
+            <div
+              className="absolute left-0 top-0 z-20 border-r-2 border-b-2 border-black bg-white px-2 py-2"
+              style={{ width: ARCHIVE_RAIL_COLLAPSED_WIDTH, pointerEvents: "auto" }}
+            >
+              <div className="flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={handleCreateUniversity}
-                  className="border border-black bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
+                  title="Add organization"
+                  className="flex h-10 w-full items-center justify-center border border-black bg-black px-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
                 >
-                  + Add
+                  Add
                 </button>
                 {selectedUniversity ? (
                   <button
                     type="button"
                     onClick={() => handleEditUniversity(selectedUniversity.id)}
-                    className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+                    title={`Edit ${selectedUniversity.name}`}
+                    className="flex h-10 w-full items-center justify-center border border-black bg-white px-0 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
                   >
                     Edit
                   </button>
                 ) : null}
+                <LogoutButton
+                  redirectPath={logoutPath}
+                  label="Out"
+                  className="h-10 w-full px-0 tracking-[0.18em]"
+                />
               </div>
-              <LogoutButton redirectPath={logoutPath} />
             </div>
-          )}
+          ) : null}
 
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <button
-              type="button"
-              onClick={() => handleFilterChange(null)}
-              className={`group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors ${
-                !selectedUniversity ? "bg-white" : "hover:bg-black/5"
-              }`}
-            >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-[var(--ink-wash-700)]">
-                All
+          <div
+            className="pointer-events-none absolute bottom-0 left-0"
+            style={{ top: railHeaderOffset, width: ARCHIVE_RAIL_PANEL_WIDTH }}
+          >
+            <div className="pointer-events-none h-full overflow-y-auto px-2 py-2">
+              <div className="flex flex-col gap-2">
+                <ArchiveRailButton
+                  title="All Projects"
+                  subtitle="Across the full consortium"
+                  badgeLabel="All"
+                  countLabel={`${allProjects.length} project${allProjects.length === 1 ? "" : "s"}`}
+                  accentColor="#000000"
+                  active={!selectedUniversity}
+                  onClick={() => handleFilterChange(null)}
+                />
+
+                {universities.map((university) => {
+                  const active = selectedUniversity?.id === university.id;
+                  const projectCount = university.projects.length;
+
+                  return (
+                    <ArchiveRailButton
+                      key={university.id}
+                      title={university.name}
+                      subtitle={`${university.city}, ${university.country}`}
+                      badgeLabel={university.shortName}
+                      countLabel={`${projectCount} project${projectCount === 1 ? "" : "s"}`}
+                      accentColor={university.color}
+                      active={active}
+                      logo={university.logo}
+                      onClick={() => handleFilterChange(university)}
+                    />
+                  );
+                })}
               </div>
-
-              <div className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold leading-tight text-black">
-                  All Projects
-                </span>
-                <span className="mt-0.5 block text-xs font-medium text-[var(--ink-wash-700)]">
-                  {allProjects.length} project{allProjects.length === 1 ? "" : "s"}
-                </span>
-              </div>
-
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 16 16"
-                fill="none"
-                stroke={!selectedUniversity ? "#000" : "#CCC"}
-                strokeWidth="2.5"
-                className="shrink-0 transition-colors group-hover:stroke-black"
-              >
-                <path d="M6 4L10 8L6 12" />
-              </svg>
-            </button>
-
-            {universities.map((university) => {
-              const active = selectedUniversity?.id === university.id;
-
-              return (
-                <button
-                  key={university.id}
-                  type="button"
-                  onClick={() => handleFilterChange(university)}
-                  className={`group flex w-full cursor-pointer items-center gap-4 border-b border-black/10 px-6 py-5 text-left transition-colors ${
-                    active ? "bg-white" : "hover:bg-black/5"
-                  }`}
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-4">
-                    {university.logo ? (
-                      <img
-                        src={university.logo}
-                        alt={university.shortName}
-                        className="h-8 w-8 shrink-0 object-contain"
-                      />
-                    ) : (
-                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white text-[10px] font-bold uppercase text-[var(--ink-wash-700)]">
-                        {university.shortName}
-                      </div>
-                    )}
-
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[var(--ink-wash-700)]">
-                        {university.shortName}
-                      </p>
-                      <p className="mt-1 text-sm font-semibold leading-5 text-black">
-                        {university.name}
-                      </p>
-                      <p className="mt-1 text-xs leading-5 text-[var(--ink-wash-700)]">
-                        {university.city}, {university.country}
-                      </p>
-                    </div>
-                  </div>
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke={active ? "#000" : "#CCC"}
-                    strokeWidth="2.5"
-                    className="shrink-0 transition-colors group-hover:stroke-black"
-                  >
-                    <path d="M6 4L10 8L6 12" />
-                  </svg>
-                </button>
-              );
-            })}
+            </div>
           </div>
         </motion.aside>
 
         <motion.div
           initial={false}
-          animate={{ paddingLeft: shouldHideRail ? 0 : 320 }}
+          animate={{
+            paddingLeft: shouldHideRail ? 0 : ARCHIVE_RAIL_COLLAPSED_WIDTH,
+          }}
           transition={focusTransition}
           className="flex h-full min-h-0 w-full flex-col bg-[var(--ink-wash-200)]"
         >
@@ -882,6 +1075,14 @@ export default function ArchiveView({
                 ) : selectedProject && editorUnlocked ? (
                   <div className="flex items-center gap-2">
                     {projectIsDirty ? <StatusPill label="Unsaved" /> : null}
+                    <button
+                      type="button"
+                      disabled={writesDisabled}
+                      onClick={() => projectEditorRef.current?.openSettings()}
+                      className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white disabled:opacity-40"
+                    >
+                      Project Settings
+                    </button>
                     <button
                       type="button"
                       disabled={projectSavingMode !== null || writesDisabled}
@@ -1025,6 +1226,15 @@ export default function ArchiveView({
                       onSelect={() => handleSelectProject(project.slug)}
                       onPreview={() => handleProjectPreviewStart(project.slug)}
                       onPreviewEnd={() => handleProjectPreviewEnd(project.slug)}
+                      onDelete={
+                        editorUnlocked && !writesDisabled
+                          ? () => {
+                              setProjectDeleteError(null);
+                              setProjectDeleteTarget(project);
+                            }
+                          : undefined
+                      }
+                      deletePending={deletingProjectSlug === project.slug}
                       showBadges={editorUnlocked}
                       isActive={previewProjectSlug === project.slug}
                     />
@@ -1043,6 +1253,19 @@ export default function ArchiveView({
       <AnimatePresence>
         {editRequested && !editorSessionAvailable ? (
           <AccessGate nextPath={currentPath} onExit={handleExitEditMode} />
+        ) : null}
+        {projectDeleteTarget ? (
+          <DeleteProjectDialog
+            project={projectDeleteTarget}
+            deleting={deletingProjectSlug === projectDeleteTarget.slug}
+            error={projectDeleteError}
+            onCancel={() => {
+              if (deletingProjectSlug) return;
+              setProjectDeleteError(null);
+              setProjectDeleteTarget(null);
+            }}
+            onConfirm={() => void handleConfirmProjectDelete()}
+          />
         ) : null}
       </AnimatePresence>
     </section>

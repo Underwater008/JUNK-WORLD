@@ -4,8 +4,12 @@ import { useRouter } from "next/navigation";
 
 export default function LogoutButton({
   redirectPath = "/portal/login",
+  label = "Logout",
+  className = "",
 }: {
   redirectPath?: string;
+  label?: string;
+  className?: string;
 }) {
   const router = useRouter();
 
@@ -19,9 +23,9 @@ export default function LogoutButton({
     <button
       type="button"
       onClick={handleLogout}
-      className="border border-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-black transition hover:bg-black hover:text-white"
+      className={`border border-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.24em] text-black transition hover:bg-black hover:text-white ${className}`}
     >
-      Logout
+      {label}
     </button>
   );
 }

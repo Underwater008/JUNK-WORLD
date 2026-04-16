@@ -24,7 +24,7 @@ import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
 import MobileLayout from "@/components/MobileLayout";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import type { University } from "@/types";
+import type { Member, University } from "@/types";
 
 type View = "about" | "projects" | "members";
 
@@ -567,11 +567,13 @@ function SelectedProjectStage({
 function HomeContent({
   universities,
   baseUniversities,
+  members,
   editorSessionAvailable,
   writesDisabled,
 }: {
   universities: University[];
   baseUniversities: University[];
+  members: Member[];
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
 }) {
@@ -811,12 +813,6 @@ function HomeContent({
   const handleGalleryExpandedChange = useCallback((expanded: boolean) => {
     setGalleryExpanded(expanded);
   }, []);
-  const handleFocusMarkerOffsetChange = useCallback(
-    (markerOffset: { lat: number; lng: number }) => {
-      selectedProjectStageControllerRef.current?.setMarkerOffset(markerOffset);
-    },
-    []
-  );
 
   useEffect(() => {
     if (isProjectsView && selectedProjectSlug) return;
@@ -1000,11 +996,13 @@ function HomeContent({
         onViewChange={handleViewChange}
         universities={universities}
         baseUniversities={baseUniversities}
+        members={members}
         selectedUniversity={selectedUniversity}
         onSelectUniversity={setSelectedUniversity}
         hoveredProject={hoveredProject}
         onSelectMember={handleSelectMember}
         editorSessionAvailable={editorSessionAvailable}
+        editorUnlocked={editorUnlocked}
         writesDisabled={writesDisabled}
       />
     );
@@ -1095,9 +1093,6 @@ function HomeContent({
                 lockedGlobeFocusMarker ?? activeGlobeFocusMarker
               }
               editableFocusMarker={showSelectedProjectStage && projectLocationEditable}
-              onFocusMarkerOffsetChange={
-                projectLocationEditable ? handleFocusMarkerOffsetChange : undefined
-              }
             />
           </motion.div>
         </motion.div>
@@ -1210,7 +1205,13 @@ function HomeContent({
                 exit={{ opacity: 0, x: -28 }}
                 transition={panelContentTransition}
               >
-                <MembersContent onSelectMember={handleSelectMember} />
+                <MembersContent
+                  members={members}
+                  universities={baseUniversities}
+                  onSelectMember={handleSelectMember}
+                  editorUnlocked={editorUnlocked}
+                  writesDisabled={writesDisabled}
+                />
               </motion.div>
             )}
           </AnimatePresence>
@@ -1224,11 +1225,13 @@ function HomeContent({
 export default function HomeShell({
   universities,
   baseUniversities,
+  members,
   editorSessionAvailable,
   writesDisabled,
 }: {
   universities: University[];
   baseUniversities: University[];
+  members: Member[];
   editorSessionAvailable: boolean;
   writesDisabled: boolean;
 }) {
@@ -1237,6 +1240,7 @@ export default function HomeShell({
       <HomeContent
         universities={universities}
         baseUniversities={baseUniversities}
+        members={members}
         editorSessionAvailable={editorSessionAvailable}
         writesDisabled={writesDisabled}
       />

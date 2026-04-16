@@ -5,7 +5,7 @@ import Globe from "@/components/Globe";
 import AboutContent from "@/components/AboutContent";
 import MembersContent from "@/components/MembersContent";
 import ProjectsView from "@/components/ProjectsView";
-import { University } from "@/types";
+import { Member, University } from "@/types";
 
 type View = "about" | "projects" | "members";
 
@@ -34,11 +34,13 @@ interface MobileLayoutProps {
   onViewChange: (view: View) => void;
   universities: University[];
   baseUniversities: University[];
+  members: Member[];
   selectedUniversity: University | null;
   onSelectUniversity: (uni: University | null) => void;
   hoveredProject: string | null;
   onSelectMember: (universityId: string | undefined) => void;
   editorSessionAvailable: boolean;
+  editorUnlocked: boolean;
   writesDisabled: boolean;
 }
 
@@ -47,11 +49,13 @@ export default function MobileLayout({
   onViewChange,
   universities,
   baseUniversities,
+  members,
   selectedUniversity,
   onSelectUniversity,
   hoveredProject,
   onSelectMember,
   editorSessionAvailable,
+  editorUnlocked,
   writesDisabled,
 }: MobileLayoutProps) {
   if (view === "projects") {
@@ -158,13 +162,19 @@ export default function MobileLayout({
           {view === "members" && (
             <motion.div
               key="members"
-              className="h-full"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <MembersContent onSelectMember={onSelectMember} />
+            className="h-full"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+              <MembersContent
+                members={members}
+                universities={baseUniversities}
+                onSelectMember={onSelectMember}
+                editorUnlocked={editorUnlocked}
+                writesDisabled={writesDisabled}
+              />
             </motion.div>
           )}
         </AnimatePresence>

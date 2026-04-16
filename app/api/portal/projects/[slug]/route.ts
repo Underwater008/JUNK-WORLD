@@ -4,7 +4,7 @@ import {
   isPortalWriteDisabled,
 } from "@/lib/portal/mode";
 import { hasPortalSession } from "@/lib/portal/session";
-import { updateProjectDraft } from "@/lib/projects/server";
+import { deleteProject, updateProjectDraft } from "@/lib/projects/server";
 
 function toErrorResponse(error: unknown) {
   if (error instanceof Error) {
@@ -46,6 +46,32 @@ export async function PUT(
       slug: result.record.slug,
       status: result.record.publishedContent ? "published" : "draft",
     });
+  } catch (error) {
+    return toErrorResponse(error);
+  }
+}
+
+export async function DELETE(
+  _request: Request,
+  context: { params: Promise<{ slug: string }> }
+) {
+  const sessionIsValid = await hasPortalSession();
+  if (!sessionIsValid) {
+    return NextResponse.json({ error: "Portal session expired." }, { status: 401 });
+  }
+
+  if (isPortalWriteDisabled()) {
+    return NextResponse.json(
+      { error: getPortalWriteDisabledMessage() },
+      { status: 403 }
+    );
+  }
+
+  const { slug } = await context.params;
+
+  try {
+    const result = await deleteProject(slug);
+    return NextResponse.json({ slug: result.deletedSlug });
   } catch (error) {
     return toErrorResponse(error);
   }

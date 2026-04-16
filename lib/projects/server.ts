@@ -323,3 +323,24 @@ export async function publishProject(currentSlug: string, input: unknown) {
     record: await mapProjectRow(data as ProjectRow),
   };
 }
+
+export async function deleteProject(currentSlug: string) {
+  const existing = await getPortalProjectBySlug(currentSlug);
+  if (!existing) {
+    throw new Error("Project not found.");
+  }
+
+  const supabase = getSupabaseServerClient();
+  const { error } = await supabase
+    .from("projects")
+    .delete()
+    .eq("slug", currentSlug);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    deletedSlug: currentSlug,
+  };
+}

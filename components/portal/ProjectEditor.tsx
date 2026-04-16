@@ -36,6 +36,7 @@ const BlockNoteDocument = dynamic(
 export interface ProjectEditorHandle {
   saveDraft: () => void;
   publish: () => void;
+  openSettings: () => void;
   appendGalleryItems: (items: ProjectDocument["gallery"]) => void;
   setGalleryItems: (items: ProjectDocument["gallery"]) => void;
   setMarkerOffset: (markerOffset: ProjectDocument["markerOffset"]) => void;
@@ -55,6 +56,21 @@ type SaveToast = {
   tone: SaveToastTone;
   message: string;
 };
+
+function isSlugCustomized(slug: string, title: string) {
+  const normalizedSlug = slugify(slug);
+  const autoSlug = slugify(title);
+
+  if (!normalizedSlug) {
+    return false;
+  }
+
+  if (!autoSlug) {
+    return true;
+  }
+
+  return normalizedSlug !== autoSlug;
+}
 
 const SAVE_FEEDBACK_FLASH_KEY = "project-editor-save-feedback";
 const SAVE_FEEDBACK_FLASH_TTL_MS = 5000;
@@ -94,10 +110,13 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   const router = useRouter();
   const [project, setProject] = useState<ProjectDocument>(initialProject);
   const [body, setBody] = useState(initialProject.body);
-  const [slugTouched, setSlugTouched] = useState(Boolean(initialProject.slug));
+  const [slugCustomized, setSlugCustomized] = useState(() =>
+    isSlugCustomized(initialProject.slug, initialProject.title)
+  );
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [showCropOverlay, setShowCropOverlay] = useState(false);
   const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState(() =>
@@ -237,7 +256,12 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
           ...current,
           slug: payload.slug ?? current.slug,
         }));
-        setSlugTouched(Boolean(payload.slug));
+        setSlugCustomized(
+          isSlugCustomized(
+            payload.slug ?? requestBody.slug,
+            requestBody.title
+          )
+        );
         setBaselineSnapshot(serializeProjectDocument(savedDocument));
         const successMessage =
           nextMode === "publish" ? "Published" : "Draft saved";
@@ -274,6 +298,7 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   useImperativeHandle(ref, () => ({
     saveDraft: () => void persistProject("draft"),
     publish: () => void persistProject("publish"),
+    openSettings: () => setSettingsOpen(true),
     appendGalleryItems,
     setGalleryItems,
     setMarkerOffset,
@@ -379,10 +404,12 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
 
   function handleTitleChange(event: ChangeEvent<HTMLInputElement>) {
     const nextTitle = event.target.value;
+    const nextAutoSlug = slugify(nextTitle);
+
     setProject((current) => ({
       ...current,
       title: nextTitle,
-      slug: slugTouched ? current.slug : slugify(nextTitle),
+      slug: slugCustomized ? current.slug : nextAutoSlug,
     }));
   }
 
@@ -478,6 +505,14 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
           <div className="flex items-center gap-2">
             <button
               type="button"
+              disabled={writesDisabled}
+              onClick={() => setSettingsOpen(true)}
+              className="rounded-md border border-black/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/60 transition hover:border-black/30 hover:text-black disabled:opacity-40"
+            >
+              Project Settings
+            </button>
+            <button
+              type="button"
               disabled={savingMode !== null || writesDisabled}
               onClick={() => void persistProject("draft")}
               className="rounded-md border border-black/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/60 transition hover:border-black/30 hover:text-black disabled:opacity-40"
@@ -532,11 +567,17 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
             universities={universities}
             onUniversityChange={handleUniversityChange}
             onYearChange={(year) => patchProject("year", year)}
+            onMarkerOffsetChange={(markerOffset) =>
+              patchProject("markerOffset", markerOffset)
+            }
             onLocationLabelChange={(label) => patchProject("locationLabel", label)}
             onSlugChange={(slug) => {
-              setSlugTouched(true);
-              patchProject("slug", slugify(slug));
+              const nextSlug = slugify(slug);
+              setSlugCustomized(isSlugCustomized(nextSlug, project.title));
+              patchProject("slug", nextSlug);
             }}
+            open={settingsOpen}
+            onOpenChange={setSettingsOpen}
             disabled={writesDisabled}
           />
 

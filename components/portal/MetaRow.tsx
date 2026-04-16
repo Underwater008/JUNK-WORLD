@@ -13,9 +13,22 @@ interface MetaRowProps {
   universities: University[];
   onUniversityChange: (universityId: string) => void;
   onYearChange: (year: number) => void;
+  onMarkerOffsetChange: (markerOffset: ProjectMarkerOffset) => void;
   onLocationLabelChange: (label: string) => void;
   onSlugChange: (slug: string) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
   disabled?: boolean;
+}
+
+function formatCoordinate(value: number) {
+  return value.toFixed(4);
+}
+
+function clampCoordinate(axis: "lat" | "lng", value: number) {
+  return axis === "lat"
+    ? Math.min(90, Math.max(-90, value))
+    : Math.min(180, Math.max(-180, value));
 }
 
 export default function MetaRow({
@@ -28,11 +41,22 @@ export default function MetaRow({
   universities,
   onUniversityChange,
   onYearChange,
+  onMarkerOffsetChange,
   onLocationLabelChange,
   onSlugChange,
+  open,
+  onOpenChange,
   disabled = false,
 }: MetaRowProps) {
-  const [open, setOpen] = useState(false);
+  const [activeCoordinateInput, setActiveCoordinateInput] = useState<
+    "lat" | "lng" | null
+  >(null);
+  const [latitudeInput, setLatitudeInput] = useState(() =>
+    formatCoordinate(markerOffset.lat)
+  );
+  const [longitudeInput, setLongitudeInput] = useState(() =>
+    formatCoordinate(markerOffset.lng)
+  );
   const university = universities.find((u) => u.id === universityId);
 
   useEffect(() => {
@@ -43,7 +67,7 @@ export default function MetaRow({
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setOpen(false);
+        onOpenChange(false);
       }
     }
 
@@ -53,7 +77,80 @@ export default function MetaRow({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [open]);
+  }, [onOpenChange, open]);
+
+  function updateCoordinate(axis: "lat" | "lng", rawValue: string) {
+    const setInput = axis === "lat" ? setLatitudeInput : setLongitudeInput;
+    setInput(rawValue);
+
+    const trimmed = rawValue.trim();
+    if (
+      !trimmed ||
+      trimmed === "-" ||
+      trimmed === "." ||
+      trimmed === "-."
+    ) {
+      return;
+    }
+
+    const nextValue = Number(trimmed);
+    if (Number.isNaN(nextValue)) return;
+
+    const clamped = clampCoordinate(axis, nextValue);
+    onMarkerOffsetChange({
+      ...markerOffset,
+      [axis]: clamped,
+    });
+  }
+
+  function beginCoordinateEdit(axis: "lat" | "lng") {
+    setActiveCoordinateInput(axis);
+
+    if (axis === "lat") {
+      setLatitudeInput(formatCoordinate(markerOffset.lat));
+    } else {
+      setLongitudeInput(formatCoordinate(markerOffset.lng));
+    }
+  }
+
+  function commitCoordinate(axis: "lat" | "lng") {
+    const input = axis === "lat" ? latitudeInput : longitudeInput;
+    const trimmed = input.trim();
+    if (!trimmed) {
+      if (axis === "lat") {
+        setLatitudeInput(formatCoordinate(markerOffset.lat));
+      } else {
+        setLongitudeInput(formatCoordinate(markerOffset.lng));
+      }
+      setActiveCoordinateInput((current) => (current === axis ? null : current));
+      return;
+    }
+
+    const nextValue = Number(trimmed);
+    if (Number.isNaN(nextValue)) {
+      if (axis === "lat") {
+        setLatitudeInput(formatCoordinate(markerOffset.lat));
+      } else {
+        setLongitudeInput(formatCoordinate(markerOffset.lng));
+      }
+      setActiveCoordinateInput((current) => (current === axis ? null : current));
+      return;
+    }
+
+    const clamped = clampCoordinate(axis, nextValue);
+    onMarkerOffsetChange({
+      ...markerOffset,
+      [axis]: clamped,
+    });
+
+    if (axis === "lat") {
+      setLatitudeInput(formatCoordinate(clamped));
+    } else {
+      setLongitudeInput(formatCoordinate(clamped));
+    }
+
+    setActiveCoordinateInput((current) => (current === axis ? null : current));
+  }
 
   return (
     <div className="relative">
@@ -72,37 +169,12 @@ export default function MetaRow({
         <span>{year}</span>
         <span className="text-black/25">·</span>
         <span>{participantsCount} participants</span>
-        {!disabled && (
-          <button
-            type="button"
-            onClick={() => setOpen(!open)}
-            className="ml-1 inline-flex items-center gap-2 rounded-full border border-black/10 bg-white px-3 py-2 text-[11px] font-medium text-black/45 shadow-[0_1px_0_rgba(0,0,0,0.04)] transition hover:border-black/20 hover:bg-black/[0.03] hover:text-black"
-            aria-expanded={open}
-            aria-label="Project settings"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              className="shrink-0"
-            >
-              <path
-                d="M6.8 1.6h2.4l.35 1.65c.4.14.77.35 1.12.6l1.58-.66 1.2 2.08-1.23 1.1c.07.41.07.83 0 1.24l1.23 1.1-1.2 2.08-1.58-.66c-.35.25-.72.46-1.12.6L9.2 14.4H6.8l-.35-1.65a4.7 4.7 0 0 1-1.12-.6l-1.58.66-1.2-2.08 1.23-1.1a4.3 4.3 0 0 1 0-1.24l-1.23-1.1 1.2-2.08 1.58.66c.35-.25.72-.46 1.12-.6L6.8 1.6Z"
-              />
-              <circle cx="8" cy="8" r="2.05" />
-            </svg>
-            <span>Project settings</span>
-          </button>
-        )}
       </div>
 
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-8"
-          onClick={() => setOpen(false)}
+          onClick={() => onOpenChange(false)}
         >
           <div
             role="dialog"
@@ -130,7 +202,7 @@ export default function MetaRow({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => onOpenChange(false)}
                   className="shrink-0 border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
                   aria-label="Close project settings"
                 >
@@ -189,30 +261,63 @@ export default function MetaRow({
                 <div className="border border-black/10 bg-[#FBF8F1] px-4 py-4">
                   <div className="mb-4">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
-                      Globe position
+                      Marker position
                     </p>
                     <p className="mt-2 text-sm leading-6 text-black/58">
-                      Drag the globe on the project page while editing. The marker stays fixed
-                      and the coordinates update from that interaction instead of this panel.
+                      Type the exact coordinates here to place the marker. Drag
+                      the globe on the project page while editing to rotate
+                      around that pinned point.
                     </p>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="border border-black/10 bg-white px-3 py-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
+                    <label className="flex flex-col gap-2 border border-black/10 bg-white px-3 py-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
                         Latitude
-                      </p>
-                      <p className="mt-2 text-sm text-black">
-                        {markerOffset.lat.toFixed(4)}
-                      </p>
-                    </div>
-                    <div className="border border-black/10 bg-white px-3 py-3">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.0001"
+                        min="-90"
+                        max="90"
+                        value={
+                          activeCoordinateInput === "lat"
+                            ? latitudeInput
+                            : formatCoordinate(markerOffset.lat)
+                        }
+                        onFocus={() => beginCoordinateEdit("lat")}
+                        onChange={(event) =>
+                          updateCoordinate("lat", event.target.value)
+                        }
+                        onBlur={() => commitCoordinate("lat")}
+                        disabled={disabled}
+                        className="border border-black/15 px-3 py-3 text-sm text-black outline-none transition focus:border-black disabled:bg-black/[0.03] disabled:text-black/45"
+                      />
+                    </label>
+                    <label className="flex flex-col gap-2 border border-black/10 bg-white px-3 py-3">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
                         Longitude
-                      </p>
-                      <p className="mt-2 text-sm text-black">
-                        {markerOffset.lng.toFixed(4)}
-                      </p>
-                    </div>
+                      </span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        step="0.0001"
+                        min="-180"
+                        max="180"
+                        value={
+                          activeCoordinateInput === "lng"
+                            ? longitudeInput
+                            : formatCoordinate(markerOffset.lng)
+                        }
+                        onFocus={() => beginCoordinateEdit("lng")}
+                        onChange={(event) =>
+                          updateCoordinate("lng", event.target.value)
+                        }
+                        onBlur={() => commitCoordinate("lng")}
+                        disabled={disabled}
+                        className="border border-black/15 px-3 py-3 text-sm text-black outline-none transition focus:border-black disabled:bg-black/[0.03] disabled:text-black/45"
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -232,7 +337,7 @@ export default function MetaRow({
               <div className="mt-6 flex justify-end">
                 <button
                   type="button"
-                  onClick={() => setOpen(false)}
+                  onClick={() => onOpenChange(false)}
                   className="border border-black bg-black px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
                 >
                   Done
