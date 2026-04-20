@@ -18,14 +18,14 @@ export default function ProtectedPortalLayout({
               href="/portal"
               className="text-xs font-semibold uppercase tracking-[0.2em] text-black"
             >
-              Project Portal
+              World Portal
             </Link>
             <div className="hidden items-center gap-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#6F6F6F] md:flex">
               <Link href="/" className="hover:text-black">
                 Public Site
               </Link>
-              <Link href="/portal/projects/new" className="hover:text-black">
-                New Project
+              <Link href="/portal/worlds/new" className="hover:text-black">
+                New World
               </Link>
               {writesDisabled ? (
                 <span className="border border-[#B42318] px-2 py-1 text-[#B42318]">

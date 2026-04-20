@@ -10,44 +10,29 @@ import {
   useRef,
   useState,
 } from "react";
-import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
 import { slugify } from "@/lib/utils";
-import { uploadAsset } from "@/lib/uploads";
 import CardCropOverlay from "@/components/portal/CardCropOverlay";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
-import SettingsPanel from "@/components/portal/SettingsPanel";
-import TagEditor from "@/components/portal/TagEditor";
-import type { ProjectDocument, University } from "@/types";
+import type { University, WorldDocument } from "@/types";
 
 type SaveMode = "draft" | "publish";
 
-const BlockNoteDocument = dynamic(
-  () => import("@/components/projects/BlockNoteDocument"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-[300px] rounded-md border border-black/6 bg-black/[0.015]" />
-    ),
-  }
-);
-
-export interface ProjectEditorHandle {
+export interface WorldEditorHandle {
   saveDraft: () => void;
   publish: () => void;
   openSettings: () => void;
-  appendGalleryItems: (items: ProjectDocument["gallery"]) => void;
-  setGalleryItems: (items: ProjectDocument["gallery"]) => void;
-  setMarkerOffset: (markerOffset: ProjectDocument["markerOffset"]) => void;
+  setGalleryItems: (items: WorldDocument["gallery"]) => void;
+  setMarkerOffset: (markerOffset: WorldDocument["markerOffset"]) => void;
   savingMode: "draft" | "publish" | null;
 }
 
-type ProjectSaveSuccess = {
+type WorldSaveSuccess = {
   slug: string;
   mode: SaveMode;
-  document: ProjectDocument;
+  document: WorldDocument;
 };
 
 type SaveToastTone = "pending" | "success" | "error";
@@ -73,39 +58,32 @@ function isSlugCustomized(slug: string, title: string) {
   return normalizedSlug !== autoSlug;
 }
 
-const SAVE_FEEDBACK_FLASH_KEY = "project-editor-save-feedback";
+const SAVE_FEEDBACK_FLASH_KEY = "world-editor-save-feedback";
 const SAVE_FEEDBACK_FLASH_TTL_MS = 5000;
 
-interface ProjectEditorProps {
+interface WorldEditorProps {
   mode: "create" | "edit";
-  initialProject: ProjectDocument;
+  initialWorld: WorldDocument;
   currentSlug?: string;
   universities: University[];
-  parentWorld?: {
-    id: string;
-    slug: string;
-    title: string;
-  } | null;
   writesDisabled?: boolean;
-  variant?: "page" | "inline";
   hideTopBar?: boolean;
   onBack?: () => void;
   onSavingStateChange?: (mode: "draft" | "publish" | null) => void;
-  onDocumentChange?: (document: ProjectDocument) => void;
+  onDocumentChange?: (document: WorldDocument) => void;
   onDirtyStateChange?: (dirty: boolean) => void;
-  onSaveSuccess?: (result: ProjectSaveSuccess) => void;
+  onSaveSuccess?: (result: WorldSaveSuccess) => void;
 }
 
-function serializeProjectDocument(document: ProjectDocument) {
+function serializeWorldDocument(document: WorldDocument) {
   return JSON.stringify(document);
 }
 
-const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(function ProjectEditor({
+const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function WorldEditor({
   mode,
-  initialProject,
+  initialWorld,
   currentSlug,
   universities,
-  parentWorld = null,
   writesDisabled = false,
   hideTopBar = false,
   onBack,
@@ -115,13 +93,9 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   onSaveSuccess,
 }, ref) {
   const router = useRouter();
-  const [project, setProject] = useState<ProjectDocument>({
-    ...initialProject,
-    worldId: initialProject.worldId || parentWorld?.id || "",
-  });
-  const [body, setBody] = useState(initialProject.body);
+  const [world, setWorld] = useState<WorldDocument>(initialWorld);
   const [slugCustomized, setSlugCustomized] = useState(() =>
-    isSlugCustomized(initialProject.slug, initialProject.title)
+    isSlugCustomized(initialWorld.slug, initialWorld.title)
   );
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -130,24 +104,20 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   const [showCropOverlay, setShowCropOverlay] = useState(false);
   const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState(() =>
-    serializeProjectDocument(initialProject)
+    serializeWorldDocument(initialWorld)
   );
   const saveToastIdRef = useRef(0);
-
   const isEditMode = mode === "edit";
-  const currentDocument = useMemo<ProjectDocument>(
-    () => ({ ...project, body, tags: project.tags }),
-    [project, body]
-  );
   const currentDocumentSnapshot = useMemo(
-    () => serializeProjectDocument(currentDocument),
-    [currentDocument]
+    () => serializeWorldDocument(world),
+    [world]
   );
   const lastEmittedDocumentSnapshotRef = useRef(currentDocumentSnapshot);
   const isDirty = useMemo(
     () => currentDocumentSnapshot !== baselineSnapshot,
     [baselineSnapshot, currentDocumentSnapshot]
   );
+
   const showSaveToast = useCallback((tone: SaveToastTone, message: string) => {
     saveToastIdRef.current += 1;
     setSaveToast({
@@ -156,27 +126,17 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
       message,
     });
   }, []);
-  const uploadBodyAsset = useCallback(
-    (file: File) => uploadAsset(file, "projects/body"),
-    []
-  );
-  const appendGalleryItems = useCallback((items: ProjectDocument["gallery"]) => {
-    if (!items.length) return;
 
-    setProject((current) => ({
-      ...current,
-      gallery: [...current.gallery, ...items],
-    }));
-  }, []);
-  const setGalleryItems = useCallback((items: ProjectDocument["gallery"]) => {
-    setProject((current) => ({
+  const setGalleryItems = useCallback((items: WorldDocument["gallery"]) => {
+    setWorld((current) => ({
       ...current,
       gallery: items,
     }));
   }, []);
+
   const setMarkerOffset = useCallback(
-    (markerOffset: ProjectDocument["markerOffset"]) => {
-      setProject((current) => ({
+    (markerOffset: WorldDocument["markerOffset"]) => {
+      setWorld((current) => ({
         ...current,
         markerOffset,
       }));
@@ -184,7 +144,7 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     []
   );
 
-  const persistProject = useCallback(
+  const persistWorld = useCallback(
     async (nextMode: SaveMode) => {
       if (writesDisabled) {
         setErrorMessage(PORTAL_READ_ONLY_MESSAGE);
@@ -196,51 +156,45 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
       setStatusMessage("");
       setErrorMessage("");
 
-      const requestBody = currentDocument;
-
       try {
         const initialResponse =
           mode === "create"
-            ? await fetch("/api/portal/projects", {
+            ? await fetch("/api/portal/worlds", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(requestBody),
+                body: JSON.stringify(world),
               })
             : await fetch(
                 nextMode === "publish"
-                  ? `/api/portal/projects/${currentSlug}/publish`
-                  : `/api/portal/projects/${currentSlug}`,
+                  ? `/api/portal/worlds/${currentSlug}/publish`
+                  : `/api/portal/worlds/${currentSlug}`,
                 {
                   method: nextMode === "publish" ? "POST" : "PUT",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(requestBody),
+                  body: JSON.stringify(world),
                 }
               );
 
         const initialPayload = (await initialResponse.json()) as {
           slug?: string;
           error?: string;
-          status?: string;
         };
 
         if (!initialResponse.ok || !initialPayload.slug) {
-          setErrorMessage(initialPayload.error ?? "Project save failed.");
+          setErrorMessage(initialPayload.error ?? "World save failed.");
           return;
         }
 
         const response =
           mode === "create" && nextMode === "publish"
-            ? await fetch(
-                `/api/portal/projects/${initialPayload.slug}/publish`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    ...requestBody,
-                    slug: initialPayload.slug,
-                  }),
-                }
-              )
+            ? await fetch(`/api/portal/worlds/${initialPayload.slug}/publish`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  ...world,
+                  slug: initialPayload.slug,
+                }),
+              })
             : initialResponse;
 
         const payload =
@@ -249,30 +203,26 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
             : ((await response.json()) as {
                 slug?: string;
                 error?: string;
-                status?: string;
               });
 
         if (!response.ok || !payload.slug) {
-          setErrorMessage(payload.error ?? "Project save failed.");
+          setErrorMessage(payload.error ?? "World save failed.");
           return;
         }
 
         const savedDocument = {
-          ...requestBody,
+          ...world,
           slug: payload.slug,
         };
 
-        setProject((current) => ({
+        setWorld((current) => ({
           ...current,
           slug: payload.slug ?? current.slug,
         }));
         setSlugCustomized(
-          isSlugCustomized(
-            payload.slug ?? requestBody.slug,
-            requestBody.title
-          )
+          isSlugCustomized(payload.slug ?? world.slug, world.title)
         );
-        setBaselineSnapshot(serializeProjectDocument(savedDocument));
+        setBaselineSnapshot(serializeWorldDocument(savedDocument));
         const successMessage =
           nextMode === "publish" ? "Published" : "Draft saved";
         setStatusMessage(successMessage);
@@ -293,29 +243,30 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
           document: savedDocument,
         });
 
-        const destination = parentWorld
-          ? `/?view=projects&edit=1&world=${encodeURIComponent(parentWorld.slug)}&project=${payload.slug}`
-          : `/?view=projects&edit=1&project=${payload.slug}`;
+        const destination = `/?view=projects&edit=1&world=${payload.slug}`;
         router.replace(destination);
         router.refresh();
       } catch {
-        setErrorMessage("Project save failed. Please try again.");
+        setErrorMessage("World save failed. Please try again.");
       } finally {
         setSavingMode(null);
       }
     },
-    [currentDocument, currentSlug, mode, onSaveSuccess, parentWorld, router, writesDisabled]
+    [currentSlug, mode, onSaveSuccess, router, world, writesDisabled]
   );
 
-  useImperativeHandle(ref, () => ({
-    saveDraft: () => void persistProject("draft"),
-    publish: () => void persistProject("publish"),
-    openSettings: () => setSettingsOpen(true),
-    appendGalleryItems,
-    setGalleryItems,
-    setMarkerOffset,
-    savingMode,
-  }), [appendGalleryItems, persistProject, savingMode, setGalleryItems, setMarkerOffset]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      saveDraft: () => void persistWorld("draft"),
+      publish: () => void persistWorld("publish"),
+      openSettings: () => setSettingsOpen(true),
+      setGalleryItems,
+      setMarkerOffset,
+      savingMode,
+    }),
+    [persistWorld, savingMode, setGalleryItems, setMarkerOffset]
+  );
 
   useEffect(() => {
     onSavingStateChange?.(savingMode);
@@ -352,8 +303,8 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     if (lastEmittedDocumentSnapshotRef.current === currentDocumentSnapshot) return;
 
     lastEmittedDocumentSnapshotRef.current = currentDocumentSnapshot;
-    onDocumentChange(currentDocument);
-  }, [currentDocument, currentDocumentSnapshot, onDocumentChange]);
+    onDocumentChange(world);
+  }, [currentDocumentSnapshot, onDocumentChange, world]);
 
   useEffect(() => {
     onDirtyStateChange?.(isDirty);
@@ -371,11 +322,10 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
   }, [isDirty, writesDisabled]);
 
-  // Auto-fade status message
   useEffect(() => {
     if (!statusMessage) return;
-    const t = setTimeout(() => setStatusMessage(""), 3000);
-    return () => clearTimeout(t);
+    const timeoutId = window.setTimeout(() => setStatusMessage(""), 3000);
+    return () => window.clearTimeout(timeoutId);
   }, [statusMessage]);
 
   useEffect(() => {
@@ -400,25 +350,25 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   useEffect(() => {
     if (!saveToast || saveToast.tone !== "success") return;
 
-    const t = window.setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       setSaveToast((current) => (current?.id === saveToast.id ? null : current));
     }, 2800);
 
-    return () => window.clearTimeout(t);
+    return () => window.clearTimeout(timeoutId);
   }, [saveToast]);
 
-  function patchProject<K extends keyof ProjectDocument>(
+  function patchWorld<K extends keyof WorldDocument>(
     key: K,
-    value: ProjectDocument[K]
+    value: WorldDocument[K]
   ) {
-    setProject((current) => ({ ...current, [key]: value }));
+    setWorld((current) => ({ ...current, [key]: value }));
   }
 
   function handleTitleChange(event: ChangeEvent<HTMLInputElement>) {
     const nextTitle = event.target.value;
     const nextAutoSlug = slugify(nextTitle);
 
-    setProject((current) => ({
+    setWorld((current) => ({
       ...current,
       title: nextTitle,
       slug: slugCustomized ? current.slug : nextAutoSlug,
@@ -426,12 +376,12 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   }
 
   function handleUniversityChange(universityId: string) {
-    const nextUniversity =
-      universities.find((u) => u.id === universityId) ?? null;
-    setProject((current) => {
+    const nextUniversity = universities.find((entry) => entry.id === universityId) ?? null;
+    setWorld((current) => {
       const useDefaultLocation =
         !current.locationLabel.trim() ||
         (current.markerOffset.lat === 0 && current.markerOffset.lng === 0);
+
       return {
         ...current,
         universityId,
@@ -448,27 +398,27 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   }
 
   function handleCoverChange(url: string) {
-    patchProject("coverImageUrl", url);
+    patchWorld("coverImageUrl", url);
     if (url) {
       setShowCropOverlay(true);
     } else {
-      patchProject("cardImageUrl", "");
+      patchWorld("cardImageUrl", "");
       setShowCropOverlay(false);
     }
   }
 
   function handleCropConfirm(cardUrl: string) {
-    patchProject("cardImageUrl", cardUrl);
+    patchWorld("cardImageUrl", cardUrl);
     setShowCropOverlay(false);
   }
 
   function handleCropSkip() {
-    patchProject("cardImageUrl", project.coverImageUrl);
+    patchWorld("cardImageUrl", world.coverImageUrl);
     setShowCropOverlay(false);
   }
 
   return (
-    <div className="project-editor-shell bg-white">
+    <div className="bg-white">
       {saveToast ? (
         <div className="pointer-events-none fixed bottom-5 right-5 z-[90]">
           <div
@@ -497,7 +447,6 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
         </div>
       ) : null}
 
-      {/* Sticky top bar - within pane scroller */}
       {!hideTopBar && (
         <div className="sticky top-0 z-30 flex items-center justify-between border-b border-black/8 bg-white/92 px-5 py-3 backdrop-blur-md">
           <div className="flex items-center gap-3">
@@ -511,7 +460,7 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
               </button>
             )}
             <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-black/25">
-              {isEditMode ? "Editing" : "New project"}
+              {isEditMode ? "Editing" : "New world"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -521,12 +470,12 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
               onClick={() => setSettingsOpen(true)}
               className="rounded-md border border-black/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/60 transition hover:border-black/30 hover:text-black disabled:opacity-40"
             >
-              Project Settings
+              World Settings
             </button>
             <button
               type="button"
               disabled={savingMode !== null || writesDisabled}
-              onClick={() => void persistProject("draft")}
+              onClick={() => void persistWorld("draft")}
               className="rounded-md border border-black/15 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/60 transition hover:border-black/30 hover:text-black disabled:opacity-40"
             >
               {savingMode === "draft" ? "Saving..." : "Save Draft"}
@@ -534,7 +483,7 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
             <button
               type="button"
               disabled={savingMode !== null || writesDisabled}
-              onClick={() => void persistProject("publish")}
+              onClick={() => void persistWorld("publish")}
               className="rounded-md bg-black px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-black/80 disabled:opacity-40"
             >
               {savingMode === "publish" ? "Publishing..." : "Publish"}
@@ -549,110 +498,66 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
         </div>
       )}
 
-      {/* Cover image */}
       <CoverImageUpload
-        imageUrl={project.coverImageUrl}
+        imageUrl={world.coverImageUrl}
         onImageChange={handleCoverChange}
         disabled={writesDisabled}
-        uploadPrefix="projects/cover"
+        uploadPrefix="worlds/cover"
       />
 
-      {/* Crop overlay modal */}
-      {showCropOverlay && project.coverImageUrl && (
+      {showCropOverlay && world.coverImageUrl ? (
         <CardCropOverlay
-          coverImageUrl={project.coverImageUrl}
+          coverImageUrl={world.coverImageUrl}
           onCrop={handleCropConfirm}
           onCancel={handleCropSkip}
           disabled={writesDisabled}
-          uploadPrefix="projects/card"
+          uploadPrefix="worlds/card"
         />
-      )}
+      ) : null}
 
-      {/* Document body */}
       <div className="mx-auto max-w-3xl px-6 py-8">
-          {/* Meta row */}
-          <MetaRow
-            slug={project.slug}
-            universityId={project.universityId}
-            year={project.year}
-            participantsCount={project.participantsCount}
-            markerOffset={project.markerOffset}
-            locationLabel={project.locationLabel}
-            universities={universities}
-            onUniversityChange={handleUniversityChange}
-            onYearChange={(year) => patchProject("year", year)}
-            onMarkerOffsetChange={(markerOffset) =>
-              patchProject("markerOffset", markerOffset)
-            }
-            onLocationLabelChange={(label) => patchProject("locationLabel", label)}
-            onSlugChange={(slug) => {
-              const nextSlug = slugify(slug);
-              setSlugCustomized(isSlugCustomized(nextSlug, project.title));
-              patchProject("slug", nextSlug);
-            }}
-            open={settingsOpen}
-            onOpenChange={setSettingsOpen}
-            disabled={writesDisabled}
-          >
-            <SettingsPanel
-              project={project}
-              onPatch={(key, value) => patchProject(key, value)}
-              disabled={writesDisabled}
-              embedded
-            />
-          </MetaRow>
+        <MetaRow
+          slug={world.slug}
+          universityId={world.universityId}
+          year={world.year}
+          markerOffset={world.markerOffset}
+          locationLabel={world.locationLabel}
+          universities={universities}
+          onUniversityChange={handleUniversityChange}
+          onYearChange={(year) => patchWorld("year", year)}
+          onMarkerOffsetChange={(markerOffset) => patchWorld("markerOffset", markerOffset)}
+          onLocationLabelChange={(label) => patchWorld("locationLabel", label)}
+          onSlugChange={(slug) => {
+            const nextSlug = slugify(slug);
+            setSlugCustomized(isSlugCustomized(nextSlug, world.title));
+            patchWorld("slug", nextSlug);
+          }}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          disabled={writesDisabled}
+          entityLabel="World"
+          showParticipants={false}
+        />
 
-          {/* Title - styled input that looks like a heading */}
-          <input
-            value={project.title}
-            onChange={handleTitleChange}
-            placeholder="Untitled"
-            disabled={writesDisabled}
-            className="mt-5 w-full border-0 bg-transparent font-serif text-[clamp(2.75rem,5vw,4.4rem)] leading-[0.98] text-black outline-none placeholder:text-black/20"
-          />
+        <input
+          value={world.title}
+          onChange={handleTitleChange}
+          placeholder="Untitled world"
+          disabled={writesDisabled}
+          className="mt-5 w-full border-0 bg-transparent font-serif text-[clamp(2.75rem,5vw,4.4rem)] leading-[0.98] text-black outline-none placeholder:text-black/20"
+        />
 
-          {parentWorld ? (
-            <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-black/45">
-              Inside World: {parentWorld.title}
-            </p>
-          ) : null}
-
-          {/* Summary - styled textarea that looks like a paragraph */}
-          <textarea
-            value={project.summary}
-            onChange={(e) => patchProject("summary", e.target.value)}
-            placeholder="Write a short summary..."
-            disabled={writesDisabled}
-            rows={2}
-            className="mt-4 w-full resize-none border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
-          />
-
-          {/* Divider */}
-          <div className="my-8 h-px bg-black/8" />
-
-          {/* BlockNote body - flows naturally, no box */}
-          <BlockNoteDocument
-            body={body}
-            editable={!writesDisabled}
-            uploadFile={uploadBodyAsset}
-            onChange={setBody}
-            className="project-body project-editor-body min-h-[420px]"
-            resetKey={currentSlug ?? "new-project"}
-          />
-
-          {/* Divider */}
-          <div className="my-8 h-px bg-black/8" />
-
-          {/* Tags */}
-          <TagEditor
-            tags={project.tags}
-            onChange={(tags) => patchProject("tags", tags)}
-            disabled={writesDisabled}
-          />
-
+        <textarea
+          value={world.summary}
+          onChange={(event) => patchWorld("summary", event.target.value)}
+          placeholder="Write a short world summary..."
+          disabled={writesDisabled}
+          rows={4}
+          className="mt-4 w-full resize-none border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
+        />
       </div>
     </div>
   );
 });
 
-export default ProjectEditor;
+export default WorldEditor;

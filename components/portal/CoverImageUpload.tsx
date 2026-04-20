@@ -7,12 +7,14 @@ interface CoverImageUploadProps {
   imageUrl: string;
   onImageChange: (url: string) => void;
   disabled?: boolean;
+  uploadPrefix?: string;
 }
 
 export default function CoverImageUpload({
   imageUrl,
   onImageChange,
   disabled = false,
+  uploadPrefix,
 }: CoverImageUploadProps) {
   const [uploading, setUploading] = useState(false);
 
@@ -22,7 +24,7 @@ export default function CoverImageUpload({
 
     setUploading(true);
     try {
-      const url = await uploadAsset(file);
+      const url = await uploadAsset(file, uploadPrefix);
       onImageChange(url);
     } catch {
       // parent handles error display

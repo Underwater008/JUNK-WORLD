@@ -2,7 +2,7 @@ import "server-only";
 
 import { universities as rawUniversities } from "@/data/mock";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import type { ExperienceProject, Project, University } from "@/types";
+import type { ExperienceProject, ExperienceWorld, Project, University, World } from "@/types";
 
 type UniversityRow = {
   id: string;
@@ -29,7 +29,7 @@ function mapUniversityRow(row: UniversityRow): University {
     color: row.color,
     country: row.country,
     disciplines: row.disciplines ?? [],
-    projects: [],
+    worlds: [],
     logo: row.logo ?? undefined,
     status: (row.status as "active" | "inactive") ?? "active",
   };
@@ -43,11 +43,19 @@ function sortUniversities(a: University, b: University) {
   return a.name.localeCompare(b.name);
 }
 
+function sortWorlds(a: World, b: World) {
+  return b.year - a.year || a.title.localeCompare(b.title);
+}
+
+function sortProjects(a: Project, b: Project) {
+  return b.year - a.year || a.title.localeCompare(b.title);
+}
+
 function getBaseUniversitiesFromMock(): University[] {
   return [...rawUniversities]
     .map((university) => ({
       ...university,
-      projects: [],
+      worlds: [],
     }))
     .sort(sortUniversities);
 }
@@ -85,18 +93,17 @@ export async function isKnownUniversityId(universityId: string): Promise<boolean
   return universities.some((university) => university.id === universityId);
 }
 
-export async function mergeProjectsIntoUniversities(
+export async function mergeWorldsIntoUniversities(
+  experienceWorlds: ExperienceWorld[],
   experienceProjects: ExperienceProject[]
 ): Promise<University[]> {
   const baseUniversities = await getBaseUniversities();
-  const projectsByUniversity = new Map<string, Project[]>();
+  const projectsByWorld = new Map<string, Project[]>();
 
   for (const project of experienceProjects) {
-    const university = baseUniversities.find((entry) => entry.id === project.universityId);
-    if (!university) continue;
-
     const projectEntry: Project = {
       id: project.id,
+      worldId: project.worldId,
       slug: project.slug,
       title: project.document.title,
       description: project.document.summary,
@@ -112,15 +119,39 @@ export async function mergeProjectsIntoUniversities(
       document: project.document,
     };
 
-    const existing = projectsByUniversity.get(project.universityId) ?? [];
+    const existing = projectsByWorld.get(project.worldId) ?? [];
     existing.push(projectEntry);
-    projectsByUniversity.set(project.universityId, existing);
+    projectsByWorld.set(project.worldId, existing);
+  }
+
+  const worldsByUniversity = new Map<string, World[]>();
+
+  for (const world of experienceWorlds) {
+    const worldEntry: World = {
+      id: world.id,
+      universityId: world.universityId,
+      slug: world.slug,
+      title: world.document.title,
+      description: world.document.summary,
+      year: world.document.year,
+      thumbnail:
+        world.document.cardImageUrl || world.document.coverImageUrl || "",
+      tags: world.document.tags,
+      markerOffset: world.document.markerOffset,
+      locationLabel: world.document.locationLabel,
+      status: world.status,
+      hasUnpublishedChanges: world.hasUnpublishedChanges,
+      document: world.document,
+      projects: (projectsByWorld.get(world.id) ?? []).sort(sortProjects),
+    };
+
+    const existing = worldsByUniversity.get(world.universityId) ?? [];
+    existing.push(worldEntry);
+    worldsByUniversity.set(world.universityId, existing);
   }
 
   return baseUniversities.map((university) => ({
     ...university,
-    projects: (projectsByUniversity.get(university.id) ?? []).sort(
-      (a, b) => b.year - a.year || a.title.localeCompare(b.title)
-    ),
+    worlds: (worldsByUniversity.get(university.id) ?? []).sort(sortWorlds),
   }));
 }

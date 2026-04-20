@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { getUniversityWorlds } from "@/lib/consortium";
 import { University } from "@/types";
 import ProjectCard from "./ProjectCard";
 
@@ -92,9 +93,9 @@ export default function Sidebar({
               )}
 
               {/* Project cards */}
-              {selectedUniversity.projects.length > 0 ? (
+              {getUniversityWorlds(selectedUniversity).length > 0 ? (
                 <div className="p-4 flex flex-col gap-3">
-                  {selectedUniversity.projects.map((project, i) => (
+                  {getUniversityWorlds(selectedUniversity).map((project, i) => (
                     <ProjectCard
                       key={project.id}
                       project={project}
@@ -111,7 +112,7 @@ export default function Sidebar({
               ) : (
                 <div className="px-6 py-8 text-center">
                   <p className="text-xs text-[#AAA] font-medium">
-                    No projects added yet
+                    No worlds added yet
                   </p>
                 </div>
               )}

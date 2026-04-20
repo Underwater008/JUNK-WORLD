@@ -15,8 +15,8 @@ import {
 import { useSearchParams, useRouter } from "next/navigation";
 import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import ArchiveView, {
-  type SelectedProjectStageController,
-  type SelectedProjectStageSnapshot,
+  type SelectedStageController as SelectedProjectStageController,
+  type SelectedStageSnapshot as SelectedProjectStageSnapshot,
 } from "@/components/ArchiveView";
 import Globe from "@/components/Globe";
 import Header from "@/components/Header";
@@ -614,43 +614,74 @@ function HomeContent({
   const isProjectsView = view === "projects";
   const isCompact = view !== "projects";
   const isMobile = useIsMobile();
+  const selectedWorldSlug = searchParams.get("world");
   const selectedProjectSlug = searchParams.get("project");
   const editRequested = searchParams.get("edit") === "1";
   const editorUnlocked = editRequested && editorSessionAvailable;
 
-  const projectEntries = useMemo(
+  const worldEntries = useMemo(
     (): SelectedProjectStageSnapshot[] =>
       universities.flatMap((university) =>
-        university.projects.map((project) => ({
-          id: project.id,
-          slug: project.slug ?? project.id,
+        university.worlds.map((world) => ({
+          entityType: "world" as const,
+          id: world.id,
+          slug: world.slug ?? world.id,
           universityId: university.id,
-          title: project.title,
+          title: world.title,
           universityName: university.name,
           shortName: university.shortName,
           color: university.color,
           locationLabel:
-            project.locationLabel || `${university.city}, ${university.country}`,
-          gallery: project.document?.gallery ?? [],
-          markerOffset: project.markerOffset,
+            world.locationLabel || `${university.city}, ${university.country}`,
+          gallery: world.document?.gallery ?? [],
+          markerOffset: world.document?.markerOffset ?? world.markerOffset,
         }))
       ),
     [universities]
   );
 
-  const effectiveProjectSlug = selectedProjectSlug ?? projectOpeningSlug;
+  const projectEntries = useMemo(
+    (): SelectedProjectStageSnapshot[] =>
+      universities.flatMap((university) =>
+        university.worlds.flatMap((world) =>
+          world.projects.map((project) => ({
+            entityType: "project" as const,
+            id: project.id,
+            slug: project.slug ?? project.id,
+            universityId: university.id,
+            title: project.title,
+            universityName: university.name,
+            shortName: university.shortName,
+            color: university.color,
+            locationLabel:
+              project.locationLabel || `${university.city}, ${university.country}`,
+            gallery: project.document?.gallery ?? [],
+            markerOffset: project.document?.markerOffset ?? project.markerOffset,
+          }))
+        )
+      ),
+    [universities]
+  );
+
+  const allStageEntries = useMemo(
+    () => [...worldEntries, ...projectEntries],
+    [projectEntries, worldEntries]
+  );
+  const effectiveProjectSlug = selectedProjectSlug ?? selectedWorldSlug ?? projectOpeningSlug;
   const selectedProject =
     isProjectsView && effectiveProjectSlug
-      ? selectedProjectStageSnapshot?.slug === selectedProjectSlug
+      ? selectedProjectStageSnapshot?.slug === effectiveProjectSlug
         ? selectedProjectStageSnapshot
-        : projectEntries.find((project) => project.slug === effectiveProjectSlug) ?? null
+        : allStageEntries.find((project) => project.slug === effectiveProjectSlug) ?? null
       : null;
 
   const previewProject =
     isProjectsView
-      ? projectEntries.find(
+      ? worldEntries.find(
           (project) =>
-            !selectedProjectSlug && project.slug === projectPreviewSlug
+            !selectedWorldSlug &&
+            !selectedProjectSlug &&
+            project.slug === projectPreviewSlug
         ) ?? null
       : null;
 
@@ -683,12 +714,7 @@ function HomeContent({
   const detailStageUniversity = useMemo(
     () =>
       selectedProject && projectFocusedUniversity
-        ? {
-            ...projectFocusedUniversity,
-            projects: projectFocusedUniversity.projects.filter(
-              (candidate) => candidate.id === selectedProject.id
-            ),
-          }
+        ? projectFocusedUniversity
         : null,
     [projectFocusedUniversity, selectedProject]
   );
@@ -815,14 +841,14 @@ function HomeContent({
   }, []);
 
   useEffect(() => {
-    if (isProjectsView && selectedProjectSlug) return;
+    if (isProjectsView && (selectedWorldSlug || selectedProjectSlug)) return;
 
     const frameId = window.requestAnimationFrame(() => {
       setSelectedProjectStageSnapshot(null);
     });
 
     return () => window.cancelAnimationFrame(frameId);
-  }, [isProjectsView, selectedProjectSlug]);
+  }, [isProjectsView, selectedProjectSlug, selectedWorldSlug]);
 
   useLayoutEffect(() => {
     if (!showSelectedProjectStage || !detailStageUniversity || !detailStageFocusMarker) {
@@ -834,7 +860,9 @@ function HomeContent({
   }, [detailStageFocusMarker, detailStageUniversity, showSelectedProjectStage]);
 
   useEffect(() => {
-    if (selectedProjectSlug && projectOpeningSlug === selectedProjectSlug) {
+    const activeSelectionSlug = selectedProjectSlug ?? selectedWorldSlug;
+
+    if (activeSelectionSlug && projectOpeningSlug === activeSelectionSlug) {
       const frameId = window.requestAnimationFrame(() => {
         setProjectOpeningSlug(null);
       });
@@ -842,14 +870,14 @@ function HomeContent({
       return () => window.cancelAnimationFrame(frameId);
     }
 
-    if (!selectedProjectSlug && projectOpeningSlug && !isProjectsView) {
+    if (!activeSelectionSlug && projectOpeningSlug) {
       const frameId = window.requestAnimationFrame(() => {
         setProjectOpeningSlug(null);
       });
 
       return () => window.cancelAnimationFrame(frameId);
     }
-  }, [isProjectsView, projectOpeningSlug, selectedProjectSlug]);
+  }, [isProjectsView, projectOpeningSlug, selectedProjectSlug, selectedWorldSlug]);
 
   useEffect(() => {
     if (previousOverlayViewRef.current === view) return;
@@ -961,11 +989,13 @@ function HomeContent({
 
       if (newView === "about") {
         params.delete("view");
+        params.delete("world");
         params.delete("project");
         params.delete("edit");
       } else {
         params.set("view", newView);
         if (newView !== "projects") {
+          params.delete("world");
           params.delete("project");
           params.delete("edit");
         }
@@ -1186,11 +1216,11 @@ function HomeContent({
                   baseUniversities={baseUniversities}
                   selectedUniversity={selectedUniversity}
                   onSelectUniversity={setSelectedUniversity}
-                  onPreviewProjectChange={setProjectPreviewSlug}
-                  onProjectOpenStart={setProjectOpeningSlug}
-                  previewProjectSlug={projectPreviewSlug}
-                  onSelectedProjectStageChange={setSelectedProjectStageSnapshot}
-                  selectedProjectStageControllerRef={selectedProjectStageControllerRef}
+                  onPreviewStageChange={setProjectPreviewSlug}
+                  onStageOpenStart={setProjectOpeningSlug}
+                  previewStageSlug={projectPreviewSlug}
+                  onSelectedStageChange={setSelectedProjectStageSnapshot}
+                  selectedStageControllerRef={selectedProjectStageControllerRef}
                   editorSessionAvailable={editorSessionAvailable}
                   writesDisabled={writesDisabled}
                 />

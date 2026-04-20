@@ -22,16 +22,16 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(metadataBaseUrl),
   title: "JUNK",
-  description: "A global showcase of university design projects",
+  description: "A global showcase of university worlds and design projects",
   openGraph: {
     title: "JUNK",
-    description: "A global showcase of university design projects",
+    description: "A global showcase of university worlds and design projects",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "JUNK",
-    description: "A global showcase of university design projects",
+    description: "A global showcase of university worlds and design projects",
   },
 };
 

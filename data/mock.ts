@@ -1,6 +1,118 @@
-import { University } from "@/types";
+import type { Project, ProjectDocument, University, World, WorldDocument } from "@/types";
+import { DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
+import { createLegacyChildProjectSlug, createLegacyWorldId } from "@/lib/worlds/legacy";
 
-export const universities: University[] = [
+type LegacyProject = Omit<Project, "worldId" | "document"> & {
+  slug?: string;
+};
+
+type LegacyUniversity = Omit<University, "worlds"> & {
+  projects: LegacyProject[];
+};
+
+function createLegacyWorldDocument(
+  project: LegacyProject,
+  universityId: string
+): WorldDocument {
+  return {
+    slug: project.slug ?? project.id,
+    universityId,
+    title: project.title,
+    summary: project.description,
+    year: project.year,
+    tags: [...project.tags],
+    coverImageUrl: project.thumbnail,
+    cardImageUrl: project.thumbnail,
+    gallery: [],
+    markerOffset: project.markerOffset,
+    locationLabel: project.locationLabel ?? "",
+  };
+}
+
+function createLegacyProjectDocument(
+  project: LegacyProject,
+  universityId: string,
+  worldId: string,
+  worldSlug: string
+): ProjectDocument {
+  return {
+    slug: `${worldSlug}-project`,
+    universityId,
+    worldId,
+    title: project.title,
+    summary: project.description,
+    year: project.year,
+    tags: [...project.tags],
+    coverImageUrl: project.thumbnail,
+    cardImageUrl: project.thumbnail,
+    gallery: [],
+    participantsCount: project.participants,
+    markerOffset: project.markerOffset,
+    locationLabel: project.locationLabel ?? "",
+    collaborators: [],
+    credits: [],
+    externalLinks: [],
+    body: DEFAULT_PROJECT_BODY,
+  };
+}
+
+function promoteLegacyProject(project: LegacyProject, universityId: string): World {
+  const worldId = createLegacyWorldId(project.id);
+  const worldSlug = project.slug ?? project.id;
+  const worldDocument = createLegacyWorldDocument(project, universityId);
+  const childSlug = createLegacyChildProjectSlug(worldSlug);
+  const childDocument = createLegacyProjectDocument(project, universityId, worldId, worldSlug);
+
+  return {
+    id: worldId,
+    universityId,
+    slug: worldSlug,
+    title: project.title,
+    description: project.description,
+    year: project.year,
+    thumbnail: project.thumbnail,
+    tags: [...project.tags],
+    markerOffset: project.markerOffset,
+    locationLabel: project.locationLabel,
+    status: project.status,
+    hasUnpublishedChanges: project.hasUnpublishedChanges,
+    document: worldDocument,
+    projects: [
+      {
+        id: project.id,
+        worldId,
+        slug: childSlug,
+        title: project.title,
+        description: project.description,
+        year: project.year,
+        thumbnail: project.thumbnail,
+        participants: project.participants,
+        tags: [...project.tags],
+        markerOffset: project.markerOffset,
+        locationLabel: project.locationLabel,
+        status: project.status,
+        hasUnpublishedChanges: project.hasUnpublishedChanges,
+        document: {
+          ...childDocument,
+          slug: childSlug,
+        },
+      },
+    ],
+  };
+}
+
+function promoteLegacyUniversity(university: LegacyUniversity): University {
+  const { projects, ...rest } = university;
+
+  return {
+    ...rest,
+    worlds: projects.map((project) =>
+      promoteLegacyProject(project, university.id)
+    ),
+  };
+}
+
+const legacyUniversities: LegacyUniversity[] = [
   {
     id: "nederlandse-filmacademie",
     name: "Nederlandse Filmacademie",
@@ -397,3 +509,5 @@ export const universities: University[] = [
     status: "active",
   },
 ];
+
+export const universities: University[] = legacyUniversities.map(promoteLegacyUniversity);

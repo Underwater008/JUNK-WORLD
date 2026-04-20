@@ -31,7 +31,7 @@ function mapRow(row: UniversityRow): University {
     color: row.color,
     country: row.country,
     disciplines: row.disciplines ?? [],
-    projects: [],
+    worlds: [],
     logo: row.logo ?? undefined,
     status: (row.status as "active" | "inactive") ?? "active",
   };
@@ -182,7 +182,15 @@ export async function updateUniversity(id: string, input: unknown): Promise<Univ
 export async function deleteUniversity(id: string): Promise<void> {
   const sql = getSql();
 
-  // Check if any projects reference this university
+  const worldCount = await sql`
+    select count(*)::int as count from worlds where university_id = ${id};
+  `;
+  if (worldCount[0]?.count > 0) {
+    throw new Error(
+      `Cannot delete: ${worldCount[0].count} world(s) still reference this university. Reassign or delete them first.`
+    );
+  }
+
   const projectCount = await sql`
     select count(*)::int as count from projects where university_id = ${id};
   `;

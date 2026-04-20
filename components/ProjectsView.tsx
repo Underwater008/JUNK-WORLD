@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -9,12 +9,17 @@ import LoginForm from "@/components/portal/LoginForm";
 import LogoutButton from "@/components/portal/LogoutButton";
 import ProjectCardDisplay from "@/components/ProjectCardDisplay";
 import ProjectEditor from "@/components/portal/ProjectEditor";
+import WorldEditor from "@/components/portal/WorldEditor";
+import WorldDetailSection from "@/components/consortium/WorldDetailSection";
 import { createEmptyProjectDocument } from "@/lib/projects/defaults";
 import { getPortalWriteDisabledMessage } from "@/lib/portal/mode";
-import type { ProjectDocument, University } from "@/types";
+import { createEmptyWorldDocument } from "@/lib/worlds/defaults";
+import type { ProjectDocument, University, WorldDocument } from "@/types";
 
-const NEW_PROJECT_SLUG = "__new__";
+const NEW_WORLD_SLUG = "__new_world__";
+const NEW_PROJECT_SLUG = "__new_project__";
 const panelEase = [0.4, 0, 0.2, 1] as const;
+
 const BlockNoteDocument = dynamic(
   () => import("@/components/projects/BlockNoteDocument"),
   {
@@ -25,6 +30,9 @@ const BlockNoteDocument = dynamic(
 
 type ProjectEntry = {
   id: string;
+  worldId: string;
+  worldSlug: string;
+  worldTitle: string;
   slug: string;
   title: string;
   description: string;
@@ -46,6 +54,41 @@ type ProjectEntry = {
   document: ProjectDocument | null;
 };
 
+type WorldEntry = {
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  year: number;
+  thumbnail: string;
+  tags: string[];
+  markerOffset: { lat: number; lng: number };
+  locationLabel: string;
+  universityId: string;
+  university: string;
+  shortName: string;
+  city: string;
+  country: string;
+  color: string;
+  logo?: string;
+  status: "draft" | "published";
+  hasUnpublishedChanges: boolean;
+  document: WorldDocument | null;
+  projects: ProjectEntry[];
+};
+
+type EditorWorldState = {
+  routeSlug: string;
+  savedSlug?: string;
+  document: WorldDocument;
+};
+
+type EditorProjectState = {
+  routeSlug: string;
+  savedSlug?: string;
+  document: ProjectDocument;
+};
+
 interface ProjectsViewProps {
   universities: University[];
   baseUniversities: University[];
@@ -54,18 +97,6 @@ interface ProjectsViewProps {
   writesDisabled: boolean;
   showGlobe?: boolean;
   onPreviewProjectChange?: (slug: string | null) => void;
-}
-
-function formatIndex(index: number) {
-  return String(index + 1).padStart(2, "0");
-}
-
-function getProjectPath(slug: string) {
-  const params = new URLSearchParams({
-    view: "projects",
-    project: slug,
-  });
-  return `/?${params.toString()}`;
 }
 
 function StatusPill({
@@ -83,163 +114,6 @@ function StatusPill({
     >
       {label}
     </span>
-  );
-}
-
-function ProjectImage({
-  project,
-  index,
-  large = false,
-}: {
-  project: ProjectEntry;
-  index: number;
-  large?: boolean;
-}) {
-  const imageSrc =
-    project.thumbnail || project.logo || "/images/JUNK logos/junk-logo-square.png";
-  const hasThumbnail = Boolean(project.thumbnail);
-
-  return (
-    <div
-      className={`relative overflow-hidden border-b-2 border-black bg-[#F3F2EE] ${
-        large ? "h-[280px] sm:h-[360px] lg:h-[420px]" : "h-44 sm:h-48"
-      }`}
-    >
-      {hasThumbnail ? (
-        <img
-          src={imageSrc}
-          alt={project.title}
-          className="absolute inset-0 h-full w-full object-cover"
-        />
-      ) : (
-        <>
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(145deg, ${project.color}36 0%, rgba(255,255,255,0.96) 48%, rgba(241,241,241,0.94) 100%)`,
-            }}
-          />
-          <div
-            className="absolute inset-0 opacity-70"
-            style={{
-              backgroundImage:
-                "linear-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(0, 0, 0, 0.08) 1px, transparent 1px)",
-              backgroundSize: large ? "32px 32px" : "24px 24px",
-            }}
-          />
-          <span className="absolute left-4 top-4 text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6A6A6A]">
-            Archive Still / {formatIndex(index)}
-          </span>
-          <span
-            className="absolute right-4 top-4 h-3 w-3 rounded-full border border-black/20"
-            style={{ backgroundColor: project.color }}
-          />
-          <span
-            className={`absolute -left-4 bottom-0 font-serif leading-none text-black/6 ${
-              large ? "text-[8rem]" : "text-[6rem]"
-            }`}
-          >
-            {formatIndex(index)}
-          </span>
-          <div className="absolute inset-x-5 bottom-5">
-            <div className="flex items-end justify-between gap-4">
-              <div className="min-w-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6A6A6A]">
-                  {project.shortName} / {project.year}
-                </p>
-                <p
-                  className={`mt-2 max-w-[16ch] overflow-hidden font-serif leading-[0.92] text-black ${
-                    large ? "text-[2.6rem]" : "text-[1.45rem]"
-                  }`}
-                  style={{
-                    display: "-webkit-box",
-                    WebkitLineClamp: large ? 3 : 2,
-                    WebkitBoxOrient: "vertical",
-                  }}
-                >
-                  {project.title}
-                </p>
-              </div>
-              {project.logo ? (
-                <img
-                  src={project.logo}
-                  alt={project.university}
-                  className={`w-auto max-w-[140px] object-contain grayscale ${
-                    large ? "h-16" : "h-12"
-                  }`}
-                />
-              ) : null}
-            </div>
-          </div>
-        </>
-      )}
-
-      {hasThumbnail ? (
-        <>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/72 via-black/10 to-transparent" />
-          <div className="absolute inset-x-5 bottom-5 text-white">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
-              {project.locationLabel || `${project.city}, ${project.country}`}
-            </p>
-            <p
-              className={`mt-2 max-w-[16ch] overflow-hidden font-serif leading-[0.92] text-white ${
-                large ? "text-[2.7rem]" : "text-[1.5rem]"
-              }`}
-              style={{
-                display: "-webkit-box",
-                WebkitLineClamp: large ? 3 : 2,
-                WebkitBoxOrient: "vertical",
-              }}
-            >
-              {project.title}
-            </p>
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
-
-function FocusedHeroCard({
-  project,
-  index,
-  showBadges,
-}: {
-  project: ProjectEntry;
-  index: number;
-  showBadges: boolean;
-}) {
-  return (
-    <motion.div
-      layoutId={`project-card-${project.slug}`}
-      className="overflow-hidden border-2 border-black bg-white shadow-[10px_10px_0_#000]"
-    >
-      <ProjectImage project={project} index={index} large />
-      <div className="border-t-2 border-black bg-white px-5 py-5 sm:px-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
-              {project.shortName} / {project.year}
-            </p>
-            <h2 className="mt-3 font-serif text-[clamp(2.2rem,5vw,4.3rem)] leading-[0.92] text-black">
-              {project.title}
-            </h2>
-            <p className="mt-4 max-w-4xl text-sm leading-7 text-black/78 sm:text-base">
-              {project.description}
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {project.tags.map((tag) => (
-              <StatusPill key={tag} label={tag} />
-            ))}
-            {showBadges ? <StatusPill label={project.status} /> : null}
-            {showBadges && project.hasUnpublishedChanges ? (
-              <StatusPill label="Draft Changes" filled />
-            ) : null}
-          </div>
-        </div>
-      </div>
-    </motion.div>
   );
 }
 
@@ -270,7 +144,7 @@ function ProjectContent({
   if (!project.document) {
     return (
       <div className="border-2 border-dashed border-black/35 bg-[#FBF8F1] px-5 py-10 text-sm leading-7 text-black/60">
-        This project does not have a published document yet.
+        This project does not have a published page yet.
       </div>
     );
   }
@@ -282,9 +156,9 @@ function ProjectContent({
           mobile ? "grid-cols-2" : "sm:grid-cols-2 xl:grid-cols-4"
         }`}
       >
-        <MetaBlock label="Location" value={project.locationLabel || `${project.city}, ${project.country}`} />
+        <MetaBlock label="Location" value={project.locationLabel} />
         <MetaBlock label="Participants" value={project.participants} />
-        <MetaBlock label="University" value={project.university} />
+        <MetaBlock label="World" value={project.worldTitle} />
         <MetaBlock label="Year" value={project.year} />
       </div>
 
@@ -299,7 +173,11 @@ function ProjectContent({
         </div>
       </section>
 
-      <div className={`grid gap-5 ${mobile ? "grid-cols-1" : "xl:grid-cols-[minmax(0,0.9fr)_minmax(260px,0.5fr)]"}`}>
+      <div
+        className={`grid gap-5 ${
+          mobile ? "grid-cols-1" : "xl:grid-cols-[minmax(0,0.9fr)_minmax(260px,0.5fr)]"
+        }`}
+      >
         <section className="space-y-5">
           {project.document.collaborators.length ? (
             <div className="overflow-hidden border-2 border-black bg-white">
@@ -360,7 +238,9 @@ function ProjectContent({
                     <dt className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#6F6F6F]">
                       {credit.label}
                     </dt>
-                    <dd className="mt-2 text-sm leading-6 text-black">{credit.value}</dd>
+                    <dd className="mt-2 whitespace-pre-line text-sm leading-6 text-black">
+                      {credit.value}
+                    </dd>
                   </div>
                 ))}
               </dl>
@@ -412,7 +292,7 @@ function AccessGate({
             </button>
           </div>
           <p className="mt-4 max-w-md text-sm leading-7 text-black/60">
-            Unlock inline editing for cards, globe targets, cover media, and block content.
+            Unlock inline editing for worlds, child projects, cover media, and globe targets.
           </p>
           <LoginForm nextPath={nextPath} submitLabel="Unlock Editor" />
         </section>
@@ -433,43 +313,45 @@ export default function ProjectsView({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const universitiesById = useMemo(
-    () => new Map(universities.map((university) => [university.id, university])),
-    [universities]
-  );
-  const baseUniversitiesById = useMemo(
-    () => new Map(baseUniversities.map((university) => [university.id, university])),
-    [baseUniversities]
-  );
   const [previewSlug, setPreviewSlug] = useState<string | null>(null);
-  const [localDraft, setLocalDraft] = useState<ProjectDocument | null>(null);
-
+  const [worldEditorState, setWorldEditorState] = useState<EditorWorldState | null>(null);
+  const [projectEditorState, setProjectEditorState] = useState<EditorProjectState | null>(null);
   const editRequested = searchParams.get("edit") === "1";
-  const selectedSlug = searchParams.get("project");
+  const selectedWorldSlug = searchParams.get("world");
+  const selectedProjectSlug = searchParams.get("project");
   const editorUnlocked = editRequested && editorSessionAvailable;
-  const routeDraft = useMemo(
-    () =>
-      selectedSlug === NEW_PROJECT_SLUG && editorUnlocked
-        ? createEmptyProjectDocument()
-        : null,
-    [editorUnlocked, selectedSlug]
-  );
-  const pendingDraft = localDraft ?? routeDraft;
 
-  const projects = useMemo<ProjectEntry[]>(() => {
-    const entries = universities
+  const routeWorldDraft = useMemo(
+    () =>
+      selectedWorldSlug === NEW_WORLD_SLUG && editorUnlocked
+        ? createEmptyWorldDocument()
+        : null,
+    [editorUnlocked, selectedWorldSlug]
+  );
+
+  const activeWorldEditorState = useMemo(() => {
+    if (!worldEditorState) return null;
+    if (!selectedWorldSlug) return null;
+    return selectedWorldSlug === worldEditorState.routeSlug ||
+      selectedWorldSlug === worldEditorState.savedSlug
+      ? worldEditorState
+      : null;
+  }, [selectedWorldSlug, worldEditorState]);
+
+  const allWorlds = useMemo<WorldEntry[]>(() => {
+    const mappedWorlds: WorldEntry[] = universities
       .flatMap((university) =>
-        university.projects.map((project) => ({
-          id: project.id,
-          slug: project.slug ?? project.id,
-          title: project.title,
-          description: project.description,
-          year: project.year,
-          thumbnail: project.thumbnail,
-          participants: project.participants,
-          tags: project.tags,
-          markerOffset: project.markerOffset,
-          locationLabel: project.locationLabel || `${university.city}, ${university.country}`,
+        university.worlds.map<WorldEntry>((world) => ({
+          id: world.id,
+          slug: world.slug ?? world.id,
+          title: world.title,
+          description: world.description,
+          year: world.year,
+          thumbnail: world.thumbnail,
+          tags: [],
+          markerOffset: world.document?.markerOffset ?? world.markerOffset,
+          locationLabel:
+            world.locationLabel || `${university.city}, ${university.country}`,
           universityId: university.id,
           university: university.name,
           shortName: university.shortName,
@@ -477,71 +359,216 @@ export default function ProjectsView({
           country: university.country,
           color: university.color,
           logo: university.logo,
-          status: project.status ?? "published",
-          hasUnpublishedChanges: project.hasUnpublishedChanges ?? false,
-          document: project.document ?? null,
+          status: world.status ?? "published",
+          hasUnpublishedChanges: world.hasUnpublishedChanges ?? false,
+          document: world.document ?? null,
+          projects: world.projects
+            .map<ProjectEntry>((project) => ({
+              id: project.id,
+              worldId: world.id,
+              worldSlug: world.slug ?? world.id,
+              worldTitle: world.title,
+              slug: project.slug ?? project.id,
+              title: project.title,
+              description: project.description,
+              year: project.year,
+              thumbnail: project.thumbnail,
+              participants: project.participants,
+              tags: project.tags,
+              markerOffset: project.document?.markerOffset ?? project.markerOffset,
+              locationLabel:
+                project.locationLabel || `${university.city}, ${university.country}`,
+              universityId: university.id,
+              university: university.name,
+              shortName: university.shortName,
+              city: university.city,
+              country: university.country,
+              color: university.color,
+              logo: university.logo,
+              status: project.status ?? "published",
+              hasUnpublishedChanges: project.hasUnpublishedChanges ?? false,
+              document: project.document ?? null,
+            }))
+            .sort((a, b) => b.year - a.year || a.title.localeCompare(b.title)),
         }))
       )
       .sort((a, b) => b.year - a.year || a.title.localeCompare(b.title));
 
-    if (editorUnlocked && pendingDraft) {
-      const draftUniversity = baseUniversitiesById.get(pendingDraft.universityId);
+    const draftWorldDocument =
+      activeWorldEditorState?.document ?? (editorUnlocked ? routeWorldDraft : null);
 
-      entries.unshift({
-        id: "local-draft",
-        slug: NEW_PROJECT_SLUG,
-        title: pendingDraft.title || "Untitled Draft",
-        description:
-          pendingDraft.summary ||
-          "New draft project. Add a title, set the globe location, and build the page body.",
-        year: pendingDraft.year,
-        thumbnail: pendingDraft.cardImageUrl || pendingDraft.coverImageUrl,
-        participants: pendingDraft.participantsCount,
-        tags: pendingDraft.tags,
-        markerOffset: pendingDraft.markerOffset,
-        locationLabel:
-          pendingDraft.locationLabel ||
-          (draftUniversity
-            ? `${draftUniversity.city}, ${draftUniversity.country}`
-            : "Location pending"),
-        universityId: pendingDraft.universityId,
-        university: draftUniversity?.name ?? "Unassigned",
-        shortName: draftUniversity?.shortName ?? "NEW",
-        city: draftUniversity?.city ?? "Unknown",
-        country: draftUniversity?.country ?? "",
-        color: draftUniversity?.color ?? "#000000",
-        logo: draftUniversity?.logo,
-        status: "draft",
-        hasUnpublishedChanges: true,
-        document: pendingDraft,
-      });
+    if (!draftWorldDocument) {
+      return mappedWorlds;
     }
 
-    return entries;
-  }, [baseUniversitiesById, editorUnlocked, pendingDraft, universities]);
+    const baseUniversity =
+      baseUniversities.find((university) => university.id === draftWorldDocument.universityId) ??
+      null;
+    const optimisticWorld: WorldEntry = {
+      id: "local-world",
+      slug: activeWorldEditorState?.savedSlug ?? activeWorldEditorState?.routeSlug ?? NEW_WORLD_SLUG,
+      title: draftWorldDocument.title || "Untitled World",
+      description:
+        draftWorldDocument.summary ||
+        "New draft world. Add a title, set the globe location, and shape the overview.",
+      year: draftWorldDocument.year,
+      thumbnail: draftWorldDocument.cardImageUrl || draftWorldDocument.coverImageUrl,
+      tags: [],
+      markerOffset: draftWorldDocument.markerOffset,
+      locationLabel:
+        draftWorldDocument.locationLabel ||
+        (baseUniversity ? `${baseUniversity.city}, ${baseUniversity.country}` : "Location pending"),
+      universityId: draftWorldDocument.universityId,
+      university: baseUniversity?.name ?? "Unassigned",
+      shortName: baseUniversity?.shortName ?? "NEW",
+      city: baseUniversity?.city ?? "Unknown",
+      country: baseUniversity?.country ?? "",
+      color: baseUniversity?.color ?? "#000000",
+      logo: baseUniversity?.logo,
+      status: "draft",
+      hasUnpublishedChanges: true,
+      document: draftWorldDocument,
+      projects: [],
+    };
+
+    const existingIndex = mappedWorlds.findIndex(
+      (world) => world.slug === optimisticWorld.slug
+    );
+    if (existingIndex >= 0) {
+      mappedWorlds[existingIndex] = optimisticWorld;
+    } else {
+      mappedWorlds.unshift(optimisticWorld);
+    }
+
+    return mappedWorlds;
+  }, [activeWorldEditorState, baseUniversities, editorUnlocked, routeWorldDraft, universities]);
+
+  const routeProjectDraft = useMemo(() => {
+    if (selectedProjectSlug !== NEW_PROJECT_SLUG || !editorUnlocked || !selectedWorldSlug) {
+      return null;
+    }
+
+    const world = allWorlds.find((entry) => entry.slug === selectedWorldSlug);
+    if (!world || selectedWorldSlug === NEW_WORLD_SLUG) return null;
+
+    const draft = createEmptyProjectDocument();
+    draft.universityId = world.universityId;
+    draft.worldId = world.id;
+    draft.year = world.year;
+    draft.markerOffset = world.markerOffset;
+    draft.locationLabel = world.locationLabel;
+    return draft;
+  }, [allWorlds, editorUnlocked, selectedProjectSlug, selectedWorldSlug]);
+
+  const activeProjectEditorState = useMemo(() => {
+    if (!projectEditorState) return null;
+    if (!selectedProjectSlug) return null;
+    return selectedProjectSlug === projectEditorState.routeSlug ||
+      selectedProjectSlug === projectEditorState.savedSlug
+      ? projectEditorState
+      : null;
+  }, [projectEditorState, selectedProjectSlug]);
+
+  const worldsWithProjects = useMemo(() => {
+    const nextWorlds = allWorlds.map((world) => ({
+      ...world,
+      projects: [...world.projects],
+    }));
+    const draftProjectDocument =
+      activeProjectEditorState?.document ?? (editorUnlocked ? routeProjectDraft : null);
+
+    if (!draftProjectDocument) {
+      return nextWorlds;
+    }
+
+    const worldIndex = nextWorlds.findIndex((world) => world.id === draftProjectDocument.worldId);
+    if (worldIndex < 0) {
+      return nextWorlds;
+    }
+
+    const world = nextWorlds[worldIndex];
+    const optimisticProject: ProjectEntry = {
+      id: "local-project",
+      worldId: world.id,
+      worldSlug: world.slug,
+      worldTitle: world.title,
+      slug:
+        activeProjectEditorState?.savedSlug ??
+        activeProjectEditorState?.routeSlug ??
+        NEW_PROJECT_SLUG,
+      title: draftProjectDocument.title || "Untitled Project",
+      description:
+        draftProjectDocument.summary ||
+        "New draft project. Add a title, set the globe location, and build the page body.",
+      year: draftProjectDocument.year,
+      thumbnail:
+        draftProjectDocument.cardImageUrl || draftProjectDocument.coverImageUrl,
+      participants: draftProjectDocument.participantsCount,
+      tags: draftProjectDocument.tags,
+      markerOffset: draftProjectDocument.markerOffset,
+      locationLabel: draftProjectDocument.locationLabel,
+      universityId: world.universityId,
+      university: world.university,
+      shortName: world.shortName,
+      city: world.city,
+      country: world.country,
+      color: world.color,
+      logo: world.logo,
+      status: "draft",
+      hasUnpublishedChanges: true,
+      document: draftProjectDocument,
+    };
+
+    const existingIndex = world.projects.findIndex(
+      (project) => project.slug === optimisticProject.slug
+    );
+    if (existingIndex >= 0) {
+      world.projects[existingIndex] = optimisticProject;
+    } else {
+      world.projects.unshift(optimisticProject);
+    }
+
+    return nextWorlds;
+  }, [activeProjectEditorState, allWorlds, editorUnlocked, routeProjectDraft]);
+
+  const allProjects = useMemo(
+    () => worldsWithProjects.flatMap((world) => world.projects),
+    [worldsWithProjects]
+  );
+
+  const directlySelectedProject = selectedProjectSlug
+    ? allProjects.find((project) => project.slug === selectedProjectSlug) ?? null
+    : null;
+
+  const legacyWorldSelection =
+    !selectedWorldSlug && selectedProjectSlug
+      ? worldsWithProjects.find((world) => world.slug === selectedProjectSlug) ?? null
+      : null;
+
+  const selectedWorld =
+    selectedWorldSlug
+      ? worldsWithProjects.find((world) => world.slug === selectedWorldSlug) ?? null
+      : directlySelectedProject
+        ? worldsWithProjects.find((world) => world.id === directlySelectedProject.worldId) ??
+          null
+        : legacyWorldSelection;
 
   const selectedProject =
-    projects.find((project) => project.slug === selectedSlug) ?? null;
-  const previewProject =
-    selectedProject ||
-    projects.find((project) => project.slug === previewSlug) ||
-    projects[0] ||
-    null;
-  const focusProject = selectedProject ?? previewProject;
-
-  const focusedUniversity =
-    (focusProject?.universityId
-      ? universitiesById.get(focusProject.universityId)
-      : null) ?? null;
+    selectedProjectSlug && selectedWorld
+      ? selectedWorld.projects.find((project) => project.slug === selectedProjectSlug) ??
+        (directlySelectedProject?.worldId === selectedWorld.id
+          ? directlySelectedProject
+          : null)
+      : null;
 
   const currentPath = searchParams.toString()
     ? `${pathname}?${searchParams.toString()}`
     : pathname;
   const logoutPath = selectedProject
-    ? selectedProject.slug === NEW_PROJECT_SLUG
-      ? "/?view=projects"
-      : getProjectPath(selectedProject.slug)
-    : "/?view=projects";
+    ? `/?view=projects&world=${encodeURIComponent(selectedProject.worldSlug)}&project=${encodeURIComponent(selectedProject.slug)}`
+    : selectedWorld
+      ? `/?view=projects&world=${encodeURIComponent(selectedWorld.slug)}`
+      : "/?view=projects";
 
   function replaceQuery(mutator: (params: URLSearchParams) => void) {
     const params = new URLSearchParams(searchParams.toString());
@@ -552,21 +579,61 @@ export default function ProjectsView({
     });
   }
 
-  function handleSelectProject(slug: string) {
-    replaceQuery((params) => {
-      params.set("view", "projects");
-      params.set("project", slug);
-    });
-  }
+  useEffect(() => {
+    if (selectedWorldSlug || !selectedProjectSlug) return;
+
+    const params = new URLSearchParams(searchParams.toString());
+
+    if (directlySelectedProject && selectedWorld) {
+      params.set("world", selectedWorld.slug);
+      params.set("project", directlySelectedProject.slug);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      return;
+    }
+
+    if (legacyWorldSelection) {
+      params.set("world", legacyWorldSelection.slug);
+      params.delete("project");
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    }
+  }, [
+    directlySelectedProject,
+    legacyWorldSelection,
+    pathname,
+    router,
+    searchParams,
+    selectedProjectSlug,
+    selectedWorld,
+    selectedWorldSlug,
+  ]);
 
   function handlePreviewChange(slug: string | null) {
     setPreviewSlug(slug);
     onPreviewProjectChange?.(slug);
   }
 
+  function handleSelectWorld(slug: string) {
+    handlePreviewChange(null);
+    replaceQuery((params) => {
+      params.set("view", "projects");
+      params.set("world", slug);
+      params.delete("project");
+    });
+  }
+
+  function handleSelectProject(slug: string) {
+    if (!selectedWorld) return;
+    handlePreviewChange(null);
+    replaceQuery((params) => {
+      params.set("view", "projects");
+      params.set("world", selectedWorld.slug);
+      params.set("project", slug);
+    });
+  }
+
   function handleCloseProject() {
-    if (selectedSlug === NEW_PROJECT_SLUG) {
-      setLocalDraft(null);
+    if (selectedProjectSlug === NEW_PROJECT_SLUG) {
+      setProjectEditorState(null);
     }
 
     handlePreviewChange(null);
@@ -576,36 +643,88 @@ export default function ProjectsView({
     });
   }
 
+  function handleCloseWorld() {
+    if (selectedWorldSlug === NEW_WORLD_SLUG) {
+      setWorldEditorState(null);
+    }
+
+    handlePreviewChange(null);
+
+    replaceQuery((params) => {
+      params.delete("world");
+      params.delete("project");
+    });
+  }
+
   function handleExitEditMode() {
-    setLocalDraft(null);
+    setWorldEditorState(null);
+    setProjectEditorState(null);
     handlePreviewChange(null);
     replaceQuery((params) => {
       params.delete("edit");
+      if (params.get("world") === NEW_WORLD_SLUG) {
+        params.delete("world");
+      }
       if (params.get("project") === NEW_PROJECT_SLUG) {
         params.delete("project");
       }
     });
   }
 
-  function handleCreateProject() {
-    setLocalDraft(createEmptyProjectDocument());
+  function handleCreateWorld() {
+    setWorldEditorState({
+      routeSlug: NEW_WORLD_SLUG,
+      document: createEmptyWorldDocument(),
+    });
     replaceQuery((params) => {
       params.set("view", "projects");
       params.set("edit", "1");
+      params.set("world", NEW_WORLD_SLUG);
+      params.delete("project");
+    });
+  }
+
+  function handleCreateProject() {
+    if (!selectedWorld || selectedWorld.slug === NEW_WORLD_SLUG) return;
+
+    const draft = createEmptyProjectDocument();
+    draft.universityId = selectedWorld.universityId;
+    draft.worldId = selectedWorld.id;
+    draft.year = selectedWorld.year;
+    draft.markerOffset = selectedWorld.markerOffset;
+    draft.locationLabel = selectedWorld.locationLabel;
+    setProjectEditorState({
+      routeSlug: NEW_PROJECT_SLUG,
+      document: draft,
+    });
+    replaceQuery((params) => {
+      params.set("view", "projects");
+      params.set("edit", "1");
+      params.set("world", selectedWorld.slug);
       params.set("project", NEW_PROJECT_SLUG);
     });
   }
 
-  const contentProject = selectedProject;
-  const selectedIndex = contentProject
-    ? Math.max(
-        0,
-        projects.findIndex((project) => project.slug === contentProject.slug)
-      )
-    : 0;
-  const showBadges = editorUnlocked;
-  const draftCount = projects.filter((project) => project.status === "draft").length;
-  const changedCount = projects.filter((project) => project.hasUnpublishedChanges).length;
+  const previewWorld =
+    worldsWithProjects.find((world) => world.slug === previewSlug) ??
+    worldsWithProjects[0] ??
+    null;
+  const focusEntity = selectedProject ?? selectedWorld ?? previewWorld;
+  const focusedUniversity =
+    focusEntity
+      ? universities.find((university) => university.id === focusEntity.universityId) ?? null
+      : null;
+  const focusMarker = focusEntity
+    ? {
+        id: focusEntity.id,
+        title: focusEntity.title,
+        markerOffset: focusEntity.markerOffset,
+        color: focusEntity.color,
+        label: focusEntity.title,
+      }
+    : null;
+  const draftCount = worldsWithProjects.filter((world) => world.status === "draft").length;
+  const changedCount = worldsWithProjects.filter((world) => world.hasUnpublishedChanges).length;
 
   return (
     <section
@@ -626,7 +745,7 @@ export default function ProjectsView({
         {editorUnlocked || editRequested ? (
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap gap-2">
-              <StatusPill label={`${projects.length} Projects`} />
+              <StatusPill label={`${worldsWithProjects.length} Worlds`} />
               {editorUnlocked ? <StatusPill label={`${draftCount} Drafts`} /> : null}
               {editorUnlocked && changedCount ? (
                 <StatusPill label={`${changedCount} Unpublished`} filled />
@@ -634,13 +753,24 @@ export default function ProjectsView({
             </div>
             {editorUnlocked ? (
               <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCreateProject}
-                  className="border border-black bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
-                >
-                  Add Project
-                </button>
+                {selectedWorld && !selectedProject ? (
+                  <button
+                    type="button"
+                    onClick={handleCreateProject}
+                    disabled={selectedWorld.slug === NEW_WORLD_SLUG}
+                    className="border border-black bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black disabled:opacity-40"
+                  >
+                    Add Project
+                  </button>
+                ) : !selectedProject ? (
+                  <button
+                    type="button"
+                    onClick={handleCreateWorld}
+                    className="border border-black bg-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
+                  >
+                    Add World
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   onClick={handleExitEditMode}
@@ -677,10 +807,10 @@ export default function ProjectsView({
             <div
               className={`relative overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(255,252,246,0.92),_rgba(236,228,214,0.96)_58%,_rgba(244,240,232,1)_100%)] ${
                 mobile
-                  ? contentProject
+                  ? selectedProject
                     ? "h-[280px]"
                     : "h-[240px]"
-                  : contentProject
+                  : selectedProject
                     ? "h-[460px]"
                     : "h-[390px]"
               }`}
@@ -692,16 +822,16 @@ export default function ProjectsView({
                       Globe Focus
                     </p>
                     <h2 className="mt-3 font-serif text-[clamp(2rem,4vw,3.8rem)] leading-[0.92] text-black">
-                      {focusProject ? focusProject.title : "Browse the map"}
+                      {focusEntity ? focusEntity.title : "Browse the map"}
                     </h2>
                     <p className="mt-3 max-w-xl text-sm leading-7 text-black/72 sm:text-base">
-                      {focusProject
-                        ? `${focusProject.locationLabel || `${focusProject.city}, ${focusProject.country}`}. The globe is tracking this project point.`
-                        : "Hover or select a project card to rotate the globe toward that project's location."}
+                      {focusEntity
+                        ? `${focusEntity.locationLabel || `${focusEntity.city}, ${focusEntity.country}`}. The globe is tracking this ${selectedProject ? "project" : "world"}.`
+                        : "Hover or select a world card to rotate the globe toward that world."}
                     </p>
                   </div>
-                  {focusProject ? (
-                    <StatusPill label={focusProject.shortName} filled />
+                  {focusEntity ? (
+                    <StatusPill label={focusEntity.shortName} filled />
                   ) : (
                     <StatusPill label="All Nodes" />
                   )}
@@ -712,29 +842,30 @@ export default function ProjectsView({
                 universities={universities}
                 selectedUniversity={focusedUniversity}
                 onSelectUniversity={() => {}}
-                hoveredProject={focusProject?.id ?? null}
+                hoveredProject={null}
                 compact
                 allowDragInCompact
                 scale={
                   mobile
-                    ? contentProject
+                    ? selectedProject
                       ? 1.12
                       : 0.96
-                    : contentProject
+                    : selectedProject
                       ? 1.28
                       : 1.02
                 }
                 hideLabels={false}
                 soloLabelId={focusedUniversity?.id}
                 maxLabels={focusedUniversity ? 1 : mobile ? 4 : 7}
+                focusMarker={focusMarker}
               />
 
               <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 flex flex-wrap items-end justify-between gap-3 bg-gradient-to-t from-[#F4F0E8] via-[#F4F0E8]/80 to-transparent px-4 pb-4 pt-12 sm:px-5">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/55">
-                  {focusProject?.locationLabel ||
+                  {focusEntity?.locationLabel ||
                     (focusedUniversity
                       ? `${focusedUniversity.city}, ${focusedUniversity.country}`
-                      : "No project selected")}
+                      : "No world selected")}
                 </p>
                 <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-black/55">
                   {editorUnlocked
@@ -750,9 +881,9 @@ export default function ProjectsView({
 
         <div className="min-w-0">
           <AnimatePresence mode="wait">
-            {contentProject ? (
+            {selectedProject ? (
               <motion.div
-                key={`focus-${contentProject.slug}`}
+                key={`project-${selectedProject.slug}`}
                 initial={{ opacity: 0, y: 18 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -18 }}
@@ -765,41 +896,177 @@ export default function ProjectsView({
                     onClick={handleCloseProject}
                     className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
                   >
-                    Back To All Projects
+                    Back To World
                   </button>
                   <div className="flex flex-wrap gap-2">
-                    <StatusPill label={contentProject.university} />
-                    {showBadges ? <StatusPill label={contentProject.status} /> : null}
-                    {showBadges && contentProject.hasUnpublishedChanges ? (
+                    <StatusPill label={selectedProject.worldTitle} />
+                    {editorUnlocked ? <StatusPill label={selectedProject.status} /> : null}
+                    {editorUnlocked && selectedProject.hasUnpublishedChanges ? (
                       <StatusPill label="Draft Changes" filled />
                     ) : null}
                   </div>
                 </div>
 
-                <FocusedHeroCard
-                  project={contentProject}
-                  index={selectedIndex}
-                  showBadges={showBadges}
-                />
-
                 {editorUnlocked ? (
                   <ProjectEditor
-                    key={contentProject.slug}
+                    key={selectedProject.slug}
                     variant="inline"
-                    mode={contentProject.slug === NEW_PROJECT_SLUG ? "create" : "edit"}
+                    mode={selectedProject.slug === NEW_PROJECT_SLUG ? "create" : "edit"}
                     currentSlug={
-                      contentProject.slug === NEW_PROJECT_SLUG
+                      selectedProject.slug === NEW_PROJECT_SLUG
                         ? undefined
-                        : contentProject.slug
+                        : selectedProject.slug
                     }
                     initialProject={
-                      contentProject.document ?? createEmptyProjectDocument()
+                      selectedProject.document ?? createEmptyProjectDocument()
                     }
                     universities={baseUniversities}
+                    parentWorld={
+                      selectedWorld
+                        ? {
+                            id: selectedWorld.id,
+                            slug: selectedWorld.slug,
+                            title: selectedWorld.title,
+                          }
+                        : null
+                    }
                     writesDisabled={writesDisabled}
+                    onDocumentChange={(document) =>
+                      setProjectEditorState((current) => ({
+                        routeSlug: current?.routeSlug ?? selectedProjectSlug ?? NEW_PROJECT_SLUG,
+                        savedSlug: current?.savedSlug,
+                        document,
+                      }))
+                    }
+                    onSaveSuccess={({ slug, document }) =>
+                      setProjectEditorState((current) => ({
+                        routeSlug: current?.routeSlug ?? selectedProjectSlug ?? slug,
+                        savedSlug: slug,
+                        document,
+                      }))
+                    }
                   />
                 ) : (
-                  <ProjectContent project={contentProject} mobile={mobile} />
+                  <ProjectContent project={selectedProject} mobile={mobile} />
+                )}
+              </motion.div>
+            ) : selectedWorld ? (
+              <motion.div
+                key={`world-${selectedWorld.slug}`}
+                initial={{ opacity: 0, y: 18 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -18 }}
+                transition={{ duration: 0.3, ease: "easeOut" }}
+                className="space-y-4"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={handleCloseWorld}
+                    className="border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+                  >
+                    Back To All Worlds
+                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <StatusPill label={selectedWorld.university} />
+                    {editorUnlocked ? <StatusPill label={selectedWorld.status} /> : null}
+                    {editorUnlocked && selectedWorld.hasUnpublishedChanges ? (
+                      <StatusPill label="Draft Changes" filled />
+                    ) : null}
+                  </div>
+                </div>
+
+                {editorUnlocked ? (
+                  <div className="space-y-5">
+                    <WorldEditor
+                      key={selectedWorld.slug}
+                      mode={selectedWorld.slug === NEW_WORLD_SLUG ? "create" : "edit"}
+                      currentSlug={
+                        selectedWorld.slug === NEW_WORLD_SLUG
+                          ? undefined
+                          : selectedWorld.slug
+                      }
+                      initialWorld={
+                        selectedWorld.document ?? createEmptyWorldDocument()
+                      }
+                      universities={baseUniversities}
+                      writesDisabled={writesDisabled}
+                      onDocumentChange={(document) =>
+                        setWorldEditorState((current) => ({
+                          routeSlug: current?.routeSlug ?? selectedWorldSlug ?? NEW_WORLD_SLUG,
+                          savedSlug: current?.savedSlug,
+                          document,
+                        }))
+                      }
+                      onSaveSuccess={({ slug, document }) =>
+                        setWorldEditorState((current) => ({
+                          routeSlug: current?.routeSlug ?? selectedWorldSlug ?? slug,
+                          savedSlug: slug,
+                          document,
+                        }))
+                      }
+                    />
+
+                    <section className="overflow-hidden">
+                      <div className="border-t border-black/10 bg-[var(--ink-wash-200)] px-5 py-4">
+                        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+                          Projects Inside This World
+                        </p>
+                      </div>
+                      <div className="border-t border-black/10 px-5 py-5">
+                        {selectedWorld.projects.length ? (
+                          <div className={`grid gap-3 ${mobile ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3"}`}>
+                            {selectedWorld.projects.map((project, index) => (
+                              <ProjectCardDisplay
+                                key={project.slug}
+                                project={{
+                                  slug: project.slug,
+                                  title: project.title,
+                                  thumbnail: project.thumbnail,
+                                  year: project.year,
+                                  tags: project.tags,
+                                  locationLabel: project.locationLabel,
+                                  shortName: project.shortName,
+                                  color: project.color,
+                                  logo: project.logo,
+                                  status: project.status,
+                                  hasUnpublishedChanges: project.hasUnpublishedChanges,
+                                }}
+                                index={index}
+                                onSelect={() => handleSelectProject(project.slug)}
+                                showBadges
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="border-2 border-dashed border-black/20 bg-[var(--ink-wash-200)] px-5 py-12 text-sm leading-7 text-black/65">
+                            No child projects exist in this world yet.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+                  </div>
+                ) : (
+                  <WorldDetailSection
+                    world={{
+                      title: selectedWorld.title,
+                      description: selectedWorld.description,
+                      year: selectedWorld.year,
+                      thumbnail: selectedWorld.thumbnail,
+                      locationLabel: selectedWorld.locationLabel,
+                      university: selectedWorld.university,
+                      shortName: selectedWorld.shortName,
+                      logo: selectedWorld.logo,
+                      status: selectedWorld.status,
+                      hasUnpublishedChanges: selectedWorld.hasUnpublishedChanges,
+                      projects: selectedWorld.projects,
+                    }}
+                    compact={mobile}
+                    showCover
+                    showBadges={editorUnlocked}
+                    emptyMessage="No child projects are published in this world yet."
+                    onSelectProject={handleSelectProject}
+                  />
                 )}
               </motion.div>
             ) : (
@@ -810,43 +1077,43 @@ export default function ProjectsView({
                 exit={{ opacity: 0, y: -18 }}
                 transition={{ duration: 0.28, ease: "easeOut" }}
               >
-                {projects.length ? (
+                {worldsWithProjects.length ? (
                   <div
                     className={`grid gap-3 ${
                       mobile ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3 xl:grid-cols-4"
                     }`}
                   >
-                    {projects.map((project, index) => (
+                    {worldsWithProjects.map((world, index) => (
                       <ProjectCardDisplay
-                        key={project.slug}
+                        key={world.slug}
                         project={{
-                          slug: project.slug,
-                          title: project.title,
-                          thumbnail: project.thumbnail,
-                          year: project.year,
-                          tags: project.tags,
-                          locationLabel: project.locationLabel,
-                          shortName: project.shortName,
-                          color: project.color,
-                          logo: project.logo,
-                          status: project.status,
-                          hasUnpublishedChanges: project.hasUnpublishedChanges,
+                          slug: world.slug,
+                          title: world.title,
+                          thumbnail: world.thumbnail,
+                          year: world.year,
+                          tags: [],
+                          locationLabel: world.locationLabel,
+                          shortName: world.shortName,
+                          color: world.color,
+                          logo: world.logo,
+                          status: world.status,
+                          hasUnpublishedChanges: world.hasUnpublishedChanges,
                         }}
                         index={index}
-                        onSelect={() => handleSelectProject(project.slug)}
-                        onPreview={() => handlePreviewChange(project.slug)}
+                        onSelect={() => handleSelectWorld(world.slug)}
+                        onPreview={() => handlePreviewChange(world.slug)}
                         onPreviewEnd={() =>
                           handlePreviewChange(
-                            previewSlug === project.slug ? null : previewSlug
+                            previewSlug === world.slug ? null : previewSlug
                           )
                         }
-                        showBadges={showBadges}
+                        showBadges={editorUnlocked}
                       />
                     ))}
                   </div>
                 ) : (
                   <div className="border-2 border-dashed border-black/30 bg-white px-5 py-12 text-sm leading-7 text-black/65">
-                    No published projects are available yet.
+                    No published worlds are available yet.
                   </div>
                 )}
               </motion.div>

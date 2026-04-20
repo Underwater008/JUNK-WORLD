@@ -8,6 +8,7 @@ interface CardCropOverlayProps {
   onCrop: (cardImageUrl: string) => void;
   onCancel: () => void;
   disabled?: boolean;
+  uploadPrefix?: string;
 }
 
 const ASPECT = 16 / 9;
@@ -30,6 +31,7 @@ export default function CardCropOverlay({
   onCrop,
   onCancel,
   disabled = false,
+  uploadPrefix,
 }: CardCropOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -195,7 +197,7 @@ export default function CardCropOverlay({
       });
 
       const file = new File([blob], "card-crop.jpg", { type: "image/jpeg" });
-      const url = await uploadAsset(file);
+      const url = await uploadAsset(file, uploadPrefix);
       onCrop(url);
     } catch {
       // silently fail, user can retry

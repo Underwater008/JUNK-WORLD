@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import * as THREE from "three";
 import { feature } from "topojson-client";
+import { getUniversityWorlds } from "@/lib/consortium";
 import type { ProjectMarkerOffset, University } from "@/types";
 
 const R = 70;
@@ -106,7 +107,7 @@ function getFocusQuaternion({
   }
 
   if (hoveredProject && selectedUniversity) {
-    const project = selectedUniversity.projects.find(
+    const project = getUniversityWorlds(selectedUniversity).find(
       (candidate) => candidate.id === hoveredProject
     );
     if (project) {
@@ -786,10 +787,10 @@ export default function Globe({
       const projectLabelProjects = focusMarkerRef.current
         ? [focusMarkerRef.current]
         : focusedProjectId && selectedUniversityRef.current
-          ? selectedUniversityRef.current.projects.filter(
+          ? getUniversityWorlds(selectedUniversityRef.current).filter(
               (project) => project.id === focusedProjectId
             )
-          : selectedUniversityRef.current?.projects ?? [];
+          : getUniversityWorlds(selectedUniversityRef.current);
 
       for (let i = 0; i < projectLabelsRef.current.length; i++) {
         const label = projectLabelsRef.current[i];
@@ -984,8 +985,8 @@ export default function Globe({
     // Project markers for selected university
     if (selectedUniversity) {
       const projectsToRender = focusedProjectId
-        ? selectedUniversity.projects.filter((project) => project.id === focusedProjectId)
-        : selectedUniversity.projects;
+        ? getUniversityWorlds(selectedUniversity).filter((project) => project.id === focusedProjectId)
+        : getUniversityWorlds(selectedUniversity);
 
       projectsToRender.forEach(project => {
         const { lat, lng } = project.markerOffset;
@@ -1043,7 +1044,7 @@ export default function Globe({
         {(!editableFocusMarker || !focusMarker
           ? focusMarker
             ? [focusMarker]
-            : selectedUniversity?.projects ?? []
+            : getUniversityWorlds(selectedUniversity)
           : []
         ).map((project, i) => {
           const projectLabel =

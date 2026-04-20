@@ -1,8 +1,8 @@
 import "server-only";
 
 import { getUniversityById } from "@/lib/universities";
-import { createEmptyProjectDocument, DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
-import type { ProjectDocument } from "@/types";
+import { createEmptyWorldDocument } from "@/lib/worlds/defaults";
+import type { WorldDocument } from "@/types";
 
 async function getFallbackLocation(universityId: string) {
   const university = await getUniversityById(universityId);
@@ -25,12 +25,11 @@ async function getFallbackLocation(universityId: string) {
   };
 }
 
-export async function backfillProjectDocument(
-  document: Partial<ProjectDocument> | null | undefined,
-  universityId: string,
-  worldId = ""
-): Promise<ProjectDocument> {
-  const base = createEmptyProjectDocument();
+export async function backfillWorldDocument(
+  document: Partial<WorldDocument> | null | undefined,
+  universityId: string
+): Promise<WorldDocument> {
+  const base = createEmptyWorldDocument();
   const fallback = await getFallbackLocation(document?.universityId || universityId);
   const markerOffset = document?.markerOffset;
   const hasMarkerOffset =
@@ -40,12 +39,8 @@ export async function backfillProjectDocument(
     ...base,
     ...document,
     universityId: document?.universityId || universityId,
-    worldId: document?.worldId?.trim() || worldId || base.worldId,
     markerOffset: hasMarkerOffset ? markerOffset : fallback.markerOffset,
     locationLabel: document?.locationLabel?.trim() || fallback.locationLabel,
-    body:
-      Array.isArray(document?.body) && document.body.length
-        ? document.body
-        : DEFAULT_PROJECT_BODY,
+    cardImageUrl: document?.cardImageUrl || document?.coverImageUrl || "",
   };
 }

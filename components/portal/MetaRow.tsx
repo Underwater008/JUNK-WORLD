@@ -1,13 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { ProjectMarkerOffset, University } from "@/types";
 
 interface MetaRowProps {
   slug: string;
   universityId: string;
   year: number;
-  participantsCount: number;
   markerOffset: ProjectMarkerOffset;
   locationLabel: string;
   universities: University[];
@@ -19,6 +18,10 @@ interface MetaRowProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   disabled?: boolean;
+  participantsCount?: number;
+  entityLabel?: string;
+  showParticipants?: boolean;
+  children?: ReactNode;
 }
 
 function formatCoordinate(value: number) {
@@ -35,7 +38,6 @@ export default function MetaRow({
   slug,
   universityId,
   year,
-  participantsCount,
   markerOffset,
   locationLabel,
   universities,
@@ -47,6 +49,10 @@ export default function MetaRow({
   open,
   onOpenChange,
   disabled = false,
+  participantsCount,
+  entityLabel = "Project",
+  showParticipants = true,
+  children,
 }: MetaRowProps) {
   const [activeCoordinateInput, setActiveCoordinateInput] = useState<
     "lat" | "lng" | null
@@ -167,8 +173,12 @@ export default function MetaRow({
         <span>{locationLabel || "Location"}</span>
         <span className="text-black/25">·</span>
         <span>{year}</span>
-        <span className="text-black/25">·</span>
-        <span>{participantsCount} participants</span>
+        {showParticipants && typeof participantsCount === "number" ? (
+          <>
+            <span className="text-black/25">·</span>
+            <span>{participantsCount} participants</span>
+          </>
+        ) : null}
       </div>
 
       {open && (
@@ -187,7 +197,7 @@ export default function MetaRow({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
-                    Project settings
+                    {entityLabel} settings
                   </p>
                   <h3
                     id="project-settings-title"
@@ -197,14 +207,14 @@ export default function MetaRow({
                   </h3>
                   <p className="mt-3 max-w-lg text-sm leading-6 text-black/60">
                     Set the university, year, location, and URL slug here. Adjust the globe
-                    position directly on the project view while editing.
+                    position directly on the {entityLabel.toLowerCase()} view while editing.
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => onOpenChange(false)}
                   className="shrink-0 border border-black bg-white px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
-                  aria-label="Close project settings"
+                  aria-label={`Close ${entityLabel.toLowerCase()} settings`}
                 >
                   Close
                 </button>
@@ -332,6 +342,12 @@ export default function MetaRow({
                     placeholder="project-slug"
                   />
                 </label>
+
+                {children ? (
+                  <div className="border-t border-black/10 pt-6">
+                    {children}
+                  </div>
+                ) : null}
               </div>
 
               <div className="mt-6 flex justify-end">

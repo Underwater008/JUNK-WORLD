@@ -2,8 +2,8 @@ import HomeShell from "@/components/HomeShell";
 import { getMembers } from "@/lib/members";
 import { isPortalWriteDisabled } from "@/lib/portal/mode";
 import { hasPortalSession } from "@/lib/portal/session";
-import { getHomepageUniversities } from "@/lib/projects/server";
 import { getBaseUniversities } from "@/lib/universities";
+import { getHomepageUniversities } from "@/lib/worlds/server";
 
 export const dynamic = "force-dynamic";
 

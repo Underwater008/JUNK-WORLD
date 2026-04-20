@@ -6,6 +6,7 @@ import { universities } from "../data/mock";
 type ProjectSeedDocument = {
   slug: string;
   universityId: string;
+  worldId: string;
   title: string;
   summary: string;
   year: number;
@@ -116,6 +117,7 @@ function toJsonValue(value: ProjectSeedDocument) {
 
 function toSeedDocument(
   universityId: string,
+  worldId: string,
   university: {
     city: string;
     country: string;
@@ -138,6 +140,7 @@ function toSeedDocument(
   return {
     slug: project.id,
     universityId,
+    worldId,
     title: project.title.trim(),
     summary,
     year: project.year,
@@ -168,12 +171,15 @@ async function main() {
   }
 
   const archiveProjects = universities.flatMap((university) =>
-    university.projects.map((project) => ({
-      recordId: `archive:${university.id}:${project.id}`,
-      slug: project.id,
-      universityId: university.id,
-      document: toSeedDocument(university.id, university, project),
-    }))
+    university.worlds.flatMap((world) =>
+      world.projects.map((project) => ({
+        recordId: `archive:${university.id}:${world.id}:${project.id}`,
+        slug: project.id,
+        universityId: university.id,
+        worldId: world.id,
+        document: toSeedDocument(university.id, world.id, university, project),
+      }))
+    )
   );
 
   if (!archiveProjects.length) {

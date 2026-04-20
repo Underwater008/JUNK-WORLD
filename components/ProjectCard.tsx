@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Project } from "@/types";
+import type { Project, World } from "@/types";
 
 interface ProjectCardProps {
-  project: Project;
+  project: Project | World;
   index: number;
   isExpanded: boolean;
   onToggle: () => void;
@@ -63,7 +63,7 @@ export default function ProjectCard({
                   isExpanded ? "text-white/60" : "text-[#888]"
                 }`}
               >
-                {project.participants} participants
+                {"participants" in project ? `${project.participants} participants` : "World"}
               </span>
             </div>
           </div>
@@ -99,17 +99,18 @@ export default function ProjectCard({
             {project.description}
           </p>
 
-          {/* Tags */}
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {project.tags.map((tag) => (
-              <span
-                key={tag}
-                className="px-2 py-0.5 text-[10px] font-semibold border border-white/30 text-white/80 uppercase tracking-wide"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
+          {"participants" in project && project.tags.length ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {project.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-2 py-0.5 text-[10px] font-semibold border border-white/30 text-white/80 uppercase tracking-wide"
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
 
           {/* View project */}
           {project.slug ? (

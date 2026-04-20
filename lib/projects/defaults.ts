@@ -11,6 +11,7 @@ export function createEmptyProjectDocument(): ProjectDocument {
   return {
     slug: "",
     universityId: "",
+    worldId: "",
     title: "",
     summary: "",
     year: new Date().getFullYear(),

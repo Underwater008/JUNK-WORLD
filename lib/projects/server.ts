@@ -1,23 +1,22 @@
 import "server-only";
 
 import { randomUUID } from "node:crypto";
-import { createEmptyProjectDocument } from "@/lib/projects/defaults";
 import { backfillProjectDocument } from "@/lib/projects/defaults.server";
 import { normalizeProjectDocument } from "@/lib/projects/schema";
 import { getSupabaseServerClient } from "@/lib/supabase";
-import { getUniversityById, isKnownUniversityId, mergeProjectsIntoUniversities } from "@/lib/universities";
+import { isKnownUniversityId } from "@/lib/universities";
 import type {
   ExperienceProject,
   PortalProjectSummary,
   ProjectDocument,
   ProjectRecord,
-  University,
 } from "@/types";
 
 type ProjectRow = {
   id: string;
   slug: string;
   university_id: string;
+  world_id?: string | null;
   draft_content: ProjectDocument | null;
   published_content: ProjectDocument | null;
   published_at: string | null;
@@ -25,24 +24,35 @@ type ProjectRow = {
   created_at: string;
 };
 
-const PROJECT_SELECT =
+const PROJECT_SELECT_WITH_WORLD =
+  "id, slug, university_id, world_id, draft_content, published_content, published_at, updated_at, created_at";
+const PROJECT_SELECT_LEGACY =
   "id, slug, university_id, draft_content, published_content, published_at, updated_at, created_at";
 
-async function mapProjectRow(row: ProjectRow): Promise<ProjectRecord> {
-  return {
-    id: row.id,
-    slug: row.slug,
-    universityId: row.university_id,
-    draftContent: row.draft_content
-      ? await backfillProjectDocument(row.draft_content, row.university_id)
-      : null,
-    publishedContent: row.published_content
-      ? await backfillProjectDocument(row.published_content, row.university_id)
-      : null,
-    publishedAt: row.published_at,
-    updatedAt: row.updated_at,
-    createdAt: row.created_at,
-  };
+function isMissingWorldIdError(message: string) {
+  const normalized = message.toLowerCase();
+  return normalized.includes("world_id") && (
+    normalized.includes("column") ||
+    normalized.includes("schema cache")
+  );
+}
+
+function normalizeWorldRequirementError(error: unknown) {
+  if (error instanceof Error) {
+    const normalized = error.message.toLowerCase();
+    if (
+      normalized.includes("public.worlds") ||
+      normalized.includes("relation \"worlds\" does not exist") ||
+      normalized.includes("schema cache")
+    ) {
+      return new Error(
+        "Worlds table is not set up yet. Apply `supabase/worlds.sql` before creating or editing projects."
+      );
+    }
+    return error;
+  }
+
+  return new Error("World validation failed.");
 }
 
 function sortProjectRows(rows: ProjectRow[]) {
@@ -58,19 +68,51 @@ function sortProjectRows(rows: ProjectRow[]) {
   });
 }
 
+async function mapProjectRow(row: ProjectRow): Promise<ProjectRecord> {
+  const worldId = typeof row.world_id === "string" ? row.world_id : "";
+
+  return {
+    id: row.id,
+    slug: row.slug,
+    universityId: row.university_id,
+    worldId,
+    draftContent: row.draft_content
+      ? await backfillProjectDocument(row.draft_content, row.university_id, worldId)
+      : null,
+    publishedContent: row.published_content
+      ? await backfillProjectDocument(row.published_content, row.university_id, worldId)
+      : null,
+    publishedAt: row.published_at,
+    updatedAt: row.updated_at,
+    createdAt: row.created_at,
+  };
+}
+
 async function listProjectRows({
   includeDrafts = false,
 }: {
   includeDrafts?: boolean;
 } = {}): Promise<ProjectRow[]> {
   const supabase = getSupabaseServerClient();
-  let query = supabase.from("projects").select(PROJECT_SELECT);
+  let query = supabase.from("projects").select(PROJECT_SELECT_WITH_WORLD);
 
   if (!includeDrafts) {
     query = query.not("published_content", "is", null);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  if (error && isMissingWorldIdError(error.message)) {
+    let legacyQuery = supabase.from("projects").select(PROJECT_SELECT_LEGACY);
+    if (!includeDrafts) {
+      legacyQuery = legacyQuery.not("published_content", "is", null);
+    }
+
+    const legacyResponse = await legacyQuery;
+    data = legacyResponse.data?.map((row) => ({ ...row, world_id: null })) ?? null;
+    error = legacyResponse.error;
+  }
+
   if (error) {
     throw new Error(error.message);
   }
@@ -87,13 +129,34 @@ async function getProjectRowBySlug(
   } = {}
 ): Promise<ProjectRow | null> {
   const supabase = getSupabaseServerClient();
-  let query = supabase.from("projects").select(PROJECT_SELECT).eq("slug", slug).limit(1);
+  let query = supabase
+    .from("projects")
+    .select(PROJECT_SELECT_WITH_WORLD)
+    .eq("slug", slug)
+    .limit(1);
 
   if (!includeDrafts) {
     query = query.not("published_content", "is", null);
   }
 
-  const { data, error } = await query;
+  let { data, error } = await query;
+
+  if (error && isMissingWorldIdError(error.message)) {
+    let legacyQuery = supabase
+      .from("projects")
+      .select(PROJECT_SELECT_LEGACY)
+      .eq("slug", slug)
+      .limit(1);
+
+    if (!includeDrafts) {
+      legacyQuery = legacyQuery.not("published_content", "is", null);
+    }
+
+    const legacyResponse = await legacyQuery;
+    data = legacyResponse.data?.map((row) => ({ ...row, world_id: null })) ?? null;
+    error = legacyResponse.error;
+  }
+
   if (error) {
     throw new Error(error.message);
   }
@@ -101,13 +164,40 @@ async function getProjectRowBySlug(
   return ((data ?? [])[0] as ProjectRow | undefined) ?? null;
 }
 
-function pickPreferredContent(row: ProjectRecord) {
-  return row.draftContent ?? row.publishedContent ?? createEmptyProjectDocument();
-}
-
 async function assertUniversity(universityId: string) {
   if (!(await isKnownUniversityId(universityId))) {
     throw new Error("Selected university is not in the current JUNK catalog.");
+  }
+}
+
+async function assertWorld(worldId: string, universityId: string) {
+  const normalizedWorldId = worldId.trim();
+  if (!normalizedWorldId) {
+    throw new Error("Projects must belong to a world.");
+  }
+
+  try {
+    const supabase = getSupabaseServerClient();
+    const { data, error } = await supabase
+      .from("worlds")
+      .select("id, university_id")
+      .eq("id", normalizedWorldId)
+      .limit(1);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const row = (data ?? [])[0] as { id: string; university_id: string } | undefined;
+    if (!row) {
+      throw new Error("Selected world was not found.");
+    }
+
+    if (row.university_id !== universityId) {
+      throw new Error("Selected world does not belong to the chosen university.");
+    }
+  } catch (error) {
+    throw normalizeWorldRequirementError(error);
   }
 }
 
@@ -137,6 +227,7 @@ function toExperienceProject(
     id: record.id,
     slug: record.slug,
     universityId: record.universityId,
+    worldId: record.worldId || document.worldId,
     status: record.publishedContent ? "published" : "draft",
     hasUnpublishedChanges: hasUnpublishedChanges(record),
     document,
@@ -162,15 +253,6 @@ export async function getExperienceProjects({
   }
 }
 
-export async function getHomepageUniversities({
-  includeDrafts = false,
-}: {
-  includeDrafts?: boolean;
-} = {}): Promise<University[]> {
-  const experienceProjects = await getExperienceProjects({ includeDrafts });
-  return await mergeProjectsIntoUniversities(experienceProjects);
-}
-
 export async function getExperienceProjectBySlug(
   slug: string,
   {
@@ -183,13 +265,7 @@ export async function getExperienceProjectBySlug(
   const mapped = row ? await mapProjectRow(row) : null;
   if (!mapped) return null;
 
-  const experienceProject = toExperienceProject(mapped, includeDrafts);
-  if (!experienceProject) return null;
-
-  return {
-    ...experienceProject,
-    university: await getUniversityById(experienceProject.universityId),
-  };
+  return toExperienceProject(mapped, includeDrafts);
 }
 
 export async function getPublishedProjectBySlug(slug: string) {
@@ -199,15 +275,17 @@ export async function getPublishedProjectBySlug(slug: string) {
 export async function getPortalProjectSummaries(): Promise<PortalProjectSummary[]> {
   const rows = await listProjectRows({ includeDrafts: true });
   const records = await Promise.all(rows.map(mapProjectRow));
+
   return records.map((record) => {
-    const content = pickPreferredContent(record);
+    const content = record.draftContent ?? record.publishedContent;
 
     return {
       id: record.id,
       slug: record.slug,
       status: record.publishedContent ? "published" : "draft",
-      title: content.title || record.slug,
+      title: content?.title || record.slug,
       universityId: record.universityId,
+      worldId: record.worldId || content?.worldId || "",
       updatedAt: record.updatedAt,
       publishedAt: record.publishedAt,
     };
@@ -223,9 +301,8 @@ export async function getPortalProjectBySlug(slug: string) {
 
 export async function createProjectDraft(input: unknown) {
   const document = await normalizeProjectDocument(input, { mode: "draft" });
-  if (document.universityId) {
-    await assertUniversity(document.universityId);
-  }
+  await assertUniversity(document.universityId);
+  await assertWorld(document.worldId, document.universityId);
 
   const supabase = getSupabaseServerClient();
   const timestamp = new Date().toISOString();
@@ -235,11 +312,12 @@ export async function createProjectDraft(input: unknown) {
       id: randomUUID(),
       slug: document.slug,
       university_id: document.universityId,
+      world_id: document.worldId,
       draft_content: document,
       updated_at: timestamp,
       created_at: timestamp,
     })
-    .select(PROJECT_SELECT)
+    .select(PROJECT_SELECT_WITH_WORLD)
     .single();
 
   if (error) {
@@ -259,9 +337,8 @@ export async function updateProjectDraft(currentSlug: string, input: unknown) {
     fallbackSlug: existing.slug,
     mode: "draft",
   });
-  if (document.universityId) {
-    await assertUniversity(document.universityId);
-  }
+  await assertUniversity(document.universityId);
+  await assertWorld(document.worldId, document.universityId);
 
   const supabase = getSupabaseServerClient();
   const { data, error } = await supabase
@@ -269,11 +346,12 @@ export async function updateProjectDraft(currentSlug: string, input: unknown) {
     .update({
       slug: document.slug,
       university_id: document.universityId,
+      world_id: document.worldId,
       draft_content: document,
       updated_at: new Date().toISOString(),
     })
     .eq("slug", currentSlug)
-    .select(PROJECT_SELECT)
+    .select(PROJECT_SELECT_WITH_WORLD)
     .single();
 
   if (error) {
@@ -297,6 +375,7 @@ export async function publishProject(currentSlug: string, input: unknown) {
     mode: "publish",
   });
   await assertUniversity(document.universityId);
+  await assertWorld(document.worldId, document.universityId);
 
   const supabase = getSupabaseServerClient();
   const timestamp = new Date().toISOString();
@@ -305,13 +384,14 @@ export async function publishProject(currentSlug: string, input: unknown) {
     .update({
       slug: document.slug,
       university_id: document.universityId,
+      world_id: document.worldId,
       draft_content: document,
       published_content: document,
       published_at: timestamp,
       updated_at: timestamp,
     })
     .eq("slug", currentSlug)
-    .select(PROJECT_SELECT)
+    .select(PROJECT_SELECT_WITH_WORLD)
     .single();
 
   if (error) {
@@ -331,10 +411,7 @@ export async function deleteProject(currentSlug: string) {
   }
 
   const supabase = getSupabaseServerClient();
-  const { error } = await supabase
-    .from("projects")
-    .delete()
-    .eq("slug", currentSlug);
+  const { error } = await supabase.from("projects").delete().eq("slug", currentSlug);
 
   if (error) {
     throw new Error(error.message);
