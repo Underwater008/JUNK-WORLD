@@ -16,6 +16,7 @@ import { slugify } from "@/lib/utils";
 import CardCropOverlay from "@/components/portal/CardCropOverlay";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
+import SaveStatusModal from "@/components/portal/SaveStatusModal";
 import type { University, WorldDocument } from "@/types";
 
 type SaveMode = "draft" | "publish";
@@ -420,31 +421,11 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
   return (
     <div className="bg-white">
       {saveToast ? (
-        <div className="pointer-events-none fixed bottom-5 right-5 z-[90]">
-          <div
-            role={saveToast.tone === "error" ? "alert" : "status"}
-            aria-live="polite"
-            className={`flex max-w-[min(92vw,24rem)] items-center gap-2 border px-3 py-2 text-[11px] font-semibold shadow-[0_14px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm ${
-              saveToast.tone === "error"
-                ? "border-red-200 bg-red-50/95 text-red-700"
-                : saveToast.tone === "success"
-                  ? "border-emerald-200 bg-emerald-50/95 text-emerald-700"
-                  : "border-black/10 bg-white/96 text-black/72"
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`h-2 w-2 rounded-full ${
-                saveToast.tone === "error"
-                  ? "bg-red-500"
-                  : saveToast.tone === "success"
-                    ? "bg-emerald-500"
-                    : "bg-black/40"
-              }`}
-            />
-            <span>{saveToast.message}</span>
-          </div>
-        </div>
+        <SaveStatusModal
+          tone={saveToast.tone}
+          message={saveToast.message}
+          onDismiss={() => setSaveToast(null)}
+        />
       ) : null}
 
       {!hideTopBar && (
