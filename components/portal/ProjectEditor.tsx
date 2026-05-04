@@ -471,29 +471,91 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   return (
     <div className="project-editor-shell bg-white">
       {saveToast ? (
-        <div className="pointer-events-none fixed bottom-5 right-5 z-[90]">
+        <div
+          className={`fixed inset-0 z-[100] flex items-center justify-center bg-black/30 px-4 ${
+            saveToast.tone === "pending" ? "pointer-events-auto" : "pointer-events-auto"
+          }`}
+          onClick={() => {
+            if (saveToast.tone !== "pending") setSaveToast(null);
+          }}
+        >
           <div
             role={saveToast.tone === "error" ? "alert" : "status"}
             aria-live="polite"
-            className={`flex max-w-[min(92vw,24rem)] items-center gap-2 border px-3 py-2 text-[11px] font-semibold shadow-[0_14px_40px_rgba(0,0,0,0.12)] backdrop-blur-sm ${
+            onClick={(event) => event.stopPropagation()}
+            className={`flex w-full max-w-sm flex-col items-center gap-4 border-2 bg-white px-6 py-7 text-center shadow-[0_24px_60px_rgba(0,0,0,0.18)] ${
               saveToast.tone === "error"
-                ? "border-red-200 bg-red-50/95 text-red-700"
+                ? "border-red-500"
                 : saveToast.tone === "success"
-                  ? "border-emerald-200 bg-emerald-50/95 text-emerald-700"
-                  : "border-black/10 bg-white/96 text-black/72"
+                  ? "border-emerald-500"
+                  : "border-black"
             }`}
           >
-            <span
-              aria-hidden="true"
-              className={`h-2 w-2 rounded-full ${
+            {saveToast.tone === "pending" ? (
+              <span
+                aria-hidden="true"
+                className="block h-10 w-10 animate-spin rounded-full border-[3px] border-black/15 border-t-black"
+              />
+            ) : saveToast.tone === "success" ? (
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-white"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 10.5L8 14.5L16 6" />
+                </svg>
+              </span>
+            ) : (
+              <span
+                aria-hidden="true"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500 text-white"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M5 5L15 15" />
+                  <path d="M15 5L5 15" />
+                </svg>
+              </span>
+            )}
+
+            <p
+              className={`text-sm font-semibold ${
                 saveToast.tone === "error"
-                  ? "bg-red-500"
+                  ? "text-red-700"
                   : saveToast.tone === "success"
-                    ? "bg-emerald-500"
-                    : "bg-black/40"
+                    ? "text-emerald-700"
+                    : "text-black"
               }`}
-            />
-            <span>{saveToast.message}</span>
+            >
+              {saveToast.message}
+            </p>
+
+            {saveToast.tone !== "pending" ? (
+              <button
+                type="button"
+                onClick={() => setSaveToast(null)}
+                className="mt-1 border border-black bg-black px-4 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-white hover:text-black"
+              >
+                {saveToast.tone === "error" ? "Dismiss" : "OK"}
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
