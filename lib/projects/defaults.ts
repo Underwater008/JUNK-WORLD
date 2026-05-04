@@ -28,6 +28,8 @@ export function createEmptyProjectDocument(): ProjectDocument {
     collaborators: [],
     credits: [],
     externalLinks: [],
+    facultySubmitters: [],
+    students: [],
     body: DEFAULT_PROJECT_BODY,
   };
 }

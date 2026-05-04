@@ -424,6 +424,44 @@ function ArchiveProjectDetail({
           </>
         )}
 
+        {project.document?.facultySubmitters?.length ? (
+          <>
+            <div className="my-6 h-px bg-black/8" />
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/35">
+              Faculty
+            </p>
+            <div className="mt-2 space-y-1">
+              {project.document.facultySubmitters.map((person, index) => (
+                <p key={index} className="text-sm text-black/60">
+                  {person.name || "Unnamed faculty"}
+                  {person.position ? (
+                    <span className="text-black/30"> · {person.position}</span>
+                  ) : null}
+                </p>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {project.document?.students?.length ? (
+          <>
+            <div className="my-6 h-px bg-black/8" />
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-black/35">
+              Students &amp; Skills
+            </p>
+            <div className="mt-2 space-y-1">
+              {project.document.students.map((student, index) => (
+                <p key={index} className="text-sm text-black/60">
+                  {student.name || "Unnamed student"}
+                  {student.skills ? (
+                    <span className="text-black/30"> · {student.skills}</span>
+                  ) : null}
+                </p>
+              ))}
+            </div>
+          </>
+        ) : null}
+
         {project.document?.collaborators?.length ? (
           <>
             <div className="my-6 h-px bg-black/8" />

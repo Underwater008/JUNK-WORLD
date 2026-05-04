@@ -52,6 +52,8 @@ function createLegacyProjectDocument(
     collaborators: [],
     credits: [],
     externalLinks: [],
+    facultySubmitters: [],
+    students: [],
     body: DEFAULT_PROJECT_BODY,
   };
 }

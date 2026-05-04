@@ -23,6 +23,16 @@ export interface ProjectExternalLink {
   url: string;
 }
 
+export interface ProjectFacultySubmitter {
+  name: string;
+  position: string;
+}
+
+export interface ProjectStudent {
+  name: string;
+  skills: string;
+}
+
 export type ProjectBodyBlock = Record<string, unknown>;
 export type ProjectBody = ProjectBodyBlock[];
 
@@ -57,6 +67,8 @@ export interface ProjectDocument {
   collaborators: ProjectCollaborator[];
   credits: ProjectCredit[];
   externalLinks: ProjectExternalLink[];
+  facultySubmitters: ProjectFacultySubmitter[];
+  students: ProjectStudent[];
   body: ProjectBody;
 }
 

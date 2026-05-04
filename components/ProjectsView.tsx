@@ -179,6 +179,56 @@ function ProjectContent({
         }`}
       >
         <section className="space-y-5">
+          {project.document.facultySubmitters?.length ? (
+            <div className="overflow-hidden border-2 border-black bg-white">
+              <div className="border-b-2 border-black px-5 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+                  Faculty
+                </p>
+              </div>
+              <div className="grid gap-px bg-black sm:grid-cols-2">
+                {project.document.facultySubmitters.map((person, index) => (
+                  <div
+                    key={`faculty-${person.name}-${person.position}-${index}`}
+                    className="bg-white px-4 py-4 text-sm leading-6 text-black"
+                  >
+                    <p className="font-semibold">
+                      {person.name || "Unnamed faculty"}
+                    </p>
+                    {person.position ? (
+                      <p className="text-black/65">{person.position}</p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          {project.document.students?.length ? (
+            <div className="overflow-hidden border-2 border-black bg-white">
+              <div className="border-b-2 border-black px-5 py-4">
+                <p className="text-sm font-semibold uppercase tracking-[0.16em] text-black">
+                  Students &amp; Skills
+                </p>
+              </div>
+              <ul className="divide-y divide-black/15">
+                {project.document.students.map((student, index) => (
+                  <li
+                    key={`student-${student.name}-${index}`}
+                    className="px-4 py-4 text-sm leading-6 text-black"
+                  >
+                    <p className="font-semibold">
+                      {student.name || "Unnamed student"}
+                    </p>
+                    {student.skills ? (
+                      <p className="text-black/65">{student.skills}</p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           {project.document.collaborators.length ? (
             <div className="overflow-hidden border-2 border-black bg-white">
               <div className="border-b-2 border-black px-5 py-4">

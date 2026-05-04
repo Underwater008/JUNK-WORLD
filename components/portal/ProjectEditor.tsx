@@ -16,6 +16,7 @@ import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
 import { slugify } from "@/lib/utils";
 import { uploadAsset } from "@/lib/uploads";
 import CardCropOverlay from "@/components/portal/CardCropOverlay";
+import ContributorsForm from "@/components/portal/ContributorsForm";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
 import SettingsPanel from "@/components/portal/SettingsPanel";
@@ -625,6 +626,20 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
             disabled={writesDisabled}
             rows={2}
             className="mt-4 w-full resize-none border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
+          />
+
+          {/* Divider */}
+          <div className="my-8 h-px bg-black/8" />
+
+          {/* Faculty + students */}
+          <ContributorsForm
+            facultySubmitters={project.facultySubmitters}
+            students={project.students}
+            onFacultyChange={(facultySubmitters) =>
+              patchProject("facultySubmitters", facultySubmitters)
+            }
+            onStudentsChange={(students) => patchProject("students", students)}
+            disabled={writesDisabled}
           />
 
           {/* Divider */}

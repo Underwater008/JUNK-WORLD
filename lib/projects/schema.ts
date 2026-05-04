@@ -29,6 +29,16 @@ const externalLinkSchema = z.object({
   url: nonEmptyTrimmedString,
 });
 
+const facultySubmitterSchema = z.object({
+  name: z.string().trim().catch("").default(""),
+  position: z.string().trim().catch("").default(""),
+});
+
+const studentSchema = z.object({
+  name: z.string().trim().catch("").default(""),
+  skills: z.string().trim().catch("").default(""),
+});
+
 const markerOffsetSchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
@@ -51,6 +61,8 @@ const baseProjectDocumentSchema = z.object({
   collaborators: z.array(collaboratorSchema).default([]),
   credits: z.array(creditSchema).default([]),
   externalLinks: z.array(externalLinkSchema).default([]),
+  facultySubmitters: z.array(facultySubmitterSchema).default([]),
+  students: z.array(studentSchema).default([]),
   body: z
     .array(z.record(z.string(), z.any()))
     .default(DEFAULT_PROJECT_BODY)
@@ -103,6 +115,12 @@ export async function normalizeProjectDocument(
     credits: parsed.credits.filter((item) => item.label.trim() && item.value.trim()),
     externalLinks: parsed.externalLinks.filter(
       (item) => item.label.trim() && item.url.trim()
+    ),
+    facultySubmitters: parsed.facultySubmitters.filter(
+      (item) => item.name.trim() || item.position.trim()
+    ),
+    students: parsed.students.filter(
+      (item) => item.name.trim() || item.skills.trim()
     ),
   };
 }
