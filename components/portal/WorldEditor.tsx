@@ -18,7 +18,7 @@ import CardCropOverlay from "@/components/portal/CardCropOverlay";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
 import SaveStatusModal from "@/components/portal/SaveStatusModal";
-import type { University, WorldDocument } from "@/types";
+import type { CropBox, University, WorldDocument } from "@/types";
 
 type SaveMode = "draft" | "publish";
 
@@ -414,22 +414,31 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
     }
   }
 
-  function handleCoverCropConfirm(croppedUrl: string) {
-    patchWorld("coverImageUrl", croppedUrl);
+  function handleCoverCropConfirm(crop: CropBox) {
+    patchWorld("coverCrop", crop);
     setCropStep("thumbnail");
   }
 
   function handleCoverCropSkip() {
+    patchWorld("coverCrop", null);
     setCropStep("thumbnail");
   }
 
-  function handleThumbnailCropConfirm(croppedUrl: string) {
-    patchWorld("cardImageUrl", croppedUrl);
+  function handleThumbnailCropConfirm(crop: CropBox) {
+    setWorld((current) => ({
+      ...current,
+      cardImageUrl: originalCoverUrl || current.coverImageUrl,
+      cardCrop: crop,
+    }));
     setCropStep(null);
   }
 
   function handleThumbnailCropSkip() {
-    patchWorld("cardImageUrl", world.coverImageUrl);
+    setWorld((current) => ({
+      ...current,
+      cardImageUrl: originalCoverUrl || current.coverImageUrl,
+      cardCrop: current.coverCrop ?? null,
+    }));
     setCropStep(null);
   }
 
@@ -499,19 +508,19 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         onImageChange={handleCoverChange}
         disabled={writesDisabled}
         uploadPrefix="worlds/cover"
+        crop={world.coverCrop}
       />
 
       {cropStep === "cover" && originalCoverUrl ? (
         <CardCropOverlay
           coverImageUrl={originalCoverUrl}
           title="Crop for the page cover"
-          subtitle="Pick the area shown as the large cover at the top of the world page. Click 'Use full image' to keep the upload as-is. Next you'll pick the small card thumbnail."
+          subtitle="Pick the area shown as the large cover at the top of the world page. Choose any aspect — animated GIFs are preserved. Click 'Use full image' to skip."
           confirmLabel="Save cover"
           skipLabel="Use full image"
           onCrop={handleCoverCropConfirm}
           onCancel={handleCoverCropSkip}
           disabled={writesDisabled}
-          uploadPrefix="worlds/cover"
         />
       ) : null}
 
@@ -519,13 +528,13 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         <CardCropOverlay
           coverImageUrl={originalCoverUrl}
           title="Crop for the card thumbnail"
-          subtitle="Pick a tighter area to use only for the small card thumbnail in lists. Click 'Same as cover' to reuse the cover crop."
+          subtitle="The thumbnail aspect is locked to 16:9 so all cards line up in lists. Drag and resize the box to pick the area shown."
           confirmLabel="Save thumbnail"
           skipLabel="Same as cover"
+          lockedAspect={16 / 9}
           onCrop={handleThumbnailCropConfirm}
           onCancel={handleThumbnailCropSkip}
           disabled={writesDisabled}
-          uploadPrefix="worlds/card"
         />
       ) : null}
 

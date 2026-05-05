@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "rea
 import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import CroppedImage from "@/components/CroppedImage";
 import LoginForm from "@/components/portal/LoginForm";
 import LogoutButton from "@/components/portal/LogoutButton";
 import ProjectCardDisplay from "@/components/ProjectCardDisplay";
@@ -16,6 +17,7 @@ import { getPortalWriteDisabledMessage } from "@/lib/portal/mode";
 import { uploadAsset } from "@/lib/uploads";
 import { createEmptyWorldDocument } from "@/lib/worlds/defaults";
 import type {
+  CropBox,
   ProjectDocument,
   ProjectGalleryItem,
   ProjectMarkerOffset,
@@ -45,6 +47,7 @@ type ArchiveProjectEntry = {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   participants: number;
   tags: string[];
   locationLabel: string;
@@ -67,6 +70,7 @@ type ArchiveWorldEntry = {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   tags: string[];
   markerOffset: ProjectMarkerOffset;
   locationLabel: string;
@@ -358,13 +362,15 @@ function ArchiveProjectDetail({
     >
       {project.thumbnail ? (
         <div className="mx-auto w-full max-w-3xl px-6 pt-6">
-          <div className="aspect-[16/9] overflow-hidden">
-            <img
-              src={project.thumbnail}
-              alt={project.title}
-              className="h-full w-full object-cover"
-            />
-          </div>
+          <CroppedImage
+            src={project.thumbnail}
+            crop={project.thumbnailCrop}
+            alt={project.title}
+            className={
+              project.thumbnailCrop ? "overflow-hidden" : "aspect-[16/9] overflow-hidden"
+            }
+            fit="cover"
+          />
         </div>
       ) : null}
 
@@ -562,6 +568,7 @@ function WorldProjectManagementSection({
                   slug: project.slug,
                   title: project.title,
                   thumbnail: project.thumbnail,
+                  thumbnailCrop: project.thumbnailCrop,
                   year: project.year,
                   tags: project.tags,
                   locationLabel: project.locationLabel,
@@ -663,6 +670,7 @@ export default function ArchiveView({
           description: world.description,
           year: world.year,
           thumbnail: world.thumbnail,
+          thumbnailCrop: world.thumbnailCrop ?? null,
           tags: [],
           markerOffset: world.document?.markerOffset ?? world.markerOffset,
           locationLabel:
@@ -688,6 +696,7 @@ export default function ArchiveView({
               description: project.description,
               year: project.year,
               thumbnail: project.thumbnail,
+              thumbnailCrop: project.thumbnailCrop ?? null,
               participants: project.participants,
               tags: project.tags,
               locationLabel:
@@ -740,6 +749,11 @@ export default function ArchiveView({
         draftWorldDocument.coverImageUrl ||
         matchedWorld?.thumbnail ||
         "",
+      thumbnailCrop: draftWorldDocument.cardImageUrl
+        ? draftWorldDocument.cardCrop ?? null
+        : draftWorldDocument.coverImageUrl
+          ? draftWorldDocument.coverCrop ?? null
+          : matchedWorld?.thumbnailCrop ?? null,
       tags: [],
       markerOffset: draftWorldDocument.markerOffset,
       locationLabel:
@@ -849,6 +863,11 @@ export default function ArchiveView({
         draftProjectDocument.coverImageUrl ||
         matchedProject?.thumbnail ||
         "",
+      thumbnailCrop: draftProjectDocument.cardImageUrl
+        ? draftProjectDocument.cardCrop ?? null
+        : draftProjectDocument.coverImageUrl
+          ? draftProjectDocument.coverCrop ?? null
+          : matchedProject?.thumbnailCrop ?? null,
       participants: draftProjectDocument.participantsCount,
       tags: draftProjectDocument.tags,
       locationLabel: draftProjectDocument.locationLabel || world.locationLabel,
@@ -1735,6 +1754,7 @@ export default function ArchiveView({
                         slug: world.slug,
                         title: world.title,
                         thumbnail: world.thumbnail,
+                        thumbnailCrop: world.thumbnailCrop,
                         year: world.year,
                         tags: [],
                         locationLabel: world.locationLabel,

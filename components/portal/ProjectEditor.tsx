@@ -23,7 +23,7 @@ import MetaRow from "@/components/portal/MetaRow";
 import SaveStatusModal from "@/components/portal/SaveStatusModal";
 import SettingsPanel from "@/components/portal/SettingsPanel";
 import TagEditor from "@/components/portal/TagEditor";
-import type { ProjectDocument, University } from "@/types";
+import type { CropBox, ProjectDocument, University } from "@/types";
 
 type SaveMode = "draft" | "publish";
 
@@ -465,22 +465,31 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
     }
   }
 
-  function handleCoverCropConfirm(croppedUrl: string) {
-    patchProject("coverImageUrl", croppedUrl);
+  function handleCoverCropConfirm(crop: CropBox) {
+    patchProject("coverCrop", crop);
     setCropStep("thumbnail");
   }
 
   function handleCoverCropSkip() {
+    patchProject("coverCrop", null);
     setCropStep("thumbnail");
   }
 
-  function handleThumbnailCropConfirm(croppedUrl: string) {
-    patchProject("cardImageUrl", croppedUrl);
+  function handleThumbnailCropConfirm(crop: CropBox) {
+    setProject((current) => ({
+      ...current,
+      cardImageUrl: originalCoverUrl || current.coverImageUrl,
+      cardCrop: crop,
+    }));
     setCropStep(null);
   }
 
   function handleThumbnailCropSkip() {
-    patchProject("cardImageUrl", project.coverImageUrl);
+    setProject((current) => ({
+      ...current,
+      cardImageUrl: originalCoverUrl || current.coverImageUrl,
+      cardCrop: current.coverCrop ?? null,
+    }));
     setCropStep(null);
   }
 
@@ -552,35 +561,35 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
         onImageChange={handleCoverChange}
         disabled={writesDisabled}
         uploadPrefix="projects/cover"
+        crop={project.coverCrop}
       />
 
-      {/* Crop overlay — step 1: page cover */}
+      {/* Crop overlay — step 1: page cover (free aspect) */}
       {cropStep === "cover" && originalCoverUrl ? (
         <CardCropOverlay
           coverImageUrl={originalCoverUrl}
           title="Crop for the page cover"
-          subtitle="Pick the area shown as the large cover at the top of the project page. Click 'Use full image' to keep the upload as-is. Next you'll pick the small card thumbnail."
+          subtitle="Pick the area shown as the large cover at the top of the project page. Choose any aspect — animated GIFs are preserved. Click 'Use full image' to skip."
           confirmLabel="Save cover"
           skipLabel="Use full image"
           onCrop={handleCoverCropConfirm}
           onCancel={handleCoverCropSkip}
           disabled={writesDisabled}
-          uploadPrefix="projects/cover"
         />
       ) : null}
 
-      {/* Crop overlay — step 2: card thumbnail */}
+      {/* Crop overlay — step 2: card thumbnail (locked 16:9) */}
       {cropStep === "thumbnail" && originalCoverUrl ? (
         <CardCropOverlay
           coverImageUrl={originalCoverUrl}
           title="Crop for the card thumbnail"
-          subtitle="Pick a tighter area to use only for the small card thumbnail in lists. Click 'Same as cover' to reuse the cover crop."
+          subtitle="The thumbnail aspect is locked to 16:9 so all cards line up in lists. Drag and resize the box to pick the area shown."
           confirmLabel="Save thumbnail"
           skipLabel="Same as cover"
+          lockedAspect={16 / 9}
           onCrop={handleThumbnailCropConfirm}
           onCancel={handleThumbnailCropSkip}
           disabled={writesDisabled}
-          uploadPrefix="projects/card"
         />
       ) : null}
 

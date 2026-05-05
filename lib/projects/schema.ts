@@ -14,6 +14,18 @@ const galleryItemSchema = z.object({
   alt: z.string().trim().catch("").default(""),
 });
 
+const cropBoxSchema = z
+  .object({
+    x: z.coerce.number().finite(),
+    y: z.coerce.number().finite(),
+    w: z.coerce.number().finite().positive(),
+    h: z.coerce.number().finite().positive(),
+    natW: z.coerce.number().finite().positive(),
+    natH: z.coerce.number().finite().positive(),
+  })
+  .nullable()
+  .optional();
+
 const collaboratorSchema = z.object({
   name: nonEmptyTrimmedString,
   role: nonEmptyTrimmedString,
@@ -54,6 +66,8 @@ const baseProjectDocumentSchema = z.object({
   tags: z.array(z.string().trim()).default([]),
   coverImageUrl: optionalAssetString.default(""),
   cardImageUrl: optionalAssetString.default(""),
+  coverCrop: cropBoxSchema,
+  cardCrop: cropBoxSchema,
   gallery: z.array(galleryItemSchema).default([]),
   participantsCount: z.coerce.number().int().min(0).default(0),
   markerOffset: markerOffsetSchema.optional(),

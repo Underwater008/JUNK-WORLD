@@ -13,6 +13,18 @@ const galleryItemSchema = z.object({
   alt: z.string().trim().catch("").default(""),
 });
 
+const cropBoxSchema = z
+  .object({
+    x: z.coerce.number().finite(),
+    y: z.coerce.number().finite(),
+    w: z.coerce.number().finite().positive(),
+    h: z.coerce.number().finite().positive(),
+    natW: z.coerce.number().finite().positive(),
+    natH: z.coerce.number().finite().positive(),
+  })
+  .nullable()
+  .optional();
+
 const markerOffsetSchema = z.object({
   lat: z.coerce.number().min(-90).max(90),
   lng: z.coerce.number().min(-180).max(180),
@@ -27,6 +39,8 @@ const baseWorldDocumentSchema = z.object({
   tags: z.array(z.string().trim()).default([]),
   coverImageUrl: optionalAssetString.default(""),
   cardImageUrl: optionalAssetString.default(""),
+  coverCrop: cropBoxSchema,
+  cardCrop: cropBoxSchema,
   gallery: z.array(galleryItemSchema).default([]),
   markerOffset: markerOffsetSchema.optional(),
   locationLabel: z.string().trim().catch("").default(""),

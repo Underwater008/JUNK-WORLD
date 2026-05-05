@@ -110,6 +110,10 @@ export async function mergeWorldsIntoUniversities(
       year: project.document.year,
       thumbnail:
         project.document.cardImageUrl || project.document.coverImageUrl || "",
+      thumbnailCrop:
+        project.document.cardImageUrl
+          ? project.document.cardCrop ?? null
+          : project.document.coverCrop ?? null,
       participants: project.document.participantsCount,
       tags: project.document.tags,
       markerOffset: project.document.markerOffset,
@@ -136,6 +140,10 @@ export async function mergeWorldsIntoUniversities(
       year: world.document.year,
       thumbnail:
         world.document.cardImageUrl || world.document.coverImageUrl || "",
+      thumbnailCrop:
+        world.document.cardImageUrl
+          ? world.document.cardCrop ?? null
+          : world.document.coverCrop ?? null,
       tags: world.document.tags,
       markerOffset: world.document.markerOffset,
       locationLabel: world.document.locationLabel,

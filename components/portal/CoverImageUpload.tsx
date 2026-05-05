@@ -1,13 +1,16 @@
 "use client";
 
 import { ChangeEvent, useId, useRef, useState } from "react";
+import CroppedImage from "@/components/CroppedImage";
 import { uploadAsset } from "@/lib/uploads";
+import type { CropBox } from "@/types";
 
 interface CoverImageUploadProps {
   imageUrl: string;
   onImageChange: (url: string) => void;
   disabled?: boolean;
   uploadPrefix?: string;
+  crop?: CropBox | null;
 }
 
 export default function CoverImageUpload({
@@ -15,6 +18,7 @@ export default function CoverImageUpload({
   onImageChange,
   disabled = false,
   uploadPrefix,
+  crop = null,
 }: CoverImageUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -74,11 +78,13 @@ export default function CoverImageUpload({
         </div>
       ) : (
         <div className="space-y-2">
-          <div className="group relative aspect-[16/9] overflow-hidden">
-            <img
+          <div className="group relative overflow-hidden">
+            <CroppedImage
               src={imageUrl}
+              crop={crop}
               alt="Cover"
-              className="h-full w-full object-cover"
+              className={crop ? "" : "aspect-[16/9]"}
+              fit="cover"
             />
             <div className="pointer-events-none absolute inset-0 bg-black/0 transition-colors group-hover:bg-black/30" />
           </div>

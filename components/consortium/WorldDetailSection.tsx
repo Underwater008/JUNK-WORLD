@@ -1,12 +1,15 @@
 "use client";
 
+import CroppedImage from "@/components/CroppedImage";
 import ProjectCardDisplay from "@/components/ProjectCardDisplay";
+import type { CropBox } from "@/types";
 
 type WorldDetailProject = {
   id: string;
   slug: string;
   title: string;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   year: number;
   tags: string[];
   locationLabel: string;
@@ -22,6 +25,7 @@ type WorldDetailWorld = {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   locationLabel: string;
   university: string;
   shortName: string;
@@ -81,13 +85,23 @@ export default function WorldDetailSection({
       {showCover ? (
         world.thumbnail ? (
           <div className="overflow-hidden border-2 border-black bg-white">
-            <div className={compact ? "h-[220px]" : "h-[280px] sm:h-[360px]"}>
-              <img
+            {world.thumbnailCrop ? (
+              <CroppedImage
                 src={world.thumbnail}
+                crop={world.thumbnailCrop}
                 alt={world.title}
-                className="h-full w-full object-cover"
+                className="w-full"
               />
-            </div>
+            ) : (
+              <div className={compact ? "h-[220px]" : "h-[280px] sm:h-[360px]"}>
+                <CroppedImage
+                  src={world.thumbnail}
+                  alt={world.title}
+                  className="h-full w-full"
+                  fit="cover"
+                />
+              </div>
+            )}
           </div>
         ) : (
           <div className="overflow-hidden border-2 border-black bg-[linear-gradient(135deg,#ede7dd_0%,#f7f4ed_52%,#efe6d8_100%)]">

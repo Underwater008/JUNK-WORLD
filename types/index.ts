@@ -3,6 +3,15 @@ export interface ProjectMarkerOffset {
   lng: number;
 }
 
+export interface CropBox {
+  x: number; // pixel offset on the natural image
+  y: number;
+  w: number;
+  h: number;
+  natW: number; // natural image width in pixels
+  natH: number; // natural image height in pixels
+}
+
 export interface ProjectGalleryItem {
   url: string;
   alt: string;
@@ -45,6 +54,8 @@ export interface WorldDocument {
   tags: string[];
   coverImageUrl: string;
   cardImageUrl: string;
+  coverCrop?: CropBox | null;
+  cardCrop?: CropBox | null;
   gallery: ProjectGalleryItem[];
   markerOffset: ProjectMarkerOffset;
   locationLabel: string;
@@ -60,6 +71,8 @@ export interface ProjectDocument {
   tags: string[];
   coverImageUrl: string;
   cardImageUrl: string;
+  coverCrop?: CropBox | null;
+  cardCrop?: CropBox | null;
   gallery: ProjectGalleryItem[];
   participantsCount: number;
   markerOffset: ProjectMarkerOffset;
@@ -80,6 +93,7 @@ export interface Project {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   participants: number;
   tags: string[];
   markerOffset: ProjectMarkerOffset;
@@ -97,6 +111,7 @@ export interface World {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   tags: string[];
   markerOffset: ProjectMarkerOffset;
   locationLabel?: string;

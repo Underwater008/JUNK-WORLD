@@ -14,7 +14,7 @@ import WorldDetailSection from "@/components/consortium/WorldDetailSection";
 import { createEmptyProjectDocument } from "@/lib/projects/defaults";
 import { getPortalWriteDisabledMessage } from "@/lib/portal/mode";
 import { createEmptyWorldDocument } from "@/lib/worlds/defaults";
-import type { ProjectDocument, University, WorldDocument } from "@/types";
+import type { CropBox, ProjectDocument, University, WorldDocument } from "@/types";
 
 const NEW_WORLD_SLUG = "__new_world__";
 const NEW_PROJECT_SLUG = "__new_project__";
@@ -38,6 +38,7 @@ type ProjectEntry = {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   participants: number;
   tags: string[];
   markerOffset: { lat: number; lng: number };
@@ -61,6 +62,7 @@ type WorldEntry = {
   description: string;
   year: number;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   tags: string[];
   markerOffset: { lat: number; lng: number };
   locationLabel: string;
@@ -398,6 +400,7 @@ export default function ProjectsView({
           description: world.description,
           year: world.year,
           thumbnail: world.thumbnail,
+          thumbnailCrop: world.thumbnailCrop ?? null,
           tags: [],
           markerOffset: world.document?.markerOffset ?? world.markerOffset,
           locationLabel:
@@ -423,6 +426,7 @@ export default function ProjectsView({
               description: project.description,
               year: project.year,
               thumbnail: project.thumbnail,
+              thumbnailCrop: project.thumbnailCrop ?? null,
               participants: project.participants,
               tags: project.tags,
               markerOffset: project.document?.markerOffset ?? project.markerOffset,
@@ -463,6 +467,9 @@ export default function ProjectsView({
         "New draft world. Add a title, set the globe location, and shape the overview.",
       year: draftWorldDocument.year,
       thumbnail: draftWorldDocument.cardImageUrl || draftWorldDocument.coverImageUrl,
+      thumbnailCrop: draftWorldDocument.cardImageUrl
+        ? draftWorldDocument.cardCrop ?? null
+        : draftWorldDocument.coverCrop ?? null,
       tags: [],
       markerOffset: draftWorldDocument.markerOffset,
       locationLabel:
@@ -553,6 +560,9 @@ export default function ProjectsView({
       year: draftProjectDocument.year,
       thumbnail:
         draftProjectDocument.cardImageUrl || draftProjectDocument.coverImageUrl,
+      thumbnailCrop: draftProjectDocument.cardImageUrl
+        ? draftProjectDocument.cardCrop ?? null
+        : draftProjectDocument.coverCrop ?? null,
       participants: draftProjectDocument.participantsCount,
       tags: draftProjectDocument.tags,
       markerOffset: draftProjectDocument.markerOffset,
@@ -1073,6 +1083,7 @@ export default function ProjectsView({
                                   slug: project.slug,
                                   title: project.title,
                                   thumbnail: project.thumbnail,
+                                  thumbnailCrop: project.thumbnailCrop,
                                   year: project.year,
                                   tags: project.tags,
                                   locationLabel: project.locationLabel,
@@ -1103,6 +1114,7 @@ export default function ProjectsView({
                       description: selectedWorld.description,
                       year: selectedWorld.year,
                       thumbnail: selectedWorld.thumbnail,
+                      thumbnailCrop: selectedWorld.thumbnailCrop,
                       locationLabel: selectedWorld.locationLabel,
                       university: selectedWorld.university,
                       shortName: selectedWorld.shortName,
@@ -1140,6 +1152,7 @@ export default function ProjectsView({
                           slug: world.slug,
                           title: world.title,
                           thumbnail: world.thumbnail,
+                          thumbnailCrop: world.thumbnailCrop,
                           year: world.year,
                           tags: [],
                           locationLabel: world.locationLabel,

@@ -1,11 +1,14 @@
 "use client";
 
 import { motion } from "framer-motion";
+import CroppedImage from "@/components/CroppedImage";
+import type { CropBox } from "@/types";
 
 export interface ProjectCardData {
   slug: string;
   title: string;
   thumbnail: string;
+  thumbnailCrop?: CropBox | null;
   year: number;
   tags: string[];
   locationLabel: string;
@@ -91,10 +94,12 @@ export default function ProjectCardDisplay({
         {/* Image area */}
         <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-black">
           {hasThumbnail ? (
-            <img
+            <CroppedImage
               src={project.thumbnail}
+              crop={project.thumbnailCrop}
               alt={project.title}
-              className="h-full w-full object-cover"
+              className="h-full w-full"
+              fit="cover"
             />
           ) : (
             <div className="h-full w-full bg-[#F4F0E8]" />

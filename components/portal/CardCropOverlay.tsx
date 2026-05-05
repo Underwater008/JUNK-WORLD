@@ -1,21 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { uploadAsset } from "@/lib/uploads";
+import type { CropBox } from "@/types";
 
 interface CardCropOverlayProps {
   coverImageUrl: string;
-  onCrop: (cardImageUrl: string) => void;
+  onCrop: (crop: CropBox) => void;
   onCancel: () => void;
   disabled?: boolean;
-  uploadPrefix?: string;
   title?: string;
   subtitle?: string;
   confirmLabel?: string;
   skipLabel?: string;
+  /** If set, hides the aspect picker and forces this width-over-height ratio. */
+  lockedAspect?: number;
 }
 
-const ASPECT = 16 / 9;
+const ASPECT_PRESETS: { key: string; label: string; ratio: number }[] = [
+  { key: "16:9", label: "16 : 9 landscape", ratio: 16 / 9 },
+  { key: "4:3", label: "4 : 3", ratio: 4 / 3 },
+  { key: "1:1", label: "1 : 1 square", ratio: 1 },
+  { key: "3:4", label: "3 : 4 portrait", ratio: 3 / 4 },
+  { key: "9:16", label: "9 : 16 portrait", ratio: 9 / 16 },
+];
+const DEFAULT_ASPECT_KEY = "16:9";
 
 interface CropRect {
   x: number;
@@ -35,36 +43,48 @@ export default function CardCropOverlay({
   onCrop,
   onCancel,
   disabled = false,
-  uploadPrefix,
   title = "Image crop",
   subtitle = "Drag the box to choose the visible area.",
   confirmLabel = "Save crop",
   skipLabel = "Use full image",
+  lockedAspect,
 }: CardCropOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const [naturalSize, setNaturalSize] = useState({ w: 0, h: 0 });
   const [crop, setCrop] = useState<CropRect>({ x: 0, y: 0, w: 0, h: 0 });
   const [dragging, setDragging] = useState<DragMode>(null);
   const [dragStart, setDragStart] = useState({ mx: 0, my: 0, crop: { x: 0, y: 0, w: 0, h: 0 } });
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aspectKey, setAspectKey] = useState(DEFAULT_ASPECT_KEY);
 
-  // Initialize crop to centered 4:3 rect filling ~60% of width
+  const aspect =
+    typeof lockedAspect === "number"
+      ? lockedAspect
+      : ASPECT_PRESETS.find((preset) => preset.key === aspectKey)?.ratio ?? 16 / 9;
+
+  // Initialize crop centered, filling ~60% of width while respecting aspect
   const initCrop = useCallback(() => {
     if (!imgSize.w || !imgSize.h) return;
-    const cropW = imgSize.w * 0.6;
-    const cropH = cropW / ASPECT;
-    const finalW = cropH > imgSize.h ? imgSize.h * ASPECT : cropW;
-    const finalH = finalW / ASPECT;
+    let cropW = imgSize.w * 0.6;
+    let cropH = cropW / aspect;
+    if (cropH > imgSize.h * 0.92) {
+      cropH = imgSize.h * 0.92;
+      cropW = cropH * aspect;
+    }
+    if (cropW > imgSize.w) {
+      cropW = imgSize.w;
+      cropH = cropW / aspect;
+    }
     setCrop({
-      x: (imgSize.w - finalW) / 2,
-      y: (imgSize.h - finalH) / 2,
-      w: finalW,
-      h: finalH,
+      x: (imgSize.w - cropW) / 2,
+      y: (imgSize.h - cropH) / 2,
+      w: cropW,
+      h: cropH,
     });
-  }, [imgSize]);
+  }, [imgSize, aspect]);
 
   useEffect(() => {
     initCrop();
@@ -74,6 +94,7 @@ export default function CardCropOverlay({
     const el = imgRef.current;
     if (!el) return;
     setImgSize({ w: el.clientWidth, h: el.clientHeight });
+    setNaturalSize({ w: el.naturalWidth, h: el.naturalHeight });
     setImgLoaded(true);
   }
 
@@ -126,7 +147,7 @@ export default function CardCropOverlay({
           newX = sc.x + sc.w - newW;
         }
 
-        const newH = newW / ASPECT;
+        const newH = newW / aspect;
         if (dragging === "nw" || dragging === "ne") {
           newY = sc.y + sc.h - newH;
         }
@@ -136,20 +157,20 @@ export default function CardCropOverlay({
           newY = 0;
           const maxH = sc.y + sc.h;
           const h = Math.min(newH, maxH);
-          newW = h * ASPECT;
+          newW = h * aspect;
           if (dragging === "nw" || dragging === "sw") {
             newX = sc.x + sc.w - newW;
           }
         }
-        if (newY + newW / ASPECT > imgSize.h) {
+        if (newY + newW / aspect > imgSize.h) {
           const h = imgSize.h - newY;
-          newW = h * ASPECT;
+          newW = h * aspect;
           if (dragging === "nw" || dragging === "sw") {
             newX = sc.x + sc.w - newW;
           }
         }
 
-        setCrop({ x: newX, y: newY, w: newW, h: newW / ASPECT });
+        setCrop({ x: newX, y: newY, w: newW, h: newW / aspect });
       }
     }
 
@@ -163,61 +184,33 @@ export default function CardCropOverlay({
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
     };
-  }, [dragging, dragStart, imgSize]);
+  }, [dragging, dragStart, imgSize, aspect]);
 
-  async function handleConfirm() {
-    if (disabled || uploading) return;
-    setUploading(true);
+  function handleConfirm() {
+    if (disabled) return;
     setError(null);
 
-    try {
-      // Load full-res image to crop from
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => resolve();
-        img.onerror = () => reject(new Error("Failed to load image for cropping."));
-        img.src = coverImageUrl;
-      });
-
-      // Calculate crop in natural image coordinates
-      const displayEl = imgRef.current;
-      if (!displayEl) throw new Error("Image element not found.");
-      const scaleX = img.naturalWidth / displayEl.clientWidth;
-      const scaleY = img.naturalHeight / displayEl.clientHeight;
-
-      const sx = crop.x * scaleX;
-      const sy = crop.y * scaleY;
-      const sw = crop.w * scaleX;
-      const sh = crop.h * scaleY;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(sw);
-      canvas.height = Math.round(sh);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas context unavailable.");
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-
-      const blob = await new Promise<Blob>((resolve, reject) => {
-        canvas.toBlob(
-          (b) => (b ? resolve(b) : reject(new Error("Canvas export failed."))),
-          "image/jpeg",
-          0.9
-        );
-      });
-
-      const file = new File([blob], "card-crop.jpg", { type: "image/jpeg" });
-      const url = await uploadAsset(file, uploadPrefix);
-      onCrop(url);
-    } catch (cropError) {
-      setError(
-        cropError instanceof Error
-          ? cropError.message
-          : "Crop upload failed. Try again or click Cancel to skip."
-      );
-    } finally {
-      setUploading(false);
+    if (
+      naturalSize.w <= 0 ||
+      naturalSize.h <= 0 ||
+      imgSize.w <= 0 ||
+      imgSize.h <= 0
+    ) {
+      setError("Image is still loading — try again in a moment.");
+      return;
     }
+
+    const scaleX = naturalSize.w / imgSize.w;
+    const scaleY = naturalSize.h / imgSize.h;
+
+    onCrop({
+      x: Math.max(0, Math.round(crop.x * scaleX)),
+      y: Math.max(0, Math.round(crop.y * scaleY)),
+      w: Math.max(1, Math.round(crop.w * scaleX)),
+      h: Math.max(1, Math.round(crop.h * scaleY)),
+      natW: naturalSize.w,
+      natH: naturalSize.h,
+    });
   }
 
   const handleSize = 10;
@@ -252,6 +245,31 @@ export default function CardCropOverlay({
         <p className="mt-1 text-sm leading-5 text-white/85">
           {subtitle}
         </p>
+        {typeof lockedAspect === "number" ? null : (
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/45">
+              Aspect
+            </span>
+            {ASPECT_PRESETS.map((preset) => {
+              const active = preset.key === aspectKey;
+              return (
+                <button
+                  key={preset.key}
+                  type="button"
+                  onClick={() => setAspectKey(preset.key)}
+                  className={`rounded-md border px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] transition ${
+                    active
+                      ? "border-white bg-white text-black"
+                      : "border-white/30 bg-transparent text-white hover:bg-white/10"
+                  }`}
+                  aria-pressed={active}
+                >
+                  {preset.key}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div ref={containerRef} className="relative select-none">
         <img
@@ -288,7 +306,11 @@ export default function CardCropOverlay({
             >
               {/* Aspect label */}
               <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-[10px] font-semibold uppercase tracking-[0.16em] text-white/70 pointer-events-none">
-                16 : 9
+                {typeof lockedAspect === "number"
+                  ? lockedAspect >= 1
+                    ? `${(lockedAspect).toFixed(2)} : 1`
+                    : `1 : ${(1 / lockedAspect).toFixed(2)}`
+                  : aspectKey.replace(":", " : ")}
               </span>
 
               {/* Corner handles */}
@@ -304,10 +326,7 @@ export default function CardCropOverlay({
       {/* Actions */}
       <div className="flex shrink-0 flex-col gap-2 bg-black/80 px-4 py-3">
         {error ? (
-          <p
-            role="alert"
-            className="text-[11px] font-semibold text-red-300"
-          >
+          <p role="alert" className="text-[11px] font-semibold text-red-300">
             {error}
           </p>
         ) : null}
@@ -319,18 +338,17 @@ export default function CardCropOverlay({
             <button
               type="button"
               onClick={onCancel}
-              disabled={uploading}
-              className="border border-white/30 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-white/10 disabled:opacity-40"
+              className="border border-white/30 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-white/10"
             >
-              {uploading ? "Cancel" : skipLabel}
+              {skipLabel}
             </button>
             <button
               type="button"
-              onClick={() => void handleConfirm()}
-              disabled={disabled || uploading || imgSize.w === 0}
+              onClick={handleConfirm}
+              disabled={disabled || imgSize.w === 0}
               className="border border-white bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black transition hover:bg-white/90 disabled:opacity-40"
             >
-              {uploading ? "Cropping..." : confirmLabel}
+              {confirmLabel}
             </button>
           </div>
         </div>
