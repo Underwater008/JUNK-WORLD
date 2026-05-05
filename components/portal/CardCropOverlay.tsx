@@ -41,6 +41,7 @@ export default function CardCropOverlay({
   const [dragging, setDragging] = useState<DragMode>(null);
   const [dragStart, setDragStart] = useState({ mx: 0, my: 0, crop: { x: 0, y: 0, w: 0, h: 0 } });
   const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Initialize crop to centered 4:3 rect filling ~60% of width
   const initCrop = useCallback(() => {
@@ -159,6 +160,7 @@ export default function CardCropOverlay({
   async function handleConfirm() {
     if (disabled || uploading) return;
     setUploading(true);
+    setError(null);
 
     try {
       // Load full-res image to crop from
@@ -199,8 +201,12 @@ export default function CardCropOverlay({
       const file = new File([blob], "card-crop.jpg", { type: "image/jpeg" });
       const url = await uploadAsset(file, uploadPrefix);
       onCrop(url);
-    } catch {
-      // silently fail, user can retry
+    } catch (cropError) {
+      setError(
+        cropError instanceof Error
+          ? cropError.message
+          : "Crop upload failed. Try again or click Cancel to skip."
+      );
     } finally {
       setUploading(false);
     }
@@ -231,6 +237,15 @@ export default function CardCropOverlay({
         </div>
       )}
       <div className={`flex max-h-[80vh] max-w-xl flex-col overflow-hidden rounded-lg bg-black shadow-2xl ${imgLoaded ? "" : "invisible absolute"}`}>
+      <div className="border-b border-white/10 bg-black/80 px-4 py-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55">
+          Card thumbnail crop
+        </p>
+        <p className="mt-1 text-sm leading-5 text-white/85">
+          The full image stays as the cover at the top of the page. Pick the
+          area to use only for the small card thumbnail in lists.
+        </p>
+      </div>
       <div ref={containerRef} className="relative select-none">
         <img
           ref={imgRef}
@@ -280,27 +295,37 @@ export default function CardCropOverlay({
       </div>
 
       {/* Actions */}
-      <div className="flex shrink-0 items-center justify-between bg-black/80 px-4 py-2">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60">
-          Drag to select card thumbnail area
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={uploading}
-            className="border border-white/30 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-white/10 disabled:opacity-40"
+      <div className="flex shrink-0 flex-col gap-2 bg-black/80 px-4 py-3">
+        {error ? (
+          <p
+            role="alert"
+            className="text-[11px] font-semibold text-red-300"
           >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleConfirm()}
-            disabled={disabled || uploading || imgSize.w === 0}
-            className="border border-white bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black transition hover:bg-white/90 disabled:opacity-40"
-          >
-            {uploading ? "Cropping..." : "Confirm"}
-          </button>
+            {error}
+          </p>
+        ) : null}
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60">
+            Drag the box to choose the thumbnail area
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              disabled={uploading}
+              className="border border-white/30 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-white/10 disabled:opacity-40"
+            >
+              {uploading ? "Cancel" : "Use full image"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleConfirm()}
+              disabled={disabled || uploading || imgSize.w === 0}
+              className="border border-white bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black transition hover:bg-white/90 disabled:opacity-40"
+            >
+              {uploading ? "Cropping..." : "Save thumbnail"}
+            </button>
+          </div>
         </div>
       </div>
       </div>

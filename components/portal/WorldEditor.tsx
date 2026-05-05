@@ -531,10 +531,10 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         <textarea
           value={world.summary}
           onChange={(event) => patchWorld("summary", event.target.value)}
-          placeholder="Write a short world summary..."
+          placeholder="Write the world description..."
           disabled={writesDisabled}
-          rows={4}
-          className="mt-4 w-full resize-none border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
+          rows={14}
+          className="mt-4 min-h-[16rem] w-full resize-y border-0 bg-transparent text-[1.02rem] leading-7 text-black/72 outline-none placeholder:text-black/28"
         />
       </div>
     </div>
