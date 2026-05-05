@@ -512,10 +512,22 @@ export default function ProjectsView({
     draft.universityId = world.universityId;
     draft.worldId = world.id;
     draft.year = world.year;
-    draft.markerOffset = world.markerOffset;
-    draft.locationLabel = world.locationLabel;
+    // Seed project coords from the university (school location) rather than
+    // the world's narrative location, so each project gets its own
+    // independently-placeable marker and faculty don't end up with multiple
+    // projects stacked on the world's exact coordinate.
+    const university = baseUniversities.find(
+      (entry) => entry.id === world.universityId
+    );
+    if (university) {
+      draft.markerOffset = { lat: university.lat, lng: university.lng };
+      draft.locationLabel = `${university.city}, ${university.country}`;
+    } else {
+      draft.markerOffset = world.markerOffset;
+      draft.locationLabel = world.locationLabel;
+    }
     return draft;
-  }, [allWorlds, editorUnlocked, selectedProjectSlug, selectedWorldSlug]);
+  }, [allWorlds, baseUniversities, editorUnlocked, selectedProjectSlug, selectedWorldSlug]);
 
   const activeProjectEditorState = useMemo(() => {
     if (!projectEditorState) return null;
