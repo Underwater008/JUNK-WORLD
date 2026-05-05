@@ -9,6 +9,10 @@ interface CardCropOverlayProps {
   onCancel: () => void;
   disabled?: boolean;
   uploadPrefix?: string;
+  title?: string;
+  subtitle?: string;
+  confirmLabel?: string;
+  skipLabel?: string;
 }
 
 const ASPECT = 16 / 9;
@@ -32,6 +36,10 @@ export default function CardCropOverlay({
   onCancel,
   disabled = false,
   uploadPrefix,
+  title = "Image crop",
+  subtitle = "Drag the box to choose the visible area.",
+  confirmLabel = "Save crop",
+  skipLabel = "Use full image",
 }: CardCropOverlayProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -239,11 +247,10 @@ export default function CardCropOverlay({
       <div className={`flex max-h-[80vh] max-w-xl flex-col overflow-hidden rounded-lg bg-black shadow-2xl ${imgLoaded ? "" : "invisible absolute"}`}>
       <div className="border-b border-white/10 bg-black/80 px-4 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55">
-          Card thumbnail crop
+          {title}
         </p>
         <p className="mt-1 text-sm leading-5 text-white/85">
-          The full image stays as the cover at the top of the page. Pick the
-          area to use only for the small card thumbnail in lists.
+          {subtitle}
         </p>
       </div>
       <div ref={containerRef} className="relative select-none">
@@ -306,7 +313,7 @@ export default function CardCropOverlay({
         ) : null}
         <div className="flex items-center justify-between gap-3">
           <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/60">
-            Drag the box to choose the thumbnail area
+            Drag the box to choose the area
           </span>
           <div className="flex gap-2">
             <button
@@ -315,7 +322,7 @@ export default function CardCropOverlay({
               disabled={uploading}
               className="border border-white/30 bg-transparent px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white transition hover:bg-white/10 disabled:opacity-40"
             >
-              {uploading ? "Cancel" : "Use full image"}
+              {uploading ? "Cancel" : skipLabel}
             </button>
             <button
               type="button"
@@ -323,7 +330,7 @@ export default function CardCropOverlay({
               disabled={disabled || uploading || imgSize.w === 0}
               className="border border-white bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black transition hover:bg-white/90 disabled:opacity-40"
             >
-              {uploading ? "Cropping..." : "Save thumbnail"}
+              {uploading ? "Cropping..." : confirmLabel}
             </button>
           </div>
         </div>

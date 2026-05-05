@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
 import { slugify } from "@/lib/utils";
 import { uploadAsset } from "@/lib/uploads";
+import AutoGrowTextarea from "@/components/portal/AutoGrowTextarea";
 import CardCropOverlay from "@/components/portal/CardCropOverlay";
 import ContributorsForm from "@/components/portal/ContributorsForm";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
@@ -129,7 +130,10 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   const [errorMessage, setErrorMessage] = useState("");
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showCropOverlay, setShowCropOverlay] = useState(false);
+  const [cropStep, setCropStep] = useState<"cover" | "thumbnail" | null>(null);
+  const [originalCoverUrl, setOriginalCoverUrl] = useState<string>(
+    initialProject.coverImageUrl
+  );
   const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState(() =>
     serializeProjectDocument(initialProject)
@@ -452,21 +456,32 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
   function handleCoverChange(url: string) {
     patchProject("coverImageUrl", url);
     if (url) {
-      setShowCropOverlay(true);
+      setOriginalCoverUrl(url);
+      setCropStep("cover");
     } else {
       patchProject("cardImageUrl", "");
-      setShowCropOverlay(false);
+      setOriginalCoverUrl("");
+      setCropStep(null);
     }
   }
 
-  function handleCropConfirm(cardUrl: string) {
-    patchProject("cardImageUrl", cardUrl);
-    setShowCropOverlay(false);
+  function handleCoverCropConfirm(croppedUrl: string) {
+    patchProject("coverImageUrl", croppedUrl);
+    setCropStep("thumbnail");
   }
 
-  function handleCropSkip() {
+  function handleCoverCropSkip() {
+    setCropStep("thumbnail");
+  }
+
+  function handleThumbnailCropConfirm(croppedUrl: string) {
+    patchProject("cardImageUrl", croppedUrl);
+    setCropStep(null);
+  }
+
+  function handleThumbnailCropSkip() {
     patchProject("cardImageUrl", project.coverImageUrl);
-    setShowCropOverlay(false);
+    setCropStep(null);
   }
 
   return (
@@ -539,16 +554,35 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
         uploadPrefix="projects/cover"
       />
 
-      {/* Crop overlay modal */}
-      {showCropOverlay && project.coverImageUrl && (
+      {/* Crop overlay — step 1: page cover */}
+      {cropStep === "cover" && originalCoverUrl ? (
         <CardCropOverlay
-          coverImageUrl={project.coverImageUrl}
-          onCrop={handleCropConfirm}
-          onCancel={handleCropSkip}
+          coverImageUrl={originalCoverUrl}
+          title="Crop for the page cover"
+          subtitle="Pick the area shown as the large cover at the top of the project page. Click 'Use full image' to keep the upload as-is. Next you'll pick the small card thumbnail."
+          confirmLabel="Save cover"
+          skipLabel="Use full image"
+          onCrop={handleCoverCropConfirm}
+          onCancel={handleCoverCropSkip}
+          disabled={writesDisabled}
+          uploadPrefix="projects/cover"
+        />
+      ) : null}
+
+      {/* Crop overlay — step 2: card thumbnail */}
+      {cropStep === "thumbnail" && originalCoverUrl ? (
+        <CardCropOverlay
+          coverImageUrl={originalCoverUrl}
+          title="Crop for the card thumbnail"
+          subtitle="Pick a tighter area to use only for the small card thumbnail in lists. Click 'Same as cover' to reuse the cover crop."
+          confirmLabel="Save thumbnail"
+          skipLabel="Same as cover"
+          onCrop={handleThumbnailCropConfirm}
+          onCancel={handleThumbnailCropSkip}
           disabled={writesDisabled}
           uploadPrefix="projects/card"
         />
-      )}
+      ) : null}
 
       {/* Document body */}
       <div className="mx-auto max-w-3xl px-6 py-8">
@@ -600,13 +634,13 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
           ) : null}
 
           {/* Summary - styled textarea that looks like a paragraph */}
-          <textarea
+          <AutoGrowTextarea
             value={project.summary}
-            onChange={(e) => patchProject("summary", e.target.value)}
+            onChange={(value) => patchProject("summary", value)}
             placeholder="Write a short summary..."
             disabled={writesDisabled}
-            rows={2}
-            className="mt-4 w-full resize-none border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
+            minRows={2}
+            className="mt-4 w-full resize-none overflow-hidden border-0 bg-transparent text-[1.02rem] leading-8 text-black/68 outline-none placeholder:text-black/28"
           />
 
           {/* Divider */}

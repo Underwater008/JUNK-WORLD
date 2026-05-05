@@ -13,6 +13,7 @@ import {
 import { useRouter } from "next/navigation";
 import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
 import { slugify } from "@/lib/utils";
+import AutoGrowTextarea from "@/components/portal/AutoGrowTextarea";
 import CardCropOverlay from "@/components/portal/CardCropOverlay";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
@@ -102,7 +103,10 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
   const [errorMessage, setErrorMessage] = useState("");
   const [savingMode, setSavingMode] = useState<SaveMode | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [showCropOverlay, setShowCropOverlay] = useState(false);
+  const [cropStep, setCropStep] = useState<"cover" | "thumbnail" | null>(null);
+  const [originalCoverUrl, setOriginalCoverUrl] = useState<string>(
+    initialWorld.coverImageUrl
+  );
   const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState(() =>
     serializeWorldDocument(initialWorld)
@@ -401,21 +405,32 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
   function handleCoverChange(url: string) {
     patchWorld("coverImageUrl", url);
     if (url) {
-      setShowCropOverlay(true);
+      setOriginalCoverUrl(url);
+      setCropStep("cover");
     } else {
       patchWorld("cardImageUrl", "");
-      setShowCropOverlay(false);
+      setOriginalCoverUrl("");
+      setCropStep(null);
     }
   }
 
-  function handleCropConfirm(cardUrl: string) {
-    patchWorld("cardImageUrl", cardUrl);
-    setShowCropOverlay(false);
+  function handleCoverCropConfirm(croppedUrl: string) {
+    patchWorld("coverImageUrl", croppedUrl);
+    setCropStep("thumbnail");
   }
 
-  function handleCropSkip() {
+  function handleCoverCropSkip() {
+    setCropStep("thumbnail");
+  }
+
+  function handleThumbnailCropConfirm(croppedUrl: string) {
+    patchWorld("cardImageUrl", croppedUrl);
+    setCropStep(null);
+  }
+
+  function handleThumbnailCropSkip() {
     patchWorld("cardImageUrl", world.coverImageUrl);
-    setShowCropOverlay(false);
+    setCropStep(null);
   }
 
   return (
@@ -486,11 +501,29 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         uploadPrefix="worlds/cover"
       />
 
-      {showCropOverlay && world.coverImageUrl ? (
+      {cropStep === "cover" && originalCoverUrl ? (
         <CardCropOverlay
-          coverImageUrl={world.coverImageUrl}
-          onCrop={handleCropConfirm}
-          onCancel={handleCropSkip}
+          coverImageUrl={originalCoverUrl}
+          title="Crop for the page cover"
+          subtitle="Pick the area shown as the large cover at the top of the world page. Click 'Use full image' to keep the upload as-is. Next you'll pick the small card thumbnail."
+          confirmLabel="Save cover"
+          skipLabel="Use full image"
+          onCrop={handleCoverCropConfirm}
+          onCancel={handleCoverCropSkip}
+          disabled={writesDisabled}
+          uploadPrefix="worlds/cover"
+        />
+      ) : null}
+
+      {cropStep === "thumbnail" && originalCoverUrl ? (
+        <CardCropOverlay
+          coverImageUrl={originalCoverUrl}
+          title="Crop for the card thumbnail"
+          subtitle="Pick a tighter area to use only for the small card thumbnail in lists. Click 'Same as cover' to reuse the cover crop."
+          confirmLabel="Save thumbnail"
+          skipLabel="Same as cover"
+          onCrop={handleThumbnailCropConfirm}
+          onCancel={handleThumbnailCropSkip}
           disabled={writesDisabled}
           uploadPrefix="worlds/card"
         />
@@ -528,13 +561,13 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
           className="mt-5 w-full border-0 bg-transparent font-serif text-[clamp(2.75rem,5vw,4.4rem)] leading-[0.98] text-black outline-none placeholder:text-black/20"
         />
 
-        <textarea
+        <AutoGrowTextarea
           value={world.summary}
-          onChange={(event) => patchWorld("summary", event.target.value)}
+          onChange={(value) => patchWorld("summary", value)}
           placeholder="Write the world description..."
           disabled={writesDisabled}
-          rows={14}
-          className="mt-4 min-h-[16rem] w-full resize-y border-0 bg-transparent text-[1.02rem] leading-7 text-black/72 outline-none placeholder:text-black/28"
+          minRows={6}
+          className="mt-4 w-full resize-none overflow-hidden border-0 bg-transparent text-[1.02rem] leading-7 text-black/72 outline-none placeholder:text-black/28"
         />
       </div>
     </div>
