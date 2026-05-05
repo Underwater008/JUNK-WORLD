@@ -142,7 +142,12 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
 
   const isEditMode = mode === "edit";
   const currentDocument = useMemo<ProjectDocument>(
-    () => ({ ...project, body, tags: project.tags }),
+    () => ({
+      ...project,
+      body,
+      tags: project.tags,
+      participantsCount: project.students?.length ?? 0,
+    }),
     [project, body]
   );
   const currentDocumentSnapshot = useMemo(
@@ -600,7 +605,7 @@ const ProjectEditor = forwardRef<ProjectEditorHandle, ProjectEditorProps>(functi
             slug={project.slug}
             universityId={project.universityId}
             year={project.year}
-            participantsCount={project.participantsCount}
+            participantsCount={project.students?.length ?? 0}
             markerOffset={project.markerOffset}
             locationLabel={project.locationLabel}
             universities={universities}
