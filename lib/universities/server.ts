@@ -13,6 +13,7 @@ type UniversityRow = {
   lng: number;
   color: string;
   country: string;
+  description: string | null;
   disciplines: string[];
   logo: string | null;
   status: string;
@@ -30,6 +31,7 @@ function mapRow(row: UniversityRow): University {
     lng: row.lng,
     color: row.color,
     country: row.country,
+    description: row.description ?? "",
     disciplines: row.disciplines ?? [],
     worlds: [],
     logo: row.logo ?? undefined,
@@ -45,6 +47,7 @@ export interface UniversityInput {
   lat: number;
   lng: number;
   color: string;
+  description: string;
   disciplines: string[];
   logo?: string;
   status: "active" | "inactive";
@@ -91,15 +94,18 @@ function validateUniversityInput(input: unknown): UniversityInput {
 
   const logo = data.logo ? String(data.logo).trim() : undefined;
 
+  const description =
+    typeof data.description === "string" ? data.description.trim() : "";
+
   const status = data.status === "inactive" ? "inactive" : "active";
 
-  return { name, shortName, city, country, lat, lng, color, disciplines, logo, status };
+  return { name, shortName, city, country, lat, lng, color, description, disciplines, logo, status };
 }
 
 export async function getAllUniversities(): Promise<University[]> {
   const sql = getSql();
   const rows = await sql<UniversityRow[]>`
-    select id, name, short_name, city, lat, lng, color, country, disciplines, logo, status, updated_at, created_at
+    select id, name, short_name, city, lat, lng, color, country, description, disciplines, logo, status, updated_at, created_at
     from universities
     order by
       case when status = 'active' then 0 else 1 end,
@@ -112,7 +118,7 @@ export async function getAllUniversities(): Promise<University[]> {
 export async function getUniversityByIdFromDb(id: string): Promise<University | null> {
   const sql = getSql();
   const rows = await sql<UniversityRow[]>`
-    select id, name, short_name, city, lat, lng, color, country, disciplines, logo, status, updated_at, created_at
+    select id, name, short_name, city, lat, lng, color, country, description, disciplines, logo, status, updated_at, created_at
     from universities
     where id = ${id}
     limit 1;
@@ -131,7 +137,7 @@ export async function createUniversity(input: unknown): Promise<University> {
 
   const sql = getSql();
   const inserted = await sql<UniversityRow[]>`
-    insert into universities (id, name, short_name, city, lat, lng, color, country, disciplines, logo, status)
+    insert into universities (id, name, short_name, city, lat, lng, color, country, description, disciplines, logo, status)
     values (
       ${id},
       ${data.name},
@@ -141,11 +147,12 @@ export async function createUniversity(input: unknown): Promise<University> {
       ${data.lng},
       ${data.color},
       ${data.country},
+      ${data.description},
       ${data.disciplines}::text[],
       ${data.logo ?? null},
       ${data.status}
     )
-    returning id, name, short_name, city, lat, lng, color, country, disciplines, logo, status, updated_at, created_at;
+    returning id, name, short_name, city, lat, lng, color, country, description, disciplines, logo, status, updated_at, created_at;
   `;
 
   return mapRow(inserted[0]);
@@ -164,12 +171,13 @@ export async function updateUniversity(id: string, input: unknown): Promise<Univ
         lat = ${data.lat},
         lng = ${data.lng},
         color = ${data.color},
+        description = ${data.description},
         disciplines = ${data.disciplines}::text[],
         logo = ${data.logo ?? null},
         status = ${data.status},
         updated_at = now()
     where id = ${id}
-    returning id, name, short_name, city, lat, lng, color, country, disciplines, logo, status, updated_at, created_at;
+    returning id, name, short_name, city, lat, lng, color, country, description, disciplines, logo, status, updated_at, created_at;
   `;
 
   if (updated.length === 0) {

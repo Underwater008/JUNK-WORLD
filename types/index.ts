@@ -130,6 +130,7 @@ export interface University {
   lng: number;
   color: string;
   country: string;
+  description?: string;
   disciplines: string[];
   worlds: World[];
   logo?: string;

@@ -13,6 +13,7 @@ type UniversityRow = {
   lng: number;
   color: string;
   country: string;
+  description: string | null;
   disciplines: string[];
   logo: string | null;
   status: string;
@@ -28,6 +29,7 @@ function mapUniversityRow(row: UniversityRow): University {
     lng: row.lng,
     color: row.color,
     country: row.country,
+    description: row.description ?? "",
     disciplines: row.disciplines ?? [],
     worlds: [],
     logo: row.logo ?? undefined,
@@ -65,7 +67,7 @@ export async function getBaseUniversities(): Promise<University[]> {
     const supabase = getSupabaseServerClient();
     const { data, error } = await supabase
       .from("universities")
-      .select("id, name, short_name, city, lat, lng, color, country, disciplines, logo, status");
+      .select("id, name, short_name, city, lat, lng, color, country, description, disciplines, logo, status");
 
     if (error) {
       throw new Error(error.message);

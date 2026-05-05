@@ -1756,6 +1756,17 @@ export default function ArchiveView({
                 ) : null}
               </AnimatePresence>
 
+              {!selectedWorld && !selectedProject && !isEditingUniversity && selectedUniversity?.description?.trim() ? (
+                <div className="mb-5 border border-black/10 bg-white px-5 py-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+                    About {selectedUniversity.shortName}
+                  </p>
+                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-black/72">
+                    {selectedUniversity.description}
+                  </p>
+                </div>
+              ) : null}
+
               {!selectedWorld && !selectedProject && !isEditingUniversity && filteredWorlds.length ? (
                 <div className="grid grid-cols-2 gap-3 xl:grid-cols-3">
                   {filteredWorlds.map((world, index) => (

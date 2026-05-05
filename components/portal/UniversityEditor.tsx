@@ -22,6 +22,7 @@ const EMPTY_UNIVERSITY = {
   lat: 0,
   lng: 0,
   color: "#000000",
+  description: "",
   disciplines: [] as string[],
   logo: "",
   status: "active" as const,
@@ -44,6 +45,7 @@ export default function UniversityEditor({
         lat: university.lat,
         lng: university.lng,
         color: university.color,
+        description: university.description ?? "",
         disciplines: [...university.disciplines],
         logo: university.logo ?? "",
         status: university.status ?? "active",
@@ -110,6 +112,7 @@ export default function UniversityEditor({
           lat: form.lat,
           lng: form.lng,
           color: form.color,
+          description: form.description,
           disciplines: form.disciplines,
           logo: form.logo || undefined,
           status: form.status,
@@ -311,6 +314,21 @@ export default function UniversityEditor({
             </div>
           </label>
         </div>
+
+        {/* Description */}
+        <label className="flex flex-col gap-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-black/70">
+            Description
+          </span>
+          <textarea
+            value={form.description}
+            onChange={(e) => patch({ description: e.target.value })}
+            disabled={disabled}
+            rows={6}
+            className="resize-y rounded-md border border-black/10 px-3 py-2 text-sm leading-6 text-black outline-none focus:border-black/30"
+            placeholder="Short paragraph about the university — shown above the world cards on the consortium page."
+          />
+        </label>
 
         {/* Status */}
         <label className="flex flex-col gap-1">
