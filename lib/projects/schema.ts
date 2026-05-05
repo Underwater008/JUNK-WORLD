@@ -26,19 +26,23 @@ const cropBoxSchema = z
   .nullable()
   .optional();
 
+// Sub-record arrays are validated permissively here — empty rows can
+// linger from earlier editor versions (e.g. retired Credits UI). The
+// normalize step strips empties before the document is saved, so users
+// don't get blocked by a stale row they can't see in the UI anymore.
 const collaboratorSchema = z.object({
-  name: nonEmptyTrimmedString,
-  role: nonEmptyTrimmedString,
+  name: z.string().trim().catch("").default(""),
+  role: z.string().trim().catch("").default(""),
 });
 
 const creditSchema = z.object({
-  label: nonEmptyTrimmedString,
-  value: nonEmptyTrimmedString,
+  label: z.string().trim().catch("").default(""),
+  value: z.string().trim().catch("").default(""),
 });
 
 const externalLinkSchema = z.object({
-  label: nonEmptyTrimmedString,
-  url: nonEmptyTrimmedString,
+  label: z.string().trim().catch("").default(""),
+  url: z.string().trim().catch("").default(""),
 });
 
 const facultySubmitterSchema = z.object({
