@@ -776,7 +776,16 @@ export default function ArchiveView({
 
     if (matchedIndex >= 0) {
       mappedWorlds[matchedIndex] = optimisticWorld;
-    } else if (editorUnlocked) {
+    } else if (
+      editorUnlocked &&
+      !activeWorldEditorState?.savedSlug &&
+      activeWorldEditorState?.routeSlug === NEW_WORLD_SLUG
+    ) {
+      // Only push a phantom card for a brand-new world that hasn't been
+      // persisted yet. For existing worlds, if the freshly-saved row
+      // hasn't shown up in `universities` yet, just skip the optimistic
+      // overlay — pushing it would render a duplicate card next to the
+      // real one once the server payload arrives.
       mappedWorlds.unshift(optimisticWorld);
     }
 

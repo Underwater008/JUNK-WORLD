@@ -493,7 +493,14 @@ export default function ProjectsView({
     );
     if (existingIndex >= 0) {
       mappedWorlds[existingIndex] = optimisticWorld;
-    } else {
+    } else if (
+      !activeWorldEditorState?.savedSlug &&
+      activeWorldEditorState?.routeSlug === NEW_WORLD_SLUG
+    ) {
+      // Only render a phantom card for a brand-new world. For an
+      // existing world being edited, skip the overlay if the saved row
+      // hasn't propagated yet — otherwise we render a duplicate next
+      // to the real one.
       mappedWorlds.unshift(optimisticWorld);
     }
 
