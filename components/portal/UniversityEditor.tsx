@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 import TagEditor from "@/components/portal/TagEditor";
 import { uploadAsset } from "@/lib/uploads";
 import type { University } from "@/types";
@@ -57,8 +57,14 @@ export default function UniversityEditor({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   const disabled = writesDisabled || saving || deleting;
+
+  function openLogoPicker() {
+    if (disabled || uploading) return;
+    logoInputRef.current?.click();
+  }
 
   function patch(updates: Partial<typeof form>) {
     setForm((prev) => ({ ...prev, ...updates }));
@@ -154,48 +160,49 @@ export default function UniversityEditor({
     <div className="mx-auto max-w-2xl">
       <div className="space-y-5 border-2 border-black bg-white p-5 shadow-[6px_6px_0_#000]">
         {/* Logo */}
-        <div className="flex items-center gap-4">
+        <input
+          ref={logoInputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          disabled={disabled || uploading}
+          onChange={(e) => void handleLogoUpload(e)}
+        />
+        <div className="flex items-center gap-3">
           {form.logo ? (
-            <div className="group relative h-16 w-16 shrink-0">
-              <img
-                src={form.logo}
-                alt={form.shortName || "Logo"}
-                className="h-16 w-16 object-contain"
-              />
-              <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/30 group-hover:opacity-100">
-                <label className="cursor-pointer rounded-full bg-white/90 px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.12em]">
-                  {uploading ? "..." : "Change"}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={disabled || uploading}
-                    onChange={(e) => void handleLogoUpload(e)}
-                  />
-                </label>
-              </div>
-            </div>
+            <img
+              src={form.logo}
+              alt={form.shortName || "Logo"}
+              className="h-16 w-16 shrink-0 rounded-lg bg-white object-contain p-1 ring-1 ring-black/10"
+            />
           ) : (
-            <label className="flex h-16 w-16 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-black/5 text-[9px] font-medium uppercase tracking-[0.12em] text-black/30 transition hover:bg-black/10 hover:text-black/50">
-              {uploading ? "..." : "+ Logo"}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={disabled || uploading}
-                onChange={(e) => void handleLogoUpload(e)}
-              />
-            </label>
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg bg-black/5 text-[9px] font-medium uppercase tracking-[0.12em] text-black/30">
+              No logo
+            </div>
           )}
-          {form.logo && !disabled && (
+          <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
-              onClick={() => patch({ logo: "" })}
-              className="text-[10px] text-black/30 transition hover:text-black/60"
+              onClick={openLogoPicker}
+              disabled={disabled || uploading}
+              className="rounded-md border border-black/15 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black transition hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Remove logo
+              {uploading
+                ? "Uploading..."
+                : form.logo
+                  ? "Change logo"
+                  : "Upload logo"}
             </button>
-          )}
+            {form.logo && !disabled ? (
+              <button
+                type="button"
+                onClick={() => patch({ logo: "" })}
+                className="rounded-md border border-black/15 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/60 transition hover:border-black hover:text-black"
+              >
+                Remove logo
+              </button>
+            ) : null}
+          </div>
         </div>
 
         {/* Name + Short Name */}

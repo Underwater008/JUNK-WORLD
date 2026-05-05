@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, useState } from "react";
+import { ChangeEvent, useRef, useState } from "react";
 import { uploadAsset } from "@/lib/uploads";
 import type { Member, University } from "@/types";
 
@@ -53,8 +53,14 @@ export default function MemberEditor({
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const disabled = writesDisabled || saving || uploading;
+
+  function openPhotoPicker() {
+    if (disabled) return;
+    photoInputRef.current?.click();
+  }
 
   function patch(updates: Partial<typeof form>) {
     setForm((current) => ({ ...current, ...updates }));
@@ -160,55 +166,54 @@ export default function MemberEditor({
           </button>
         </div>
 
+        <input
+          ref={photoInputRef}
+          type="file"
+          accept="image/*"
+          className="sr-only"
+          disabled={disabled}
+          onChange={(event) => void handleImageUpload(event)}
+        />
         <div className="flex items-center gap-4">
           {form.image ? (
-            <div className="group relative h-24 w-24 shrink-0 overflow-hidden bg-black/5">
-              <img
-                src={form.image}
-                alt={form.name || "Member photo"}
-                className="h-full w-full object-cover"
-              />
-              {!disabled ? (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/35 group-hover:opacity-100">
-                  <label className="cursor-pointer rounded-full bg-white/90 px-3 py-1 text-[9px] font-semibold uppercase tracking-[0.12em]">
-                    {uploading ? "..." : "Change"}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={disabled}
-                      onChange={(event) => void handleImageUpload(event)}
-                    />
-                  </label>
-                </div>
-              ) : null}
-            </div>
+            <img
+              src={form.image}
+              alt={form.name || "Member photo"}
+              className="h-24 w-24 shrink-0 object-cover"
+            />
           ) : (
-            <label className="flex h-24 w-24 shrink-0 cursor-pointer items-center justify-center bg-black text-[10px] font-semibold uppercase tracking-[0.18em] text-white transition hover:bg-[var(--ink-wash-700)]">
-              {uploading ? "..." : "Upload"}
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                disabled={disabled}
-                onChange={(event) => void handleImageUpload(event)}
-              />
-            </label>
+            <div className="flex h-24 w-24 shrink-0 items-center justify-center bg-black/5 text-[10px] font-medium uppercase tracking-[0.18em] text-black/30">
+              No photo
+            </div>
           )}
 
           <div className="space-y-2">
             <p className="text-sm text-black/65">
               Upload a member portrait, then edit their bio, role, and links.
             </p>
-            {form.image && !disabled ? (
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
-                onClick={() => patch({ image: "" })}
-                className="text-[10px] font-semibold uppercase tracking-[0.18em] text-black/45 transition hover:text-black"
+                onClick={openPhotoPicker}
+                disabled={disabled}
+                className="rounded-md border border-black/15 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black transition hover:border-black hover:bg-black hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                Remove photo
+                {uploading
+                  ? "Uploading..."
+                  : form.image
+                    ? "Change photo"
+                    : "Upload photo"}
               </button>
-            ) : null}
+              {form.image && !disabled ? (
+                <button
+                  type="button"
+                  onClick={() => patch({ image: "" })}
+                  className="rounded-md border border-black/15 bg-white px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-black/60 transition hover:border-black hover:text-black"
+                >
+                  Remove photo
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
 

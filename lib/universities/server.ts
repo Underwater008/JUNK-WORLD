@@ -141,7 +141,7 @@ export async function createUniversity(input: unknown): Promise<University> {
       ${data.lng},
       ${data.color},
       ${data.country},
-      ${sql.array(data.disciplines)},
+      ${data.disciplines}::text[],
       ${data.logo ?? null},
       ${data.status}
     )
@@ -164,7 +164,7 @@ export async function updateUniversity(id: string, input: unknown): Promise<Univ
         lat = ${data.lat},
         lng = ${data.lng},
         color = ${data.color},
-        disciplines = ${sql.array(data.disciplines)},
+        disciplines = ${data.disciplines}::text[],
         logo = ${data.logo ?? null},
         status = ${data.status},
         updated_at = now()
