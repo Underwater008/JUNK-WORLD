@@ -59,9 +59,12 @@ const baseWorldDocumentSchema = z.object({
   markerOffset: markerOffsetSchema.optional(),
   locationLabel: z.string().trim().catch("").default(""),
   mode: worldModeSchema,
-  body: z.array(z.record(z.string(), z.any())).optional(),
-  facultySubmitters: z.array(facultySubmitterSchema).optional(),
-  students: z.array(studentSchema).optional(),
+  // body / contributors are nullable so a row that stored `null` (e.g.
+  // partial updates from older clients, or jsonb fields that round-trip
+  // through PostgREST as null) still parses cleanly.
+  body: z.array(z.record(z.string(), z.any())).nullable().optional(),
+  facultySubmitters: z.array(facultySubmitterSchema).nullable().optional(),
+  students: z.array(studentSchema).nullable().optional(),
 });
 
 export const worldDocumentSchema = baseWorldDocumentSchema.extend({
@@ -96,18 +99,27 @@ export async function normalizeWorldDocument(
     throw new Error("World slug could not be generated.");
   }
 
+  // Coerce nullable inputs before assignment — the schema accepts null
+  // for forward-compatibility but the document types are `T | undefined`.
+  const normalizedParsed = {
+    ...parsed,
+    body: Array.isArray(parsed.body) ? parsed.body : undefined,
+    facultySubmitters: parsed.facultySubmitters ?? undefined,
+    students: parsed.students ?? undefined,
+  };
+
   return {
-    ...(await backfillWorldDocument(parsed, parsed.universityId)),
+    ...(await backfillWorldDocument(normalizedParsed, parsed.universityId)),
     slug,
     tags: dedupeStrings(parsed.tags),
     cardImageUrl: parsed.cardImageUrl || parsed.coverImageUrl,
     gallery: parsed.gallery.filter((item) => item.url.trim()),
     mode: parsed.mode ?? "collective",
-    body: Array.isArray(parsed.body) ? parsed.body : undefined,
-    facultySubmitters: (parsed.facultySubmitters ?? []).filter(
+    body: normalizedParsed.body,
+    facultySubmitters: (normalizedParsed.facultySubmitters ?? []).filter(
       (item) => item.name.trim() || item.position.trim()
     ),
-    students: (parsed.students ?? []).filter(
+    students: (normalizedParsed.students ?? []).filter(
       (item) => item.name.trim() || item.skills.trim()
     ),
   };
