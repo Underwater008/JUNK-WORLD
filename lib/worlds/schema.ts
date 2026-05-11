@@ -30,6 +30,20 @@ const markerOffsetSchema = z.object({
   lng: z.coerce.number().min(-180).max(180),
 });
 
+const facultySubmitterSchema = z.object({
+  name: z.string().trim().catch("").default(""),
+  position: z.string().trim().catch("").default(""),
+});
+
+const studentSchema = z.object({
+  name: z.string().trim().catch("").default(""),
+  skills: z.string().trim().catch("").default(""),
+});
+
+const worldModeSchema = z
+  .union([z.literal("single"), z.literal("collective")])
+  .optional();
+
 const baseWorldDocumentSchema = z.object({
   slug: z.string().trim().catch("").default(""),
   universityId: trimmedString,
@@ -44,6 +58,10 @@ const baseWorldDocumentSchema = z.object({
   gallery: z.array(galleryItemSchema).default([]),
   markerOffset: markerOffsetSchema.optional(),
   locationLabel: z.string().trim().catch("").default(""),
+  mode: worldModeSchema,
+  body: z.array(z.record(z.string(), z.any())).optional(),
+  facultySubmitters: z.array(facultySubmitterSchema).optional(),
+  students: z.array(studentSchema).optional(),
 });
 
 export const worldDocumentSchema = baseWorldDocumentSchema.extend({
@@ -84,5 +102,13 @@ export async function normalizeWorldDocument(
     tags: dedupeStrings(parsed.tags),
     cardImageUrl: parsed.cardImageUrl || parsed.coverImageUrl,
     gallery: parsed.gallery.filter((item) => item.url.trim()),
+    mode: parsed.mode ?? "collective",
+    body: Array.isArray(parsed.body) ? parsed.body : undefined,
+    facultySubmitters: (parsed.facultySubmitters ?? []).filter(
+      (item) => item.name.trim() || item.position.trim()
+    ),
+    students: (parsed.students ?? []).filter(
+      (item) => item.name.trim() || item.skills.trim()
+    ),
   };
 }

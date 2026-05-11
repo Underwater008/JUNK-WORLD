@@ -237,8 +237,8 @@ export default function CardCropOverlay({
           Loading image...
         </div>
       )}
-      <div className={`flex max-h-[80vh] max-w-xl flex-col overflow-hidden rounded-lg bg-black shadow-2xl ${imgLoaded ? "" : "invisible absolute"}`}>
-      <div className="border-b border-white/10 bg-black/80 px-4 py-3">
+      <div className={`flex max-h-[90vh] max-w-xl flex-col overflow-hidden rounded-lg bg-black shadow-2xl ${imgLoaded ? "" : "invisible absolute"}`}>
+      <div className="shrink-0 border-b border-white/10 bg-black/80 px-4 py-3">
         <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-white/55">
           {title}
         </p>
@@ -271,15 +271,16 @@ export default function CardCropOverlay({
           </div>
         )}
       </div>
-      <div ref={containerRef} className="relative select-none">
-        <img
-          ref={imgRef}
-          src={coverImageUrl}
-          alt="Cover"
-          className="block max-h-[calc(80vh-48px)] w-auto max-w-full"
-          onLoad={handleImageLoad}
-          draggable={false}
-        />
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto p-2">
+        <div ref={containerRef} className="relative inline-block select-none">
+          <img
+            ref={imgRef}
+            src={coverImageUrl}
+            alt="Cover"
+            className="block max-h-[min(70vh,calc(90vh-160px))] w-auto max-w-full"
+            onLoad={handleImageLoad}
+            draggable={false}
+          />
 
         {/* Darkened overlay outside crop */}
         {imgSize.w > 0 && (
@@ -321,6 +322,7 @@ export default function CardCropOverlay({
             </div>
           </>
         )}
+        </div>
       </div>
 
       {/* Actions */}

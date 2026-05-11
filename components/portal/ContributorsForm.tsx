@@ -11,6 +11,8 @@ interface ContributorsFormProps {
   onFacultyChange: (submitters: ProjectFacultySubmitter[]) => void;
   onStudentsChange: (students: ProjectStudent[]) => void;
   disabled?: boolean;
+  /** Headline & description tuned to the entity. Defaults to project copy. */
+  entity?: "project" | "world";
 }
 
 const inputClass =
@@ -34,7 +36,14 @@ export default function ContributorsForm({
   onFacultyChange,
   onStudentsChange,
   disabled = false,
+  entity = "project",
 }: ContributorsFormProps) {
+  const headline =
+    entity === "world" ? "Who made this world?" : "Who made this project?";
+  const description =
+    entity === "world"
+      ? "Add the faculty member(s) submitting on behalf of the class, and the students who built this world along with the skills they brought."
+      : "Add the faculty member(s) submitting on behalf of the class, and the students who contributed along with the skills they brought to the project.";
   function updateFaculty(index: number, patch: Partial<ProjectFacultySubmitter>) {
     onFacultyChange(
       facultySubmitters.map((entry, i) =>
@@ -72,12 +81,10 @@ export default function ContributorsForm({
           Contributors
         </p>
         <h3 className="mt-2 font-serif text-2xl leading-tight text-black">
-          Who made this project?
+          {headline}
         </h3>
         <p className="mt-2 max-w-prose text-sm leading-6 text-black/60">
-          Add the faculty member(s) submitting on behalf of the class, and the
-          students who contributed along with the skills they brought to the
-          project.
+          {description}
         </p>
       </header>
 

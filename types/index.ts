@@ -45,6 +45,8 @@ export interface ProjectStudent {
 export type ProjectBodyBlock = Record<string, unknown>;
 export type ProjectBody = ProjectBodyBlock[];
 
+export type WorldMode = "single" | "collective";
+
 export interface WorldDocument {
   slug: string;
   universityId: string;
@@ -59,6 +61,10 @@ export interface WorldDocument {
   gallery: ProjectGalleryItem[];
   markerOffset: ProjectMarkerOffset;
   locationLabel: string;
+  mode?: WorldMode;
+  body?: ProjectBody;
+  facultySubmitters?: ProjectFacultySubmitter[];
+  students?: ProjectStudent[];
 }
 
 export interface ProjectDocument {

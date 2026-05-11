@@ -1,8 +1,23 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import CroppedImage from "@/components/CroppedImage";
 import ProjectCardDisplay from "@/components/ProjectCardDisplay";
-import type { CropBox } from "@/types";
+import type {
+  CropBox,
+  ProjectBody,
+  ProjectFacultySubmitter,
+  ProjectStudent,
+  WorldMode,
+} from "@/types";
+
+const BlockNoteDocument = dynamic(
+  () => import("@/components/projects/BlockNoteDocument"),
+  {
+    ssr: false,
+    loading: () => <div className="min-h-[180px] bg-black/[0.02]" />,
+  }
+);
 
 type WorldDetailProject = {
   id: string;
@@ -33,6 +48,10 @@ type WorldDetailWorld = {
   status: "draft" | "published";
   hasUnpublishedChanges: boolean;
   projects: WorldDetailProject[];
+  mode?: WorldMode;
+  body?: ProjectBody | null;
+  facultySubmitters?: ProjectFacultySubmitter[];
+  students?: ProjectStudent[];
 };
 
 function StatusPill({
@@ -146,74 +165,128 @@ export default function WorldDetailSection({
           </div>
         </div>
 
-        <div className="border-t border-black/10 bg-[var(--ink-wash-200)] px-5 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
-                Projects Inside This World
-              </p>
-              <p className="mt-2 text-sm leading-7 text-black/65">
-                {world.projects.length
-                  ? "Select a child project to open its full page and editorial body."
-                  : emptyMessage}
-              </p>
-            </div>
-            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
-              {world.projects.length} project{world.projects.length === 1 ? "" : "s"}
-            </p>
+        {world.body && world.body.length ? (
+          <div className="border-t border-black/10 px-5 py-6">
+            <BlockNoteDocument body={world.body} className="project-body" />
           </div>
-        </div>
+        ) : null}
 
-        <div className="border-t border-black/10 px-5 py-5">
-          {world.projects.length ? (
-            <div
-              className={`grid gap-3 ${
-                compact ? "grid-cols-2" : "grid-cols-2 xl:grid-cols-3"
-              }`}
-            >
-              {world.projects.map((project, index) => (
-                <ProjectCardDisplay
-                  key={project.slug}
-                  project={{
-                    slug: project.slug,
-                    title: project.title,
-                    thumbnail: project.thumbnail,
-                    year: project.year,
-                    tags: project.tags,
-                    locationLabel: project.locationLabel,
-                    shortName: project.shortName,
-                    color: project.color,
-                    logo: project.logo,
-                    status: project.status,
-                    hasUnpublishedChanges: project.hasUnpublishedChanges,
-                  }}
-                  index={index}
-                  onSelect={() => onSelectProject(project.slug)}
-                  onPreview={
-                    onPreviewProject ? () => onPreviewProject(project.slug) : undefined
-                  }
-                  onPreviewEnd={
-                    onPreviewProjectEnd
-                      ? () => onPreviewProjectEnd(project.slug)
-                      : undefined
-                  }
-                  onDelete={
-                    onDeleteProject
-                      ? () => onDeleteProject(project.slug)
-                      : undefined
-                  }
-                  deletePending={deletingProjectSlug === project.slug}
-                  showBadges={showBadges}
-                  isActive={activeProjectSlug === project.slug}
-                />
+        {world.facultySubmitters?.length ? (
+          <div className="border-t border-black/10 px-5 py-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+              Faculty
+            </p>
+            <div className="mt-3 grid gap-px bg-black/10 sm:grid-cols-2">
+              {world.facultySubmitters.map((person, index) => (
+                <div
+                  key={`faculty-${person.name}-${person.position}-${index}`}
+                  className="bg-white px-4 py-3 text-sm leading-6 text-black"
+                >
+                  <p className="font-semibold">{person.name || "Unnamed faculty"}</p>
+                  {person.position ? (
+                    <p className="text-black/65">{person.position}</p>
+                  ) : null}
+                </div>
               ))}
             </div>
-          ) : (
-            <div className="border-2 border-dashed border-black/20 bg-white px-5 py-12 text-sm leading-7 text-black/65">
-              {emptyMessage}
+          </div>
+        ) : null}
+
+        {world.students?.length ? (
+          <div className="border-t border-black/10 px-5 py-5">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+              Students &amp; Skills
+            </p>
+            <ul className="mt-3 divide-y divide-black/10">
+              {world.students.map((student, index) => (
+                <li
+                  key={`student-${student.name}-${index}`}
+                  className="py-3 text-sm leading-6 text-black"
+                >
+                  <p className="font-semibold">{student.name || "Unnamed student"}</p>
+                  {student.skills ? (
+                    <p className="text-black/65">{student.skills}</p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
+        {(world.mode ?? "collective") === "collective" ? (
+          <>
+            <div className="border-t border-black/10 bg-[var(--ink-wash-200)] px-5 py-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+                    Projects Inside This World
+                  </p>
+                  <p className="mt-2 text-sm leading-7 text-black/65">
+                    {world.projects.length
+                      ? "Select a child project to open its full page and editorial body."
+                      : emptyMessage}
+                  </p>
+                </div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+                  {world.projects.length} project{world.projects.length === 1 ? "" : "s"}
+                </p>
+              </div>
             </div>
-          )}
-        </div>
+
+            <div className="border-t border-black/10 px-5 py-5">
+              {world.projects.length ? (
+                <div
+                  className={`grid gap-3 ${
+                    compact ? "grid-cols-2" : "grid-cols-2 xl:grid-cols-3"
+                  }`}
+                >
+                  {world.projects.map((project, index) => (
+                    <ProjectCardDisplay
+                      key={project.slug}
+                      project={{
+                        slug: project.slug,
+                        title: project.title,
+                        thumbnail: project.thumbnail,
+                        year: project.year,
+                        tags: project.tags,
+                        locationLabel: project.locationLabel,
+                        shortName: project.shortName,
+                        color: project.color,
+                        logo: project.logo,
+                        status: project.status,
+                        hasUnpublishedChanges: project.hasUnpublishedChanges,
+                      }}
+                      index={index}
+                      onSelect={() => onSelectProject(project.slug)}
+                      onPreview={
+                        onPreviewProject
+                          ? () => onPreviewProject(project.slug)
+                          : undefined
+                      }
+                      onPreviewEnd={
+                        onPreviewProjectEnd
+                          ? () => onPreviewProjectEnd(project.slug)
+                          : undefined
+                      }
+                      onDelete={
+                        onDeleteProject
+                          ? () => onDeleteProject(project.slug)
+                          : undefined
+                      }
+                      deletePending={deletingProjectSlug === project.slug}
+                      showBadges={showBadges}
+                      isActive={activeProjectSlug === project.slug}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="border-2 border-dashed border-black/20 bg-white px-5 py-12 text-sm leading-7 text-black/65">
+                  {emptyMessage}
+                </div>
+              )}
+            </div>
+          </>
+        ) : null}
       </section>
     </div>
   );

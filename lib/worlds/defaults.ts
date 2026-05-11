@@ -1,3 +1,4 @@
+import { DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
 import type { WorldDocument } from "@/types";
 
 export function createEmptyWorldDocument(): WorldDocument {
@@ -16,5 +17,9 @@ export function createEmptyWorldDocument(): WorldDocument {
       lng: 0,
     },
     locationLabel: "",
+    mode: "collective",
+    body: DEFAULT_PROJECT_BODY,
+    facultySubmitters: [],
+    students: [],
   };
 }

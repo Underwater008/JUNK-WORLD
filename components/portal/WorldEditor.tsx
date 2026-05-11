@@ -13,12 +13,32 @@ import {
 import { useRouter } from "next/navigation";
 import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
 import { slugify } from "@/lib/utils";
+import dynamic from "next/dynamic";
 import AutoGrowTextarea from "@/components/portal/AutoGrowTextarea";
 import CardCropOverlay from "@/components/portal/CardCropOverlay";
+import ContributorsForm from "@/components/portal/ContributorsForm";
 import CoverImageUpload from "@/components/portal/CoverImageUpload";
 import MetaRow from "@/components/portal/MetaRow";
 import SaveStatusModal from "@/components/portal/SaveStatusModal";
-import type { CropBox, University, WorldDocument } from "@/types";
+import { DEFAULT_PROJECT_BODY } from "@/lib/projects/defaults";
+import { uploadAsset } from "@/lib/uploads";
+import type {
+  CropBox,
+  ProjectBody,
+  University,
+  WorldDocument,
+  WorldMode,
+} from "@/types";
+
+const BlockNoteDocument = dynamic(
+  () => import("@/components/projects/BlockNoteDocument"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[260px] rounded-md border border-black/6 bg-black/[0.015]" />
+    ),
+  }
+);
 
 type SaveMode = "draft" | "publish";
 
@@ -107,15 +127,27 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
   const [originalCoverUrl, setOriginalCoverUrl] = useState<string>(
     initialWorld.coverImageUrl
   );
+  const [body, setBody] = useState<ProjectBody>(
+    initialWorld.body && initialWorld.body.length
+      ? initialWorld.body
+      : DEFAULT_PROJECT_BODY
+  );
   const [saveToast, setSaveToast] = useState<SaveToast | null>(null);
   const [baselineSnapshot, setBaselineSnapshot] = useState(() =>
     serializeWorldDocument(initialWorld)
   );
   const saveToastIdRef = useRef(0);
   const isEditMode = mode === "edit";
+  const currentDocument = useMemo<WorldDocument>(
+    () => ({
+      ...world,
+      body,
+    }),
+    [world, body]
+  );
   const currentDocumentSnapshot = useMemo(
-    () => serializeWorldDocument(world),
-    [world]
+    () => serializeWorldDocument(currentDocument),
+    [currentDocument]
   );
   const lastEmittedDocumentSnapshotRef = useRef(currentDocumentSnapshot);
   const isDirty = useMemo(
@@ -167,7 +199,7 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
             ? await fetch("/api/portal/worlds", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(world),
+                body: JSON.stringify(currentDocument),
               })
             : await fetch(
                 nextMode === "publish"
@@ -176,7 +208,7 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
                 {
                   method: nextMode === "publish" ? "POST" : "PUT",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(world),
+                  body: JSON.stringify(currentDocument),
                 }
               );
 
@@ -196,7 +228,7 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                  ...world,
+                  ...currentDocument,
                   slug: initialPayload.slug,
                 }),
               })
@@ -216,7 +248,7 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         }
 
         const savedDocument = {
-          ...world,
+          ...currentDocument,
           slug: payload.slug,
         };
 
@@ -257,7 +289,7 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         setSavingMode(null);
       }
     },
-    [currentSlug, mode, onSaveSuccess, router, world, writesDisabled]
+    [currentDocument, currentSlug, mode, onSaveSuccess, router, writesDisabled]
   );
 
   useImperativeHandle(
@@ -308,8 +340,8 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
     if (lastEmittedDocumentSnapshotRef.current === currentDocumentSnapshot) return;
 
     lastEmittedDocumentSnapshotRef.current = currentDocumentSnapshot;
-    onDocumentChange(world);
-  }, [currentDocumentSnapshot, onDocumentChange, world]);
+    onDocumentChange(currentDocument);
+  }, [currentDocument, currentDocumentSnapshot, onDocumentChange]);
 
   useEffect(() => {
     onDirtyStateChange?.(isDirty);
@@ -573,10 +605,83 @@ const WorldEditor = forwardRef<WorldEditorHandle, WorldEditorProps>(function Wor
         <AutoGrowTextarea
           value={world.summary}
           onChange={(value) => patchWorld("summary", value)}
-          placeholder="Write the world description..."
+          placeholder="Write a short world description..."
           disabled={writesDisabled}
-          minRows={6}
+          minRows={4}
           className="mt-4 w-full resize-none overflow-hidden border-0 bg-transparent text-[1.02rem] leading-7 text-black/72 outline-none placeholder:text-black/28"
+        />
+
+        {/* Mode picker */}
+        <div className="mt-8 border border-black/10 bg-[#FBF8F1] px-4 py-4">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/55">
+            What kind of world is this?
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {[
+              {
+                value: "single" as WorldMode,
+                title: "Single",
+                desc: "One group's piece of work. The world page is the page — fill body and contributors here, no child projects.",
+              },
+              {
+                value: "collective" as WorldMode,
+                title: "Collective",
+                desc: "A workshop or class collection. Body is an optional intro; each student or group gets their own project card below.",
+              },
+            ].map((option) => {
+              const active = (world.mode ?? "collective") === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => patchWorld("mode", option.value)}
+                  disabled={writesDisabled}
+                  className={`flex flex-col gap-1 border px-3 py-3 text-left transition disabled:opacity-50 ${
+                    active
+                      ? "border-black bg-white shadow-[3px_3px_0_#000]"
+                      : "border-black/15 bg-white/60 hover:border-black/40"
+                  }`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-black">
+                    {option.title}
+                  </span>
+                  <span className="text-[11px] leading-5 text-black/65">
+                    {option.desc}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Contributors */}
+        <div className="mt-8">
+          <ContributorsForm
+            facultySubmitters={world.facultySubmitters ?? []}
+            students={world.students ?? []}
+            onFacultyChange={(facultySubmitters) =>
+              patchWorld("facultySubmitters", facultySubmitters)
+            }
+            onStudentsChange={(students) => patchWorld("students", students)}
+            disabled={writesDisabled}
+            entity="world"
+          />
+        </div>
+
+        {/* Body — shown for both modes; in collective it's an optional intro */}
+        <div className="my-8 h-px bg-black/8" />
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-black/45">
+          {(world.mode ?? "collective") === "single"
+            ? "World page content"
+            : "Intro (optional)"}
+        </p>
+        <BlockNoteDocument
+          body={body}
+          editable={!writesDisabled}
+          uploadFile={(file) => uploadAsset(file, "worlds/body")}
+          onChange={setBody}
+          className="project-body project-editor-body mt-3 min-h-[260px]"
+          resetKey={currentSlug ?? "new-world"}
         />
       </div>
     </div>

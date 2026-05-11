@@ -1141,6 +1141,10 @@ export default function ProjectsView({
                       status: selectedWorld.status,
                       hasUnpublishedChanges: selectedWorld.hasUnpublishedChanges,
                       projects: selectedWorld.projects,
+                      mode: selectedWorld.document?.mode,
+                      body: selectedWorld.document?.body,
+                      facultySubmitters: selectedWorld.document?.facultySubmitters,
+                      students: selectedWorld.document?.students,
                     }}
                     compact={mobile}
                     showCover
