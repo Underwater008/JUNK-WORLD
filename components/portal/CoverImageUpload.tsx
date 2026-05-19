@@ -64,18 +64,23 @@ export default function CoverImageUpload({
       />
 
       {!imageUrl ? (
-        <div className="aspect-[16/9] overflow-hidden bg-[#F0EDE6]">
-          <button
-            type="button"
-            onClick={openPicker}
-            disabled={disabled || uploading}
-            className="group flex h-full w-full cursor-pointer items-center justify-center transition-colors hover:bg-[#E8E4DB] disabled:cursor-not-allowed"
-          >
-            <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-black/35 transition-colors group-hover:text-black/55">
-              {uploading ? "Uploading..." : "+ Add cover image"}
-            </span>
-          </button>
-        </div>
+        <>
+          <div className="aspect-[16/9] overflow-hidden bg-[#F0EDE6]">
+            <button
+              type="button"
+              onClick={openPicker}
+              disabled={disabled || uploading}
+              className="group flex h-full w-full cursor-pointer items-center justify-center transition-colors hover:bg-[#E8E4DB] disabled:cursor-not-allowed"
+            >
+              <span className="text-[11px] font-medium uppercase tracking-[0.18em] text-black/35 transition-colors group-hover:text-black/55">
+                {uploading ? "Uploading..." : "+ Add cover image"}
+              </span>
+            </button>
+          </div>
+          <p className="mt-2 text-[11px] leading-5 text-black/45">
+            Recommended: landscape, ~16:9, around 2000px on the long edge. Max 4 MB. JPEG, PNG, WebP, or GIF.
+          </p>
+        </>
       ) : (
         <div className="space-y-2">
           <div className="group relative overflow-hidden">

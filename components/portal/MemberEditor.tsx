@@ -191,6 +191,9 @@ export default function MemberEditor({
             <p className="text-sm text-black/65">
               Upload a member portrait, then edit their bio, role, and links.
             </p>
+            <p className="text-[11px] leading-5 text-black/45">
+              Square crop works best, ~600×600. Max 4 MB. JPEG, PNG, WebP, or GIF.
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
