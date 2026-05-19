@@ -173,6 +173,7 @@ export default function MobileLayout({
                 universities={baseUniversities}
                 onSelectMember={onSelectMember}
                 editorUnlocked={editorUnlocked}
+                editorSessionAvailable={editorSessionAvailable}
                 writesDisabled={writesDisabled}
               />
             </motion.div>

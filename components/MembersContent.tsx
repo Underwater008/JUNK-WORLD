@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import MemberCard from "@/components/MemberCard";
 import MemberEditor from "@/components/portal/MemberEditor";
+import LoginForm from "@/components/portal/LoginForm";
 import { PORTAL_READ_ONLY_MESSAGE } from "@/lib/portal/mode";
 import type { Member, University } from "@/types";
 
@@ -31,6 +32,7 @@ interface MembersContentProps {
   universities: University[];
   onSelectMember: (universityId: string | undefined) => void;
   editorUnlocked?: boolean;
+  editorSessionAvailable?: boolean;
   writesDisabled?: boolean;
 }
 
@@ -39,9 +41,23 @@ export default function MembersContent({
   universities,
   onSelectMember,
   editorUnlocked = false,
+  editorSessionAvailable = false,
   writesDisabled = false,
 }: MembersContentProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const editRequested = searchParams.get("edit") === "1";
+  const currentPath = searchParams.toString()
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
+
+  function handleExitEditMode() {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("edit");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname);
+  }
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
   const editingMember = useMemo(
     () =>
@@ -170,6 +186,61 @@ export default function MembersContent({
           </motion.p>
         ) : null}
       </div>
+
+      <AnimatePresence>
+        {editRequested && !editorSessionAvailable ? (
+          <AccessGate nextPath={currentPath} onExit={handleExitEditMode} />
+        ) : null}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+function AccessGate({
+  nextPath,
+  onExit,
+}: {
+  nextPath: string;
+  onExit: () => void;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-end bg-black/55 p-3 sm:items-center sm:justify-center sm:p-6"
+    >
+      <motion.div
+        initial={{ y: 24, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        exit={{ y: 24, opacity: 0 }}
+        transition={{ duration: 0.25, ease: "easeOut" }}
+        className="relative w-full max-w-[560px] overflow-hidden border-2 border-black bg-white shadow-[12px_12px_0_#000]"
+      >
+        <section className="relative bg-white px-5 py-5 sm:px-6 sm:py-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#6F6F6F]">
+                Shared Password
+              </p>
+              <h3 className="mt-4 font-serif text-3xl leading-none text-black">
+                Enter editor access.
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={onExit}
+              className="shrink-0 border border-black px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-black transition hover:bg-black hover:text-white"
+            >
+              Public View
+            </button>
+          </div>
+          <p className="mt-4 max-w-md text-sm leading-7 text-black/60">
+            Unlock inline editing for members — photos, bios, roles, and links.
+          </p>
+          <LoginForm nextPath={nextPath} submitLabel="Unlock Editor" />
+        </section>
+      </motion.div>
     </motion.div>
   );
 }

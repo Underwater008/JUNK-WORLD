@@ -1240,6 +1240,7 @@ function HomeContent({
                   universities={baseUniversities}
                   onSelectMember={handleSelectMember}
                   editorUnlocked={editorUnlocked}
+                  editorSessionAvailable={editorSessionAvailable}
                   writesDisabled={writesDisabled}
                 />
               </motion.div>
