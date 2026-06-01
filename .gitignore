@@ -35,3 +35,4 @@ docs/plans/
 # supabase local temp
 supabase/.temp/
 .vercel
+AGENTS.md
