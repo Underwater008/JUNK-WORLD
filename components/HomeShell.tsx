@@ -202,8 +202,10 @@ function ProjectStageGallery({
 
     try {
       await selectedProjectStageControllerRef.current.uploadGalleryFiles(files);
-    } catch {
-      setUploadError("Gallery upload failed.");
+    } catch (error) {
+      setUploadError(
+        error instanceof Error ? error.message : "Gallery upload failed."
+      );
     } finally {
       setUploading(false);
     }

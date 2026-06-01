@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useId, useRef, useState } from "react";
 import CroppedImage from "@/components/CroppedImage";
-import { uploadAsset } from "@/lib/uploads";
+import { MAX_UPLOAD_MB, uploadAsset } from "@/lib/uploads";
 import type { CropBox } from "@/types";
 
 interface CoverImageUploadProps {
@@ -78,7 +78,7 @@ export default function CoverImageUpload({
             </button>
           </div>
           <p className="mt-2 text-[11px] leading-5 text-black/45">
-            Recommended: landscape, ~16:9, around 2000px on the long edge. Max 4 MB. JPEG, PNG, WebP, or GIF.
+            Recommended: landscape, ~16:9, around 2000px on the long edge. Max {MAX_UPLOAD_MB} MB. JPEG, PNG, WebP, or GIF.
           </p>
         </>
       ) : (
