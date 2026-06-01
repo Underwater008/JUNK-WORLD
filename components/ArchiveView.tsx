@@ -1751,6 +1751,7 @@ export default function ArchiveView({
                       description: selectedWorld.description,
                       year: selectedWorld.year,
                       thumbnail: selectedWorld.thumbnail,
+                      thumbnailCrop: selectedWorld.thumbnailCrop,
                       locationLabel: selectedWorld.locationLabel,
                       university: selectedWorld.university,
                       shortName: selectedWorld.shortName,
@@ -1758,6 +1759,10 @@ export default function ArchiveView({
                       status: selectedWorld.status,
                       hasUnpublishedChanges: selectedWorld.hasUnpublishedChanges,
                       projects: selectedWorld.projects,
+                      mode: selectedWorld.document?.mode,
+                      body: selectedWorld.document?.body,
+                      facultySubmitters: selectedWorld.document?.facultySubmitters,
+                      students: selectedWorld.document?.students,
                     }}
                     emptyMessage="No child projects are published in this world yet."
                     onSelectProject={handleSelectProject}
