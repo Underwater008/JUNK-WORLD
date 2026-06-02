@@ -428,9 +428,7 @@ function ProjectStageGallery({
                 } ${
                   showDropTarget
                     ? "border-white/75"
-                    : hero
-                      ? "border-white/40"
-                      : "border-white/10"
+                    : "border-transparent"
                 } ${
                   editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
                 }`}
@@ -496,7 +494,7 @@ function ProjectStageGallery({
         onClick={() => onExpandedChange?.(true)}
         layoutId={heroLayoutId}
         transition={galleryHeroTransition}
-        className={`group pointer-events-auto absolute inset-x-8 z-20 h-[min(32vh,360px)] overflow-hidden border border-white/10 bg-black text-left shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
+        className={`group pointer-events-auto absolute inset-x-8 z-20 h-[min(32vh,360px)] overflow-hidden border border-transparent bg-black text-left shadow-[0_34px_90px_rgba(0,0,0,0.42)] ${frameTopClass}`}
         aria-label={`${galleryCtaLabel} for ${project.title}`}
       >
         <AnimatePresence mode="wait" initial={false}>

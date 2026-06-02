@@ -151,7 +151,7 @@ export default function WorldDetailSection({
               <h2 className="font-serif text-[clamp(2.3rem,5vw,4rem)] leading-[0.94] text-black">
                 {world.title}
               </h2>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-black/72 sm:text-base">
+              <p className="mt-4 max-w-3xl whitespace-pre-line text-sm leading-7 text-black/72 sm:text-base">
                 {world.description}
               </p>
             </div>
