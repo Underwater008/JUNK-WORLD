@@ -7,9 +7,11 @@ import { getUniversityWorlds } from "@/lib/consortium";
 import type { ProjectMarkerOffset, University } from "@/types";
 
 const R = 70;
-const LABEL_Z_THRESHOLD = 10;
+const LABEL_Z_THRESHOLD = 0;
 const COUNTRIES_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
+const GLOBE_TEXTURE_WIDTH = 2048;
+const GLOBE_TEXTURE_HEIGHT = 1024;
 
 type GlobeCountryGeometry =
   | { type: "MultiPolygon"; coordinates: number[][][][] }
@@ -43,6 +45,160 @@ function createDefaultRotationQuaternion() {
   return new THREE.Quaternion().setFromEuler(
     new THREE.Euler(0.3, 0, 0, "YXZ")
   );
+}
+
+function projectLngLatToTexturePoint(
+  lng: number,
+  lat: number,
+  width: number,
+  height: number
+) {
+  return {
+    x: ((lng + 180) / 360) * width,
+    y: ((90 - lat) / 180) * height,
+  };
+}
+
+function getUnwrappedTextureRing(
+  coords: number[][],
+  width: number,
+  height: number
+) {
+  const points: Array<{ x: number; y: number }> = [];
+  let prevX: number | null = null;
+
+  for (const [lng, lat] of coords) {
+    const point = projectLngLatToTexturePoint(lng, lat, width, height);
+    let x = point.x;
+
+    if (prevX !== null) {
+      while (x - prevX > width / 2) x -= width;
+      while (prevX - x > width / 2) x += width;
+    }
+
+    points.push({ x, y: point.y });
+    prevX = x;
+  }
+
+  return points;
+}
+
+function addTextureRingPath(
+  ctx: CanvasRenderingContext2D,
+  coords: number[][],
+  width: number,
+  height: number,
+  offsetX: number
+) {
+  const points = getUnwrappedTextureRing(coords, width, height);
+  if (points.length < 2) return;
+
+  ctx.moveTo(points[0].x + offsetX, points[0].y);
+  for (let i = 1; i < points.length; i++) {
+    ctx.lineTo(points[i].x + offsetX, points[i].y);
+  }
+  ctx.closePath();
+}
+
+function drawTexturePolygon(
+  ctx: CanvasRenderingContext2D,
+  rings: number[][][],
+  width: number,
+  height: number
+) {
+  for (const offsetX of [-width, 0, width]) {
+    ctx.beginPath();
+    for (const ring of rings) {
+      addTextureRingPath(ctx, ring, width, height, offsetX);
+    }
+    ctx.fill("evenodd");
+    ctx.stroke();
+  }
+}
+
+function createGlobeTexture(
+  countries: GlobeCountriesFeatureCollection | GlobeCountriesFeature
+) {
+  const width = GLOBE_TEXTURE_WIDTH;
+  const height = GLOBE_TEXTURE_HEIGHT;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return null;
+
+  const ocean = ctx.createLinearGradient(0, 0, 0, height);
+  ocean.addColorStop(0, "#b8edff");
+  ocean.addColorStop(0.28, "#68c9f4");
+  ocean.addColorStop(0.62, "#42aee7");
+  ocean.addColorStop(1, "#2d91d2");
+  ctx.fillStyle = ocean;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.16)";
+  ctx.lineWidth = 1;
+  for (let lng = -150; lng <= 150; lng += 30) {
+    const x = projectLngLatToTexturePoint(lng, 0, width, height).x;
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, height);
+    ctx.stroke();
+  }
+  for (let lat = -60; lat <= 60; lat += 30) {
+    const y = projectLngLatToTexturePoint(0, lat, width, height).y;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(width, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.fillStyle = "#9ee172";
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.52)";
+  ctx.lineWidth = 1.25;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  const drawGeometry = (geom: GlobeCountryGeometry) => {
+    if (geom.type === "MultiPolygon") {
+      for (const polygon of geom.coordinates) {
+        drawTexturePolygon(ctx, polygon, width, height);
+      }
+      return;
+    }
+
+    for (const polygon of [geom.coordinates]) {
+      drawTexturePolygon(ctx, polygon, width, height);
+    }
+  };
+
+  if (countries.type === "FeatureCollection") {
+    for (const country of countries.features) {
+      drawGeometry(country.geometry);
+    }
+  } else {
+    drawGeometry(countries.geometry);
+  }
+  ctx.restore();
+
+  ctx.save();
+  const equatorGlow = ctx.createLinearGradient(0, 0, 0, height);
+  equatorGlow.addColorStop(0, "rgba(255, 255, 255, 0)");
+  equatorGlow.addColorStop(0.5, "rgba(255, 244, 184, 0.18)");
+  equatorGlow.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.globalCompositeOperation = "screen";
+  ctx.fillStyle = equatorGlow;
+  ctx.fillRect(0, 0, width, height);
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
 }
 
 function createMarkerNode({
@@ -160,6 +316,7 @@ interface GlobeProps {
 export default function Globe({
   universities,
   selectedUniversity,
+  onSelectUniversity,
   hoveredProject,
   compact = false,
   scale,
@@ -221,8 +378,9 @@ export default function Globe({
   const hideSelectedUniversityMarkerRef = useRef(hideSelectedUniversityMarker);
   const focusTargetYOffsetRef = useRef(focusTargetYOffset);
   const cameraYRef = useRef(cameraY);
-  const labelsReadyRef = useRef(false);
-  const prevVisibleRef = useRef<Set<number>>(new Set());
+  const labelSmoothPosRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const projectLabelSmoothPosRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const hoveredLabelIdxRef = useRef<number | null>(null);
 
   // Keep refs in sync
   useEffect(() => {
@@ -339,6 +497,15 @@ export default function Globe({
     // 1. Setup Scene
     const scene = new THREE.Scene();
     // Removed scene.background to allow transparency
+    scene.add(new THREE.AmbientLight(0xffffff, 0.72));
+    const skyFill = new THREE.HemisphereLight(0xdff7ff, 0x4e7f65, 0.55);
+    scene.add(skyFill);
+    const keyLight = new THREE.DirectionalLight(0xffffff, 2.25);
+    keyLight.position.set(-120, 145, 190);
+    scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0xccefff, 0.35);
+    rimLight.position.set(140, -80, -170);
+    scene.add(rimLight);
     
     const cw = container.offsetWidth;
     const ch = container.offsetHeight;
@@ -346,6 +513,9 @@ export default function Globe({
     camera.position.set(0, cameraYRef.current, 280);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.04;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     // Set buffer size but DO NOT update style (handled by CSS to prevent flicker)
     renderer.setSize(cw, ch, false);
@@ -396,18 +566,33 @@ export default function Globe({
     };
 
     // 2. Build Globe Geometry (Static)
-    // White sphere (occludes back-facing lines)
-    globe.add(
-      new THREE.Mesh(
-        new THREE.SphereGeometry(R, 64, 64),
-        new THREE.MeshBasicMaterial({
-          color: 0xffffff,
-          polygonOffset: true,
-          polygonOffsetFactor: 1,
-          polygonOffsetUnits: 1,
-        })
-      )
+    const globeMaterial = new THREE.MeshStandardMaterial({
+      color: 0x58bfe9,
+      roughness: 0.76,
+      metalness: 0,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+
+    // Colored sphere (occludes back-facing lines)
+    const globeMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(R, 64, 64),
+      globeMaterial
     );
+    globe.add(globeMesh);
+
+    const atmosphereMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(R * 1.018, 64, 64),
+      new THREE.MeshBasicMaterial({
+        color: 0x8fdfff,
+        transparent: true,
+        opacity: 0.12,
+        side: THREE.BackSide,
+        depthWrite: false,
+      })
+    );
+    globe.add(atmosphereMesh);
 
     // Country borders
     fetch(COUNTRIES_URL)
@@ -448,13 +633,26 @@ export default function Globe({
           processGeom(countries.geometry);
         }
 
+        const texture = createGlobeTexture(countries);
+        if (texture) {
+          const previousMap = globeMaterial.map;
+          globeMaterial.map = texture;
+          globeMaterial.color.set(0xffffff);
+          globeMaterial.needsUpdate = true;
+          previousMap?.dispose();
+        }
+
         if (pts.length > 0) {
           const geom = new THREE.BufferGeometry();
           geom.setAttribute("position", new THREE.Float32BufferAttribute(pts, 3));
           globe.add(
             new THREE.LineSegments(
               geom,
-              new THREE.LineBasicMaterial({ color: 0x000000 })
+              new THREE.LineBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.44,
+              })
             )
           );
         }
@@ -594,6 +792,8 @@ export default function Globe({
     const _projVec = new THREE.Vector3();
     const _autoAxisVec = new THREE.Vector3();
 
+    let lastFrameTime = performance.now();
+
     const animate = () => {
       frameRef.current = requestAnimationFrame(animate);
       const s = sceneRef.current;
@@ -602,6 +802,13 @@ export default function Globe({
       // Skip render if canvas has no size (prevents white flash/glitches during layout changes)
       const canvas = s.renderer.domElement;
       if (canvas.width === 0 || canvas.height === 0) return;
+
+      const frameNow = performance.now();
+      const frameDt = Math.min(64, frameNow - lastFrameTime);
+      lastFrameTime = frameNow;
+      // Label follow easing: ~250ms time constant, leashed to LABEL_MAX_LAG px
+      const labelEase = 1 - Math.exp(-frameDt / 250);
+      const LABEL_MAX_LAG = 18;
 
       const isCompact = compactRef.current;
       const currentUniversities = universitiesRef.current;
@@ -615,7 +822,7 @@ export default function Globe({
         // Drag handled in onMove — skip auto-rotate
       } else if (s.targetQ) {
         s.rot.slerp(s.targetQ, autoRotateDisabled ? 0.08 : 0.05);
-      } else if (!autoRotateDisabled) {
+      } else if (!autoRotateDisabled && hoveredLabelIdxRef.current === null) {
         // Auto-rotate
         const speed = isCompact ? 0.0015 : 0.001;
         if (isCompact) {
@@ -638,6 +845,7 @@ export default function Globe({
       const currentScale = s.globe.scale.x;
       const newScale = currentScale + (targetScale - currentScale) * 0.02;
       s.globe.scale.setScalar(newScale);
+      const globeScale = s.globe.scale.x;
 
       const nextCameraY =
         s.camera.position.y + (cameraYRef.current - s.camera.position.y) * 0.08;
@@ -650,7 +858,16 @@ export default function Globe({
       s.renderer.render(s.scene, s.camera);
 
       // Label positioning with collision avoidance
-      const visible: { idx: number; x: number; y: number; w: number; h: number; opacity: number }[] = [];
+      const visible: {
+        idx: number;
+        x: number;
+        y: number;
+        anchorX: number;
+        anchorY: number;
+        w: number;
+        h: number;
+        opacity: number;
+      }[] = [];
 
       for (let i = 0; i < currentUniversities.length; i++) {
         const label = labelsRef.current[i];
@@ -661,12 +878,6 @@ export default function Globe({
 
         // Solo mode: only show the specified university's label
         const solo = soloLabelIdRef.current;
-
-        // In non-compact mode, hide all labels unless this is the solo label
-        if (!isCompact && !(solo && uni.id === solo)) {
-          label.style.opacity = "0";
-          continue;
-        }
 
         if (solo && uni.id !== solo) {
           label.style.opacity = "0";
@@ -682,9 +893,10 @@ export default function Globe({
             r * Math.cos(phi),
             r * Math.sin(phi) * Math.sin(theta)
           )
-          .applyQuaternion(s.globe.quaternion);
+          .applyQuaternion(s.globe.quaternion)
+          .multiplyScalar(globeScale);
 
-        if (_tempVec.z < LABEL_Z_THRESHOLD) {
+        if (_tempVec.z < LABEL_Z_THRESHOLD * globeScale) {
           label.style.opacity = "0";
           continue;
         }
@@ -696,10 +908,19 @@ export default function Globe({
         const x = (_projVec.x * 0.5 + 0.5) * canvasW;
         const y = (-_projVec.y * 0.5 + 0.5) * canvasH;
 
-        const frontFacing = _tempVec.z / R;
-        const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
+        const frontFacing = _tempVec.z / (R * globeScale);
+        const opacity = Math.min(1, Math.max(0.45, frontFacing * 2.8));
 
-        visible.push({ idx: i, x, y, w: label.offsetWidth || 36, h: label.offsetHeight || 36, opacity });
+        visible.push({
+          idx: i,
+          x,
+          y,
+          anchorX: x,
+          anchorY: y,
+          w: label.offsetWidth || 36,
+          h: label.offsetHeight || 36,
+          opacity,
+        });
       }
 
       // Limit to most front-facing labels
@@ -713,9 +934,19 @@ export default function Globe({
         visible.length = MAX_LABELS;
       }
 
-      // Full collision resolution
-      const PAD = 14;
-      for (let iter = 0; iter < 8; iter++) {
+      // Keep crowded labels readable without letting them drift away from their map point.
+      const PAD = 4;
+      const MAX_LABEL_DRIFT = 14;
+      const clampToAnchor = (label: (typeof visible)[number]) => {
+        label.x =
+          label.anchorX +
+          Math.max(-MAX_LABEL_DRIFT, Math.min(MAX_LABEL_DRIFT, label.x - label.anchorX));
+        label.y =
+          label.anchorY +
+          Math.max(-MAX_LABEL_DRIFT, Math.min(MAX_LABEL_DRIFT, label.y - label.anchorY));
+      };
+
+      for (let iter = 0; iter < 3; iter++) {
         for (let i = 0; i < visible.length; i++) {
           for (let j = i + 1; j < visible.length; j++) {
             const a = visible[i], b = visible[j];
@@ -735,42 +966,52 @@ export default function Globe({
                 a.y -= sign * push;
                 b.y += sign * push;
               }
+              clampToAnchor(a);
+              clampToAnchor(b);
             }
           }
         }
       }
 
-      // Apply resolved positions
+      // Apply resolved positions: ease toward the target in JS, but clamp the
+      // lag so a fast drag can never pull a label far from its dot.
+      const smoothPos = labelSmoothPosRef.current;
       const nowVisible = new Set<number>();
       for (const v of visible) {
         const label = labelsRef.current[v.idx];
         if (!label) continue;
         nowVisible.add(v.idx);
 
-        const newlyAppearing = !prevVisibleRef.current.has(v.idx);
-        if (newlyAppearing && labelsReadyRef.current) {
-          // Snap position without transition, keep opacity transition
-          label.style.transition = 'opacity 400ms ease-out';
-          label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
-          label.getBoundingClientRect(); // force reflow so snap applies
-          label.style.transition = 'transform 800ms ease-out, opacity 400ms ease-out';
+        let pos = smoothPos.get(v.idx);
+        if (!pos) {
+          // Newly appearing: snap straight to the target
+          pos = { x: v.x, y: v.y };
+          smoothPos.set(v.idx, pos);
         } else {
-          label.style.transform = `translate(${v.x}px, ${v.y}px) translate(-50%, -100%)`;
-        }
-        label.style.opacity = String(v.opacity);
-      }
-      prevVisibleRef.current = nowVisible;
-
-      // After first positioning, enable smooth transform transitions
-      if (!labelsReadyRef.current && visible.length > 0) {
-        labelsReadyRef.current = true;
-        requestAnimationFrame(() => {
-          for (const label of labelsRef.current) {
-            if (label) {
-              label.style.transition = 'transform 800ms ease-out, opacity 400ms ease-out';
-            }
+          pos.x += (v.x - pos.x) * labelEase;
+          pos.y += (v.y - pos.y) * labelEase;
+          const lagX = pos.x - v.x;
+          const lagY = pos.y - v.y;
+          const lag = Math.hypot(lagX, lagY);
+          if (lag > LABEL_MAX_LAG) {
+            const k = LABEL_MAX_LAG / lag;
+            pos.x = v.x + lagX * k;
+            pos.y = v.y + lagY * k;
           }
-        });
+        }
+        label.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -100%)`;
+        label.style.opacity = String(v.opacity);
+        label.style.pointerEvents = "auto";
+      }
+      for (const idx of smoothPos.keys()) {
+        if (!nowVisible.has(idx)) smoothPos.delete(idx);
+      }
+      // Hidden labels must not capture hovers or block globe dragging
+      for (let i = 0; i < labelsRef.current.length; i++) {
+        if (nowVisible.has(i)) continue;
+        const label = labelsRef.current[i];
+        if (label) label.style.pointerEvents = "none";
+        if (hoveredLabelIdxRef.current === i) hoveredLabelIdxRef.current = null;
       }
 
       // Project label positioning
@@ -820,9 +1061,10 @@ export default function Globe({
           -r * Math.sin(phi) * Math.cos(theta),
           r * Math.cos(phi),
           r * Math.sin(phi) * Math.sin(theta)
-        ).applyQuaternion(s.globe.quaternion);
+        ).applyQuaternion(s.globe.quaternion)
+          .multiplyScalar(globeScale);
 
-        if (_tempVec.z < LABEL_Z_THRESHOLD) {
+        if (_tempVec.z < LABEL_Z_THRESHOLD * globeScale) {
           label.style.opacity = "0";
           continue;
         }
@@ -836,7 +1078,7 @@ export default function Globe({
         const isFocusMarkerLabel = Boolean(focusMarkerRef.current);
         const labelY = isFocusMarkerLabel ? py + 5 : py + 14;
 
-        const frontFacing = _tempVec.z / R;
+        const frontFacing = _tempVec.z / (R * globeScale);
         const opacity = Math.min(1, Math.max(0, (frontFacing - 0.15) * 2.5));
 
         visibleProjectLabels.push({
@@ -876,12 +1118,34 @@ export default function Globe({
         }
       }
 
+      const projectSmoothPos = projectLabelSmoothPosRef.current;
+      const nowVisibleProjects = new Set<number>();
       for (const visibleProjectLabel of visibleProjectLabels) {
         const label = projectLabelsRef.current[visibleProjectLabel.idx];
         if (!label) continue;
+        nowVisibleProjects.add(visibleProjectLabel.idx);
 
-        label.style.transform = `translate(${visibleProjectLabel.x}px, ${visibleProjectLabel.y}px) translate(-50%, 0%)`;
+        let pos = projectSmoothPos.get(visibleProjectLabel.idx);
+        if (!pos) {
+          pos = { x: visibleProjectLabel.x, y: visibleProjectLabel.y };
+          projectSmoothPos.set(visibleProjectLabel.idx, pos);
+        } else {
+          pos.x += (visibleProjectLabel.x - pos.x) * labelEase;
+          pos.y += (visibleProjectLabel.y - pos.y) * labelEase;
+          const lagX = pos.x - visibleProjectLabel.x;
+          const lagY = pos.y - visibleProjectLabel.y;
+          const lag = Math.hypot(lagX, lagY);
+          if (lag > LABEL_MAX_LAG) {
+            const k = LABEL_MAX_LAG / lag;
+            pos.x = visibleProjectLabel.x + lagX * k;
+            pos.y = visibleProjectLabel.y + lagY * k;
+          }
+        }
+        label.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, 0%)`;
         label.style.opacity = String(visibleProjectLabel.opacity);
+      }
+      for (const idx of projectSmoothPos.keys()) {
+        if (!nowVisibleProjects.has(idx)) projectSmoothPos.delete(idx);
       }
 
       const editableMarkerGroup = editableFocusMarkerGroupRef.current;
@@ -925,6 +1189,22 @@ export default function Globe({
       
       // Dispose logic
       if (container.contains(el)) container.removeChild(el);
+      globe.traverse((child) => {
+        if (!(child instanceof THREE.Mesh || child instanceof THREE.LineSegments)) {
+          return;
+        }
+        child.geometry.dispose();
+        const materials = Array.isArray(child.material)
+          ? child.material
+          : [child.material];
+        for (const material of materials) {
+          const mappedMaterial = material as THREE.Material & {
+            map?: THREE.Texture | null;
+          };
+          mappedMaterial.map?.dispose();
+          material.dispose();
+        }
+      });
       renderer.dispose();
       sceneRef.current = null;
     };
@@ -948,13 +1228,16 @@ export default function Globe({
 
     if (selectedUniversity && !focusedProjectId) {
       if (!hideSelectedUniversityMarkerRef.current) {
-        const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
+        const m = createMarkerNode({
+          color: selectedUniversity.color,
+          radius: 1.8,
+        });
         m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
         s.markersGroup.add(m);
       }
     } else {
       universities.forEach(uni => {
-        const m = createMarkerNode({ color: 0x101010, radius: 1.8 });
+        const m = createMarkerNode({ color: uni.color, radius: 1.8 });
         m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
         s.markersGroup.add(m);
       });
@@ -1019,8 +1302,19 @@ export default function Globe({
             ref={(el) => {
               labelsRef.current[i] = el;
             }}
-            className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap transition-opacity duration-300 ease-out"
-            style={{ opacity: 0 }}
+            className="group absolute left-0 top-0 cursor-pointer will-change-[transform,opacity] whitespace-nowrap transition-opacity duration-300 ease-out hover:z-10"
+            style={{ opacity: 0, pointerEvents: "none" }}
+            onPointerEnter={() => {
+              hoveredLabelIdxRef.current = i;
+            }}
+            onPointerLeave={() => {
+              if (hoveredLabelIdxRef.current === i) {
+                hoveredLabelIdxRef.current = null;
+              }
+            }}
+            onClick={() => {
+              onSelectUniversity(uni);
+            }}
           >
             {uni.logo ? (
               <img
@@ -1028,11 +1322,12 @@ export default function Globe({
                 alt={uni.shortName}
                 width={36}
                 height={36}
+                className="origin-bottom transition-transform duration-200 ease-out group-hover:scale-[1.4]"
                 style={{ objectFit: "contain", display: "block" }}
                 draggable={false}
               />
             ) : (
-              <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-black">
+              <span className="block origin-bottom text-[9px] font-bold uppercase tracking-[0.1em] text-black transition-transform duration-200 ease-out group-hover:scale-[1.4]">
                 {uni.shortName}
               </span>
             )}
@@ -1062,9 +1357,7 @@ export default function Globe({
               className="absolute left-0 top-0 will-change-[transform,opacity] whitespace-nowrap"
               style={{
                 opacity: 0,
-                transition: isFocusMarkerLabel
-                  ? "opacity 400ms ease-out"
-                  : "transform 800ms ease-out, opacity 400ms ease-out",
+                transition: "opacity 400ms ease-out",
               }}
             >
               <span

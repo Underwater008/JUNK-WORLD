@@ -64,11 +64,6 @@ function getShiftedGlobeCenter(globeX: string) {
   return `${50 + Number.parseFloat(globeX)}%`;
 }
 
-function getAboutGlobePose(panel: string) {
-  const panelWidth = Number.parseFloat(panel);
-  return { x: `${panelWidth / 2}%`, y: "-18%" };
-}
-
 function moveGalleryItem<T>(items: T[], fromIndex: number, toIndex: number) {
   if (fromIndex === toIndex) return items;
 
@@ -696,16 +691,18 @@ function HomeContent({
     ? projectFocusedUniversity ?? selectedUniversity
     : selectedUniversity;
   const showSelectedProjectStage = isProjectsView && Boolean(selectedProject);
+  const aboutLandingActive = view === "about" && !showSelectedProjectStage;
   const galleryExpandedActive = showSelectedProjectStage && galleryExpanded;
   const projectLocationEditable =
     showSelectedProjectStage &&
     editorUnlocked &&
     !writesDisabled &&
     !galleryExpandedActive;
-  const currentPanelWidth = panelWidth[view];
+  const currentPanelWidth = aboutLandingActive ? "100%" : panelWidth[view];
   const activePanelWidth = galleryExpandedActive ? "0%" : currentPanelWidth;
-  const currentGlobePose =
-    view === "about" ? getAboutGlobePose(activePanelWidth) : globePose[view];
+  const currentGlobePose = aboutLandingActive
+    ? { x: "0%", y: "0%" }
+    : globePose[view];
   const currentLogoLeft = galleryExpandedActive
     ? "50%"
     : showSelectedProjectStage
@@ -763,11 +760,23 @@ function HomeContent({
     ? 1.12
     : detailViewportActive
       ? 1.24
-      : isProjectsView
-        ? 1.15
-        : 1;
-  const globeVerticalOffset = galleryExpandedActive || detailViewportActive ? 72 : 0;
-  const globeCameraY = galleryExpandedActive || detailViewportActive ? 18 : 40;
+      : aboutLandingActive
+        ? 1.7
+        : isProjectsView
+          ? 1.15
+          : 1;
+  const globeVerticalOffset =
+    galleryExpandedActive || detailViewportActive
+      ? 72
+      : aboutLandingActive
+        ? 340
+        : 0;
+  const globeCameraY =
+    galleryExpandedActive || detailViewportActive
+      ? 18
+      : aboutLandingActive
+        ? 26
+        : 40;
   const globeFocusTargetYOffset =
     galleryExpandedActive || detailViewportActive ? 0.48 : 0;
   const lockedGlobeUniversity = detailViewportActive
@@ -811,6 +820,15 @@ function HomeContent({
         top: "0%",
         width: "124%",
         height: "156%",
+        x: "0%",
+        y: "0%",
+      }
+    : aboutLandingActive
+    ? {
+        left: "0%",
+        top: "0%",
+        width: "100%",
+        height: "120%",
         x: "0%",
         y: "0%",
       }
@@ -1007,6 +1025,21 @@ function HomeContent({
     [view, router, searchParams]
   );
 
+  const handleGlobeUniversityClick = useCallback(
+    (uni: University | null) => {
+      if (!uni) {
+        setSelectedUniversity(null);
+        return;
+      }
+      if (view !== "projects") {
+        handleViewChange("projects");
+      }
+      // Runs after handleViewChange's reset, so the selection survives the view switch
+      setSelectedUniversity(uni);
+    },
+    [view, handleViewChange]
+  );
+
   const handleSelectMember = useCallback(
     (universityId: string | undefined) => {
       if (!universityId) {
@@ -1070,7 +1103,11 @@ function HomeContent({
       </motion.div>
 
       <div className="relative flex flex-1 overflow-hidden">
-        <div className="absolute inset-0 bg-black" />
+        <div
+          className={`absolute inset-0 ${
+            detailViewportActive ? "bg-black" : "bg-white"
+          }`}
+        />
         <motion.div
           className={`absolute ${
             detailViewportActive ? "overflow-hidden" : "overflow-visible"
@@ -1089,10 +1126,10 @@ function HomeContent({
             <Globe
               universities={globeUniversities}
               selectedUniversity={globeSelected}
-              onSelectUniversity={setSelectedUniversity}
+              onSelectUniversity={handleGlobeUniversityClick}
               hoveredProject={globeHoveredProject}
               compact={globeCompact}
-              allowDragInCompact={false}
+              allowDragInCompact={aboutLandingActive}
               hideLabels={detailFocusLockActive}
               soloLabelId={
                 showSelectedProjectStage
@@ -1106,11 +1143,13 @@ function HomeContent({
               maxLabels={
                 detailFocusLockActive
                   ? undefined
-                  : isProjectsView
-                    ? projectFocusedUniversity || selectedUniversity
-                      ? 1
-                      : 7
-                    : undefined
+                  : aboutLandingActive
+                    ? universities.length
+                    : isProjectsView
+                      ? projectFocusedUniversity || selectedUniversity
+                        ? 1
+                        : 7
+                      : undefined
               }
               disableAutoRotate={detailFocusLockActive}
               disableDrag={detailFocusLockActive && !projectLocationEditable}
@@ -1163,7 +1202,9 @@ function HomeContent({
         </AnimatePresence>
 
         <motion.div
-          className="pointer-events-none absolute inset-y-0 left-0 z-10 overflow-hidden bg-[var(--ink-wash-200)]"
+          className={`pointer-events-none absolute inset-y-0 left-0 z-10 overflow-hidden ${
+            aboutLandingActive ? "bg-transparent" : "bg-[var(--ink-wash-200)]"
+          }`}
           initial={false}
           animate={{
             width: activePanelWidth,
@@ -1180,11 +1221,13 @@ function HomeContent({
             width: activePanelWidth,
             x: galleryExpandedActive ? "-6%" : "0%",
             opacity: galleryExpandedActive ? 0 : 1,
-            borderRightWidth: galleryExpandedActive ? 0 : 2,
+            borderRightWidth:
+              galleryExpandedActive || aboutLandingActive ? 0 : 2,
           }}
           transition={panelTransition}
           style={{
-            pointerEvents: galleryExpandedActive ? "none" : "auto",
+            pointerEvents:
+              galleryExpandedActive || aboutLandingActive ? "none" : "auto",
             borderRightStyle: "solid",
             borderRightColor: "#000",
           }}

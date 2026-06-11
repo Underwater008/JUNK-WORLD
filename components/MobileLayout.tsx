@@ -58,6 +58,55 @@ export default function MobileLayout({
   editorUnlocked,
   writesDisabled,
 }: MobileLayoutProps) {
+  if (view === "about") {
+    return (
+      <main className="flex h-screen w-screen flex-col overflow-hidden bg-white">
+        <header className="flex h-12 shrink-0 items-center border-b-2 border-black bg-white px-4">
+          <nav className="flex items-center gap-3 overflow-x-auto">
+            {views.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => onViewChange(key)}
+                className={`cursor-pointer text-[11px] font-semibold uppercase tracking-[0.1em] transition-colors ${
+                  view === key ? "text-black" : "text-[var(--ink-wash-700)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        </header>
+
+        <div className="relative min-h-0 flex-1 overflow-hidden bg-white">
+          <motion.div
+            className="absolute inset-x-[-22%] bottom-0 h-[68vh] overflow-visible"
+            initial={false}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, ease }}
+          >
+            <Globe
+              universities={universities}
+              selectedUniversity={selectedUniversity}
+              onSelectUniversity={onSelectUniversity}
+              hoveredProject={hoveredProject}
+              compact={true}
+              allowDragInCompact={true}
+              scale={1.18}
+              verticalOffset={0}
+              cameraY={24}
+              hideLabels={false}
+              maxLabels={8}
+            />
+          </motion.div>
+
+          <div className="pointer-events-none absolute inset-0 z-10">
+            <AboutContent />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (view === "projects") {
     return (
       <main className="w-screen h-screen overflow-hidden flex flex-col bg-[var(--ink-wash-200)]">
@@ -121,7 +170,7 @@ export default function MobileLayout({
 
       {/* Globe section — animated height per view */}
       <motion.div
-        className="shrink-0 overflow-hidden border-b-2 border-black bg-black"
+        className="shrink-0 overflow-hidden border-b-2 border-black bg-white"
         initial={false}
         animate={{ height: globeHeight[view] }}
         transition={{ duration: 0.5, ease }}
@@ -135,49 +184,30 @@ export default function MobileLayout({
           allowDragInCompact={false}
           scale={globeScale[view]}
           hideLabels={false}
-          maxLabels={view === "about" ? 4 : undefined}
-          soloLabelId={
-            view === "members"
-              ? (selectedUniversity?.id ?? "__none__")
-              : undefined
-          }
+          soloLabelId={selectedUniversity?.id ?? "__none__"}
         />
       </motion.div>
 
       {/* Content area — scrollable, fills remaining space */}
       <div className="flex-1 min-h-0 safe-bottom">
         <AnimatePresence mode="wait">
-          {view === "about" && (
-            <motion.div
-              key="about"
-              className="h-full"
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-            >
-              <AboutContent />
-            </motion.div>
-          )}
-          {view === "members" && (
-            <motion.div
-              key="members"
+          <motion.div
+            key="members"
             className="h-full"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-              <MembersContent
-                members={members}
-                universities={baseUniversities}
-                onSelectMember={onSelectMember}
-                editorUnlocked={editorUnlocked}
-                editorSessionAvailable={editorSessionAvailable}
-                writesDisabled={writesDisabled}
-              />
-            </motion.div>
-          )}
+            <MembersContent
+              members={members}
+              universities={baseUniversities}
+              onSelectMember={onSelectMember}
+              editorUnlocked={editorUnlocked}
+              editorSessionAvailable={editorSessionAvailable}
+              writesDisabled={writesDisabled}
+            />
+          </motion.div>
         </AnimatePresence>
       </div>
     </main>

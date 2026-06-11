@@ -32,122 +32,70 @@ const stats = [
 export default function AboutContent() {
   return (
     <motion.div
-      className="h-full overflow-y-auto sidebar-scroll"
+      className="h-full overflow-hidden"
       initial="hidden"
       animate="visible"
       variants={stagger}
     >
-      <div className="px-6 py-8 md:px-10 md:py-12">
-        {/* Logo */}
-        <motion.img
-          variants={fadeUp}
-          src="/images/JUNK logos/JUNK-logo.gif"
-          alt="JUNK"
-          className="h-56 md:h-64"
-        />
+      <div className="relative h-full px-5 pt-5 md:px-12 md:pt-7">
+        <section className="relative z-20 mx-auto flex max-w-3xl flex-col items-center text-center">
+          <motion.img
+            variants={fadeUp}
+            src="/images/JUNK logos/JUNK-logo.gif"
+            alt="JUNK"
+            className="h-32 md:h-40 lg:h-44"
+          />
 
-        {/* Heading */}
-        <motion.h1
-          variants={fadeUp}
-          className="font-serif text-6xl md:text-7xl leading-[0.95] tracking-tight text-black mt-6"
-        >
-          World Building
-        </motion.h1>
+          <motion.p
+            variants={fadeUp}
+            className="mt-4 max-w-[36rem] text-balance font-serif text-[1.05rem] leading-[1.16] text-black md:mt-6 md:text-[1.35rem] lg:text-[1.5rem]"
+          >
+            JUNK is a research laboratory and global education initiative
+            connecting disciplines, cultures, and schools through world
+            building.
+          </motion.p>
 
-        {/* Divider */}
-        <motion.div
-          variants={fadeUp}
-          className="w-[120px] h-[2px] bg-black mt-8 mb-6"
-        />
+          <motion.div
+            variants={fadeUp}
+            className="mt-6 hidden md:flex md:items-stretch lg:mt-8"
+          >
+            {stats.map((stat, index) => (
+              <div
+                key={stat.label}
+                className={`px-7 text-center lg:px-10 ${
+                  index > 0 ? "border-l border-black/20" : ""
+                }`}
+              >
+                <span className="block font-serif text-[2rem] leading-none text-black lg:text-[2.5rem]">
+                  {stat.value}
+                </span>
+                <span className="mt-1.5 block whitespace-nowrap text-[0.6rem] font-bold uppercase tracking-[0.06em] text-[var(--ink-wash-900)] lg:text-[0.7rem]">
+                  {stat.label}
+                </span>
+              </div>
+            ))}
+          </motion.div>
 
-        {/* Subtitle */}
-        <motion.p
-          variants={fadeUp}
-          className="font-serif text-xl italic text-[var(--ink-wash-700)] mb-10"
-        >
-          A definition for the JUNK Consortium
-        </motion.p>
-
-        {/* Body paragraph 1 */}
-        <motion.p
-          variants={fadeUp}
-          className="text-sm leading-relaxed text-black mb-6"
-        >
-          World Building is a system that supports the unique capability of
-          co-creation to gather knowledge, prototype, develop and deliver ideas
-          that create change.
-        </motion.p>
-
-        {/* Body paragraph 2 */}
-        <motion.p
-          variants={fadeUp}
-          className="text-sm leading-relaxed text-black mb-6"
-        >
-          Its foundation in storytelling creates a shared language that
-          facilitates collaboration across multiple disciplines that do not
-          traditionally work together, vastly expanding possible solutions to
-          complex problems.
-        </motion.p>
-
-        {/* Body paragraph 3 */}
-        <motion.p
-          variants={fadeUp}
-          className="text-sm leading-relaxed text-black mb-10"
-        >
-          It uses the collective imagination to translate complexity into
-          comprehension.
-        </motion.p>
-
-        {/* Stats */}
-        <motion.div
-          variants={fadeUp}
-          className="flex gap-0 mb-10"
-        >
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="flex-1 border-t-2 border-black pt-4 pr-6"
-            >
-              <span className="font-serif text-2xl md:text-4xl text-black block">
-                {stat.value}
-              </span>
-              <span className="text-[10px] uppercase tracking-[0.12em] text-[var(--ink-wash-700)] font-bold mt-1 block">
-                {stat.label}
-              </span>
-            </div>
-          ))}
-        </motion.div>
-
-        {/* Body paragraph 4 */}
-        <motion.p
-          variants={fadeUp}
-          className="text-sm leading-relaxed text-black mb-6"
-        >
-          JUNK and the Junk Consortium are a research laboratory for a wide
-          range of disciplines and cultures&mdash;from politics to anthropology,
-          economics to journalism, media to medicine, science, art and
-          design&mdash;in a global education initiative within schools on 4
-          continents.
-        </motion.p>
-
-        {/* Body paragraph 5 */}
-        <motion.p
-          variants={fadeUp}
-          className="text-sm leading-relaxed text-black mb-12"
-        >
-          The Junk Consortium continues to educate participants&mdash;in the
-          past 3 years over 200 students&mdash;to use new muscle memory and
-          collaborative tools to support their work with a powerful platform:
-          world building.
-        </motion.p>
-
-        {/* Attribution */}
-        <motion.p
-          variants={fadeUp}
-          className="text-[10px] text-[var(--ink-wash-500)] font-mono tracking-wider"
-        >
-          draft.ff &mdash; AM 06252024
-        </motion.p>
+          <motion.div
+            variants={fadeUp}
+            className="mt-4 grid w-full grid-cols-2 gap-x-4 gap-y-3 md:hidden"
+          >
+            {stats.map((stat) => (
+              <div
+                key={stat.label}
+                className="relative border-t-2 border-black pt-1.5 text-left"
+              >
+                <span className="absolute right-0 top-[-5px] h-2 w-2 rounded-full bg-black" />
+                <span className="block font-serif text-[1.55rem] leading-none text-black">
+                  {stat.value}
+                </span>
+                <span className="mt-0.5 block text-[0.58rem] font-bold uppercase leading-tight text-[var(--ink-wash-900)]">
+                  {stat.label}
+                </span>
+              </div>
+            ))}
+          </motion.div>
+        </section>
       </div>
     </motion.div>
   );
