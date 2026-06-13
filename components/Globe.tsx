@@ -8,6 +8,18 @@ import type { ProjectMarkerOffset, University } from "@/types";
 
 const R = 70;
 const LABEL_Z_THRESHOLD = 0;
+// Constant idle rotation; only the latitude nod adapts to tour more logos.
+const AUTO_ROTATION_SPEED = 0.001; // rad per 60fps frame around Y
+const AUTO_COMPACT_ROTATION_SPEED = 0.0015; // rad per 60fps frame around Y
+const AUTO_TILT_MAX = 1.32; // rad (~76°) max nod toward/away from camera
+const AUTO_TILT_RATE = 0.00022; // rad per ms (~12.6°/s)
+const AUTO_SWEET_SPOT_LAT = 38; // latitude that lands mid-dome when front-facing
+const AUTO_FRONT_CENTER = 0; // deg from the camera-facing meridian
+const AUTO_FRONT_SIGMA = 110;
+const AUTO_SOUTH_BIAS_LAT = 35; // below this, tilt weighting increases
+const AUTO_SOUTH_BIAS_STRENGTH = 5;
+const AUTO_SCREEN_PULL_GAIN = 2.2; // rad per normalized viewport overflow
+const AUTO_LABEL_VIEWPORT_MARGIN = 48;
 const COUNTRIES_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 const GLOBE_TEXTURE_WIDTH = 2048;
@@ -381,6 +393,11 @@ export default function Globe({
   const labelSmoothPosRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const projectLabelSmoothPosRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const hoveredLabelIdxRef = useRef<number | null>(null);
+  const upcomingLatSumRef = useRef(0);
+  const upcomingWeightSumRef = useRef(0);
+  const upcomingMinLatRef = useRef(90);
+  const upcomingScreenPullRef = useRef(0);
+  const autoTiltRef = useRef(0);
 
   // Keep refs in sync
   useEffect(() => {
@@ -820,22 +837,58 @@ export default function Globe({
         (!isCompact || allowDragInCompactRef.current);
       if (canDrag && s.drag.active) {
         // Drag handled in onMove — skip auto-rotate
+        autoTiltRef.current = 0;
       } else if (s.targetQ) {
+        autoTiltRef.current = 0;
         s.rot.slerp(s.targetQ, autoRotateDisabled ? 0.08 : 0.05);
       } else if (!autoRotateDisabled && hoveredLabelIdxRef.current === null) {
-        // Auto-rotate
-        const speed = isCompact ? 0.0015 : 0.001;
-        if (isCompact) {
-          // Steady Y-axis spin + gentle tilt oscillation to center each continent
-          s.autoQ.setFromAxisAngle(autoAxis, speed);
-          s.rot.premultiply(s.autoQ);
-          // Slow latitude rock (~120s period) so different latitudes get centered
-          const tiltAngle = Math.sin(performance.now() * 0.00005) * 0.0004;
+        const currentTourTilt = autoTiltRef.current;
+        if (Math.abs(currentTourTilt) > 0.000001) {
           _autoAxisVec.set(1, 0, 0);
-          s.autoQ.setFromAxisAngle(_autoAxisVec, tiltAngle);
+          s.autoQ.setFromAxisAngle(_autoAxisVec, -currentTourTilt);
           s.rot.premultiply(s.autoQ);
-        } else {
-          s.autoQ.setFromAxisAngle(autoAxis, speed);
+        }
+
+        s.autoQ.setFromAxisAngle(
+          autoAxis,
+          (isCompact ? AUTO_COMPACT_ROTATION_SPEED : AUTO_ROTATION_SPEED) *
+            (frameDt / 16.667)
+        );
+        s.rot.premultiply(s.autoQ);
+
+        // Nod toward the mean latitude of universities about to come around,
+        // so southern campuses rise into the visible dome on their turn.
+        let targetTilt = 0;
+        if (!isCompact && upcomingWeightSumRef.current > 0.001) {
+          const meanLat =
+            upcomingLatSumRef.current / upcomingWeightSumRef.current;
+          const tourLat = Math.min(meanLat, upcomingMinLatRef.current);
+          targetTilt = THREE.MathUtils.clamp(
+            THREE.MathUtils.degToRad(AUTO_SWEET_SPOT_LAT - tourLat),
+            -AUTO_TILT_MAX,
+            AUTO_TILT_MAX
+          );
+        }
+        if (!isCompact) {
+          targetTilt = THREE.MathUtils.clamp(
+            targetTilt + upcomingScreenPullRef.current * AUTO_SCREEN_PULL_GAIN,
+            -AUTO_TILT_MAX,
+            AUTO_TILT_MAX
+          );
+        }
+        const maxStep = AUTO_TILT_RATE * frameDt;
+        const nextTourTilt =
+          currentTourTilt +
+          THREE.MathUtils.clamp(
+            targetTilt - currentTourTilt,
+            -maxStep,
+            maxStep
+          );
+        autoTiltRef.current = nextTourTilt;
+
+        if (Math.abs(nextTourTilt) > 0.000001) {
+          _autoAxisVec.set(1, 0, 0);
+          s.autoQ.setFromAxisAngle(_autoAxisVec, nextTourTilt);
           s.rot.premultiply(s.autoQ);
         }
       }
@@ -869,6 +922,18 @@ export default function Globe({
         opacity: number;
       }[] = [];
 
+      let upcomingLatSum = 0;
+      let upcomingWeightSum = 0;
+      let upcomingMinLat = 90;
+      let upcomingScreenPullSum = 0;
+      let upcomingScreenPullWeight = 0;
+      const containerRect = container.getBoundingClientRect();
+      const labelBandTop = containerRect.top + AUTO_LABEL_VIEWPORT_MARGIN;
+      const labelBandBottom = window.innerHeight - AUTO_LABEL_VIEWPORT_MARGIN;
+      const maxVisibleLabels = maxLabelsRef.current ?? 8;
+      const clampLabelsToViewport =
+        isCompact && maxVisibleLabels >= currentUniversities.length;
+
       for (let i = 0; i < currentUniversities.length; i++) {
         const label = labelsRef.current[i];
         if (!label) continue;
@@ -896,6 +961,28 @@ export default function Globe({
           .applyQuaternion(s.globe.quaternion)
           .multiplyScalar(globeScale);
 
+        // Feed the latitude nod: weight universities by their closeness to the
+        // camera-facing meridian so labels entering the dome can drive the tour.
+        const frontDeg =
+          Math.atan2(_tempVec.x, _tempVec.z) * (180 / Math.PI);
+        if (frontDeg > -170 && frontDeg < 170) {
+          const tFront = (frontDeg - AUTO_FRONT_CENTER) / AUTO_FRONT_SIGMA;
+          const wFront = Math.exp(-tFront * tFront);
+          const southBias =
+            1 +
+            Math.min(
+              1.4,
+              Math.max(0, (AUTO_SOUTH_BIAS_LAT - uni.lat) / 60)
+            ) *
+              AUTO_SOUTH_BIAS_STRENGTH;
+          const wTilt = wFront * southBias;
+          upcomingLatSum += uni.lat * wTilt;
+          upcomingWeightSum += wTilt;
+          if (wFront > 0.15) {
+            upcomingMinLat = Math.min(upcomingMinLat, uni.lat);
+          }
+        }
+
         if (_tempVec.z < LABEL_Z_THRESHOLD * globeScale) {
           label.style.opacity = "0";
           continue;
@@ -910,22 +997,50 @@ export default function Globe({
 
         const frontFacing = _tempVec.z / (R * globeScale);
         const opacity = Math.min(1, Math.max(0.45, frontFacing * 2.8));
+        const labelH = label.offsetHeight || 36;
+        const labelViewportTop = containerRect.top + y - labelH;
+        const labelViewportBottom = containerRect.top + y;
+        const bottomOverflow = Math.max(
+          0,
+          labelViewportBottom - labelBandBottom
+        );
+        const topOverflow = Math.max(0, labelBandTop - labelViewportTop);
+        if (frontFacing > 0.05 && (bottomOverflow > 0 || topOverflow > 0)) {
+          const screenPull = (bottomOverflow - topOverflow) / canvasH;
+          const screenWeight =
+            frontFacing *
+            (1 +
+              Math.min(
+                1.4,
+                Math.max(0, (AUTO_SOUTH_BIAS_LAT - uni.lat) / 60)
+              ) *
+                AUTO_SOUTH_BIAS_STRENGTH);
+          upcomingScreenPullSum += screenPull * screenWeight;
+          upcomingScreenPullWeight += screenWeight;
+        }
+        const clampedY = clampLabelsToViewport
+          ? THREE.MathUtils.clamp(
+              y,
+              labelBandTop - containerRect.top + labelH,
+              labelBandBottom - containerRect.top
+            )
+          : y;
 
         visible.push({
           idx: i,
           x,
-          y,
+          y: clampedY,
           anchorX: x,
-          anchorY: y,
+          anchorY: clampedY,
           w: label.offsetWidth || 36,
-          h: label.offsetHeight || 36,
+          h: labelH,
           opacity,
         });
       }
 
       // Limit to most front-facing labels
       visible.sort((a, b) => b.opacity - a.opacity);
-      const MAX_LABELS = maxLabelsRef.current ?? 8;
+      const MAX_LABELS = maxVisibleLabels;
       if (visible.length > MAX_LABELS) {
         for (const v of visible.slice(MAX_LABELS)) {
           const label = labelsRef.current[v.idx];
@@ -933,6 +1048,18 @@ export default function Globe({
         }
         visible.length = MAX_LABELS;
       }
+
+      upcomingLatSumRef.current = upcomingLatSum;
+      upcomingWeightSumRef.current = upcomingWeightSum;
+      upcomingMinLatRef.current = upcomingMinLat;
+      upcomingScreenPullRef.current =
+        upcomingScreenPullWeight > 0
+          ? THREE.MathUtils.clamp(
+              upcomingScreenPullSum / upcomingScreenPullWeight,
+              -1,
+              1
+            )
+          : 0;
 
       // Keep crowded labels readable without letting them drift away from their map point.
       const PAD = 4;
@@ -1177,6 +1304,7 @@ export default function Globe({
         editableMarkerGroup.style.opacity = "0";
       }
     };
+
     animate();
 
     return () => {
@@ -1186,7 +1314,7 @@ export default function Globe({
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);
       window.removeEventListener("pointerup", onUp);
-      
+
       // Dispose logic
       if (container.contains(el)) container.removeChild(el);
       globe.traverse((child) => {
