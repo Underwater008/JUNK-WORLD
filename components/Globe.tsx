@@ -24,6 +24,19 @@ const COUNTRIES_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 const GLOBE_TEXTURE_WIDTH = 2048;
 const GLOBE_TEXTURE_HEIGHT = 1024;
+const UNIVERSITY_MARKER_RADIUS_PX = 4.3;
+const SELECTED_UNIVERSITY_MARKER_RADIUS_PX = 4.55;
+const PROJECT_MARKER_RADIUS_PX = 3.45;
+const FOCUS_MARKER_RADIUS_PX = 4.2;
+const MIN_MARKER_LOCAL_RADIUS = 0.28;
+const MAX_MARKER_LOCAL_RADIUS = 1.22;
+const MARKER_HOVER_SCALE = 1.28;
+const MARKER_HOVER_HIT_RADIUS_PX = 16;
+const MARKER_HOVER_HIT_RADIUS_MULTIPLIER = 3.7;
+const MIN_LOGO_SIZE_PX = 30;
+const MAX_LOGO_SIZE_PX = 58;
+const LOGO_GLOBE_RADIUS_RATIO = 0.15;
+const FALLBACK_LABEL_FONT_RATIO = 0.31;
 
 type GlobeCountryGeometry =
   | { type: "MultiPolygon"; coordinates: number[][][][] }
@@ -215,20 +228,75 @@ function createGlobeTexture(
 
 function createMarkerNode({
   color,
-  radius,
+  pixelRadius,
+  universityId,
+  universityIndex,
 }: {
   color: THREE.ColorRepresentation;
-  radius: number;
+  pixelRadius: number;
+  universityId?: string;
+  universityIndex?: number;
 }) {
   const group = new THREE.Group();
+  group.userData.markerPixelRadius = pixelRadius;
+  if (universityId) {
+    group.userData.markerKind = "university";
+    group.userData.universityId = universityId;
+    group.userData.universityIndex = universityIndex ?? null;
+  }
 
   const dot = new THREE.Mesh(
-    new THREE.SphereGeometry(radius, 18, 18),
+    new THREE.SphereGeometry(1, 18, 18),
     new THREE.MeshBasicMaterial({ color: new THREE.Color(color) })
   );
   group.add(dot);
 
   return group;
+}
+
+function getResponsiveMarkerLocalRadius({
+  camera,
+  canvasHeight,
+  globeScale,
+  pixelRadius,
+}: {
+  camera: THREE.PerspectiveCamera;
+  canvasHeight: number;
+  globeScale: number;
+  pixelRadius: number;
+}) {
+  if (canvasHeight <= 0 || globeScale <= 0) {
+    return MIN_MARKER_LOCAL_RADIUS;
+  }
+
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const frontSurfaceDistance = Math.max(
+    1,
+    Math.hypot(
+      camera.position.x,
+      camera.position.y,
+      camera.position.z - R * globeScale
+    )
+  );
+  const worldUnits =
+    (pixelRadius * 2 * Math.tan(fov / 2) * frontSurfaceDistance) /
+    (canvasHeight * globeScale);
+
+  return THREE.MathUtils.clamp(
+    worldUnits,
+    MIN_MARKER_LOCAL_RADIUS,
+    MAX_MARKER_LOCAL_RADIUS
+  );
+}
+
+function getResponsiveLogoSize(globeRadiusPx: number) {
+  return Math.round(
+    THREE.MathUtils.clamp(
+      globeRadiusPx * LOGO_GLOBE_RADIUS_RATIO,
+      MIN_LOGO_SIZE_PX,
+      MAX_LOGO_SIZE_PX
+    )
+  );
 }
 
 function disposeMarkerNode(node: THREE.Object3D) {
@@ -350,6 +418,7 @@ export default function Globe({
   const containerRef = useRef<HTMLDivElement>(null);
   const labelsRef = useRef<(HTMLDivElement | null)[]>([]);
   const projectLabelsRef = useRef<(HTMLDivElement | null)[]>([]);
+  const onSelectUniversityRef = useRef(onSelectUniversity);
   const editableFocusMarkerRef = useRef(editableFocusMarker);
   const editableFocusMarkerGroupRef = useRef<HTMLDivElement | null>(null);
   const editableMarkerOffsetRef = useRef<ProjectMarkerOffset | null>(
@@ -393,6 +462,7 @@ export default function Globe({
   const labelSmoothPosRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const projectLabelSmoothPosRef = useRef<Map<number, { x: number; y: number }>>(new Map());
   const hoveredLabelIdxRef = useRef<number | null>(null);
+  const hoveredUniversityIdRef = useRef<string | null>(null);
   const upcomingLatSumRef = useRef(0);
   const upcomingWeightSumRef = useRef(0);
   const upcomingMinLatRef = useRef(90);
@@ -418,6 +488,7 @@ export default function Globe({
     focusTargetYOffsetRef.current = focusTargetYOffset;
     cameraYRef.current = cameraY;
     editableFocusMarkerRef.current = editableFocusMarker;
+    onSelectUniversityRef.current = onSelectUniversity;
 
     const s = sceneRef.current;
     if (s && s.renderer) {
@@ -446,6 +517,7 @@ export default function Globe({
     focusTargetYOffset,
     cameraY,
     editableFocusMarker,
+    onSelectUniversity,
   ]);
 
   useEffect(() => {
@@ -538,9 +610,12 @@ export default function Globe({
     renderer.setSize(cw, ch, false);
     
     const el = renderer.domElement;
+    el.style.position = "absolute";
+    el.style.inset = "0";
     el.style.width = "100%";
     el.style.height = "100%";
     el.style.outline = "none";
+    el.style.zIndex = "0";
     container.appendChild(el);
 
     const globe = new THREE.Group();
@@ -695,7 +770,9 @@ export default function Globe({
     resizeObserver.observe(container);
 
     // 4. Interaction Handlers
-    
+    const markerHoverVec = new THREE.Vector3();
+    const markerHoverProj = new THREE.Vector3();
+
     const isPointerOverGlobe = (clientX: number, clientY: number) => {
       const activeScene = sceneRef.current;
       if (!activeScene) return false;
@@ -719,7 +796,104 @@ export default function Globe({
       return Math.hypot(clientX - centerX, clientY - centerY) <= radius;
     };
 
+    const getHoveredUniversityMarker = (clientX: number, clientY: number) => {
+      const activeScene = sceneRef.current;
+      if (!activeScene) return null;
+
+      const rect = activeScene.renderer.domElement.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+
+      let closest:
+        | { distance: number; id: string; index: number | null }
+        | null = null;
+
+      const currentUniversities = universitiesRef.current;
+      const selected = selectedUniversityRef.current;
+      const focusedProjectId = hoveredProjectRef.current;
+      const markerUniversities =
+        selected && !focusedProjectId && !hideSelectedUniversityMarkerRef.current
+          ? [selected]
+          : selected && !focusedProjectId
+            ? []
+            : currentUniversities;
+
+      for (const uni of markerUniversities) {
+        const universityIndex = currentUniversities.findIndex(
+          (candidate) => candidate.id === uni.id
+        );
+        markerHoverVec
+          .copy(toVec3(uni.lat, uni.lng, R + 1))
+          .applyQuaternion(activeScene.globe.quaternion)
+          .multiplyScalar(activeScene.globe.scale.x);
+
+        let distance = Number.POSITIVE_INFINITY;
+        if (markerHoverVec.z >= LABEL_Z_THRESHOLD * activeScene.globe.scale.x) {
+          markerHoverProj.copy(markerHoverVec).project(activeScene.camera);
+          const x = rect.left + (markerHoverProj.x * 0.5 + 0.5) * rect.width;
+          const y = rect.top + (-markerHoverProj.y * 0.5 + 0.5) * rect.height;
+          distance = Math.hypot(clientX - x, clientY - y);
+        }
+
+        const label =
+          universityIndex >= 0 ? labelsRef.current[universityIndex] : null;
+        if (label && Number(getComputedStyle(label).opacity) > 0.05) {
+          const labelRect = label.getBoundingClientRect();
+          const labelAnchorX = (labelRect.left + labelRect.right) / 2;
+          const labelAnchorY = labelRect.bottom;
+          distance = Math.min(
+            distance,
+            Math.hypot(clientX - labelAnchorX, clientY - labelAnchorY)
+          );
+        }
+        if (!Number.isFinite(distance)) continue;
+
+        const pixelRadius =
+          selected && selected.id === uni.id
+            ? SELECTED_UNIVERSITY_MARKER_RADIUS_PX
+            : UNIVERSITY_MARKER_RADIUS_PX;
+        const hitRadius = Math.max(
+          MARKER_HOVER_HIT_RADIUS_PX,
+          pixelRadius * MARKER_HOVER_HIT_RADIUS_MULTIPLIER
+        );
+
+        if (distance > hitRadius || (closest && distance >= closest.distance)) {
+          continue;
+        }
+
+        closest = {
+          distance,
+          id: uni.id,
+          index: universityIndex >= 0 ? universityIndex : null,
+        };
+      }
+
+      return closest;
+    };
+
+    const updateHoveredMarkerFromPointer = (clientX: number, clientY: number) => {
+      const pointerOverGlobe = isPointerOverGlobe(clientX, clientY);
+      const hoveredMarker = getHoveredUniversityMarker(clientX, clientY);
+      hoveredUniversityIdRef.current = hoveredMarker?.id ?? null;
+      hoveredLabelIdxRef.current = hoveredMarker?.index ?? null;
+      el.style.cursor = hoveredMarker
+        ? "pointer"
+        : pointerOverGlobe
+          ? "grab"
+          : "default";
+    };
+
     const onDown = (e: PointerEvent) => {
+      const hoveredMarker = getHoveredUniversityMarker(e.clientX, e.clientY);
+      if (hoveredMarker) {
+        hoveredUniversityIdRef.current = hoveredMarker.id;
+        hoveredLabelIdxRef.current = hoveredMarker.index;
+        const university = universitiesRef.current.find(
+          (candidate) => candidate.id === hoveredMarker.id
+        );
+        if (university) onSelectUniversityRef.current(university);
+        return;
+      }
+
       if (
         disableDragRef.current ||
         (compactRef.current && !allowDragInCompactRef.current) ||
@@ -749,17 +923,13 @@ export default function Globe({
 
     const onMove = (e: PointerEvent) => {
       const s = sceneRef.current;
-      if (
-        !s ||
-        disableDragRef.current ||
-        (compactRef.current && !allowDragInCompactRef.current)
-      ) {
-        return;
-      }
+      if (!s) return;
 
-      const pointerOverGlobe = isPointerOverGlobe(e.clientX, e.clientY);
-
+      const canDrag =
+        !disableDragRef.current &&
+        (!compactRef.current || allowDragInCompactRef.current);
       if (s.drag.active) {
+        if (!canDrag) return;
         const dx = e.clientX - s.drag.x;
         const dy = e.clientY - s.drag.y;
         s.drag.x = e.clientX;
@@ -789,11 +959,20 @@ export default function Globe({
         return;
       }
 
-      el.style.cursor = pointerOverGlobe ? "grab" : "default";
+      updateHoveredMarkerFromPointer(e.clientX, e.clientY);
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      const s = sceneRef.current;
+      if (!s || s.drag.active) return;
+
+      updateHoveredMarkerFromPointer(e.clientX, e.clientY);
     };
 
     const onLeave = () => {
       const s = sceneRef.current;
+      hoveredUniversityIdRef.current = null;
+      hoveredLabelIdxRef.current = null;
       if (!s?.drag.active) {
         el.style.cursor = "default";
       }
@@ -802,6 +981,8 @@ export default function Globe({
     el.addEventListener("pointerdown", onDown);
     el.addEventListener("pointermove", onMove);
     el.addEventListener("pointerleave", onLeave);
+    el.addEventListener("mousemove", onMouseMove);
+    el.addEventListener("mouseleave", onLeave);
     window.addEventListener("pointerup", onUp);
 
     // 5. Animation Loop
@@ -830,6 +1011,18 @@ export default function Globe({
       const isCompact = compactRef.current;
       const currentUniversities = universitiesRef.current;
       const autoRotateDisabled = disableAutoRotateRef.current;
+      const hoveredDomLabelIdx = labelsRef.current.findIndex((label) =>
+        label?.matches(":hover")
+      );
+      if (hoveredDomLabelIdx >= 0) {
+        hoveredLabelIdxRef.current = hoveredDomLabelIdx;
+        hoveredUniversityIdRef.current =
+          currentUniversities[hoveredDomLabelIdx]?.id ??
+          hoveredUniversityIdRef.current;
+      }
+      const hoverPaused =
+        hoveredLabelIdxRef.current !== null ||
+        hoveredUniversityIdRef.current !== null;
 
       // Rotation logic
       const canDrag =
@@ -838,10 +1031,14 @@ export default function Globe({
       if (canDrag && s.drag.active) {
         // Drag handled in onMove — skip auto-rotate
         autoTiltRef.current = 0;
+      } else if (hoverPaused) {
+        // Keep logo/dot hover anchored by freezing both auto-tour and focus motion.
       } else if (s.targetQ) {
         autoTiltRef.current = 0;
         s.rot.slerp(s.targetQ, autoRotateDisabled ? 0.08 : 0.05);
-      } else if (!autoRotateDisabled && hoveredLabelIdxRef.current === null) {
+      } else if (
+        !autoRotateDisabled
+      ) {
         const currentTourTilt = autoTiltRef.current;
         if (Math.abs(currentTourTilt) > 0.000001) {
           _autoAxisVec.set(1, 0, 0);
@@ -908,6 +1105,46 @@ export default function Globe({
       }
 
       s.globe.quaternion.copy(s.rot);
+      const markerPixelRatio = s.renderer.getPixelRatio();
+      const markerCanvasW = canvas.width / markerPixelRatio;
+      const markerCanvasH = canvas.height / markerPixelRatio;
+      _tempVec.set(0, 0, 0).project(s.camera);
+      _projVec.set(R * globeScale, 0, 0).project(s.camera);
+      const projectedGlobeRadiusPx =
+        Math.hypot(
+          (_projVec.x - _tempVec.x) * markerCanvasW,
+          (_projVec.y - _tempVec.y) * markerCanvasH
+        ) * 0.5;
+      const logoSizePx = getResponsiveLogoSize(projectedGlobeRadiusPx);
+      const fallbackLabelFontSizePx = Math.round(
+        THREE.MathUtils.clamp(logoSizePx * FALLBACK_LABEL_FONT_RATIO, 9, 14)
+      );
+
+      container.style.setProperty("--globe-logo-size", `${logoSizePx}px`);
+      container.style.setProperty(
+        "--globe-label-font-size",
+        `${fallbackLabelFontSizePx}px`
+      );
+
+      for (const marker of s.markersGroup.children) {
+        const markerPixelRadius =
+          typeof marker.userData.markerPixelRadius === "number"
+            ? marker.userData.markerPixelRadius
+            : UNIVERSITY_MARKER_RADIUS_PX;
+        const markerHoverScale =
+          marker.userData.universityId === hoveredUniversityIdRef.current
+            ? MARKER_HOVER_SCALE
+            : 1;
+        marker.scale.setScalar(
+          getResponsiveMarkerLocalRadius({
+            camera: s.camera,
+            canvasHeight: markerCanvasH,
+            globeScale,
+            pixelRadius: markerPixelRadius,
+          }) * markerHoverScale
+        );
+      }
+
       s.renderer.render(s.scene, s.camera);
 
       // Label positioning with collision avoidance
@@ -1129,6 +1366,15 @@ export default function Globe({
         label.style.transform = `translate(${pos.x}px, ${pos.y}px) translate(-50%, -100%)`;
         label.style.opacity = String(v.opacity);
         label.style.pointerEvents = "auto";
+        const labelUniversity = currentUniversities[v.idx];
+        const markerHovered =
+          Boolean(labelUniversity) &&
+          labelUniversity.id === hoveredUniversityIdRef.current;
+        label.style.setProperty(
+          "--globe-marker-hover-scale",
+          markerHovered ? String(MARKER_HOVER_SCALE) : "1"
+        );
+        label.style.zIndex = markerHovered ? "10" : "";
       }
       for (const idx of smoothPos.keys()) {
         if (!nowVisible.has(idx)) smoothPos.delete(idx);
@@ -1137,7 +1383,11 @@ export default function Globe({
       for (let i = 0; i < labelsRef.current.length; i++) {
         if (nowVisible.has(i)) continue;
         const label = labelsRef.current[i];
-        if (label) label.style.pointerEvents = "none";
+        if (label) {
+          label.style.pointerEvents = "none";
+          label.style.setProperty("--globe-marker-hover-scale", "1");
+          label.style.zIndex = "";
+        }
         if (hoveredLabelIdxRef.current === i) hoveredLabelIdxRef.current = null;
       }
 
@@ -1313,6 +1563,8 @@ export default function Globe({
       el.removeEventListener("pointerdown", onDown);
       el.removeEventListener("pointermove", onMove);
       el.removeEventListener("pointerleave", onLeave);
+      el.removeEventListener("mousemove", onMouseMove);
+      el.removeEventListener("mouseleave", onLeave);
       window.removeEventListener("pointerup", onUp);
 
       // Dispose logic
@@ -1356,16 +1608,27 @@ export default function Globe({
 
     if (selectedUniversity && !focusedProjectId) {
       if (!hideSelectedUniversityMarkerRef.current) {
+        const selectedUniversityIndex = universities.findIndex(
+          (uni) => uni.id === selectedUniversity.id
+        );
         const m = createMarkerNode({
           color: selectedUniversity.color,
-          radius: 1.8,
+          pixelRadius: SELECTED_UNIVERSITY_MARKER_RADIUS_PX,
+          universityId: selectedUniversity.id,
+          universityIndex:
+            selectedUniversityIndex >= 0 ? selectedUniversityIndex : undefined,
         });
         m.position.copy(toVec3(selectedUniversity.lat, selectedUniversity.lng, R + 1));
         s.markersGroup.add(m);
       }
     } else {
-      universities.forEach(uni => {
-        const m = createMarkerNode({ color: uni.color, radius: 1.8 });
+      universities.forEach((uni, uniIndex) => {
+        const m = createMarkerNode({
+          color: uni.color,
+          pixelRadius: UNIVERSITY_MARKER_RADIUS_PX,
+          universityId: uni.id,
+          universityIndex: uniIndex,
+        });
         m.position.copy(toVec3(uni.lat, uni.lng, R + 1));
         s.markersGroup.add(m);
       });
@@ -1379,7 +1642,7 @@ export default function Globe({
             focusedProjectMarker.color ??
             selectedUniversity?.color ??
             "#000000",
-          radius: 1.7,
+          pixelRadius: FOCUS_MARKER_RADIUS_PX,
         });
         focusMesh.position.copy(
           toVec3(
@@ -1403,7 +1666,10 @@ export default function Globe({
         const { lat, lng } = project.markerOffset;
         // Skip if project is at the same location as the university
         if (Math.abs(lat - selectedUniversity.lat) < 0.01 && Math.abs(lng - selectedUniversity.lng) < 0.01) return;
-        const m = createMarkerNode({ color: selectedUniversity.color, radius: 1.4 });
+        const m = createMarkerNode({
+          color: selectedUniversity.color,
+          pixelRadius: PROJECT_MARKER_RADIUS_PX,
+        });
         m.position.copy(toVec3(lat, lng, R + 1));
         s.markersGroup.add(m);
       });
@@ -1423,7 +1689,7 @@ export default function Globe({
         transform: verticalOffset ? `translateY(${verticalOffset}px)` : undefined,
       }}
     >
-      <div className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${hideLabels ? "opacity-0" : ""}`}>
+      <div className={`absolute inset-0 z-10 pointer-events-none transition-opacity duration-300 ${hideLabels ? "opacity-0" : ""}`}>
         {universities.map((uni, i) => (
           <div
             key={uni.id}
@@ -1434,11 +1700,37 @@ export default function Globe({
             style={{ opacity: 0, pointerEvents: "none" }}
             onPointerEnter={() => {
               hoveredLabelIdxRef.current = i;
+              hoveredUniversityIdRef.current = uni.id;
+              labelsRef.current[i]?.style.setProperty(
+                "--globe-marker-hover-scale",
+                String(MARKER_HOVER_SCALE)
+              );
             }}
-            onPointerLeave={() => {
+            onPointerLeave={(event) => {
+              const nextElement = document.elementFromPoint(
+                event.clientX,
+                event.clientY
+              );
+              const labelRect = event.currentTarget.getBoundingClientRect();
+              const nearMarkerAnchor =
+                Math.hypot(
+                  event.clientX - (labelRect.left + labelRect.right) / 2,
+                  event.clientY - labelRect.bottom
+                ) <= MARKER_HOVER_HIT_RADIUS_PX;
+              if (nextElement?.tagName === "CANVAS" && nearMarkerAnchor) {
+                return;
+              }
+
               if (hoveredLabelIdxRef.current === i) {
                 hoveredLabelIdxRef.current = null;
               }
+              if (hoveredUniversityIdRef.current === uni.id) {
+                hoveredUniversityIdRef.current = null;
+              }
+              labelsRef.current[i]?.style.setProperty(
+                "--globe-marker-hover-scale",
+                "1"
+              );
             }}
             onClick={() => {
               onSelectUniversity(uni);
@@ -1448,14 +1740,27 @@ export default function Globe({
               <img
                 src={uni.logo}
                 alt={uni.shortName}
-                width={36}
-                height={36}
-                className="origin-bottom transition-transform duration-200 ease-out group-hover:scale-[1.4]"
-                style={{ objectFit: "contain", display: "block" }}
+                width={58}
+                height={58}
+                className="origin-bottom transition-transform duration-200 ease-out"
+                style={{
+                  display: "block",
+                  height: "var(--globe-logo-size, 36px)",
+                  objectFit: "contain",
+                  transform: "scale(var(--globe-marker-hover-scale, 1))",
+                  width: "var(--globe-logo-size, 36px)",
+                }}
                 draggable={false}
               />
             ) : (
-              <span className="block origin-bottom text-[9px] font-bold uppercase tracking-[0.1em] text-black transition-transform duration-200 ease-out group-hover:scale-[1.4]">
+              <span
+                className="block origin-bottom font-bold uppercase tracking-[0.1em] text-black transition-transform duration-200 ease-out"
+                style={{
+                  fontSize: "var(--globe-label-font-size, 9px)",
+                  lineHeight: 1,
+                  transform: "scale(var(--globe-marker-hover-scale, 1))",
+                }}
+              >
                 {uni.shortName}
               </span>
             )}
@@ -1463,7 +1768,7 @@ export default function Globe({
         ))}
       </div>
       {/* Project location labels */}
-      <div className="absolute inset-0 pointer-events-none">
+      <div className="absolute inset-0 z-10 pointer-events-none">
         {(!editableFocusMarker || !focusMarker
           ? focusMarker
             ? [focusMarker]
